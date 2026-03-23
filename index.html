@@ -2103,7 +2103,7 @@ function switchFn(fn) {
 async function loadCasos() {
   if (!currentUser) return;
   try {
-    const { data, error } = await sb.from('casos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+    const { data, error } = await sb.from('cases').select('*').eq('user_id', currentUser.id).is('deleted_at', null).order('created_at', { ascending: false });
     if (error) throw error;
     casos = data || [];
     renderCasosList();
@@ -2114,7 +2114,12 @@ async function loadCasos() {
 function renderCasosList(filter='') {
   const list = document.getElementById('casos-list');
   const count = document.getElementById('casos-count');
-  const filtered = casos.filter(c => !filter || (c.expediente||'').toLowerCase().includes(filter) || (c.materia||'').toLowerCase().includes(filter));
+  const filtered = casos.filter(c => !filter ||
+    (c.rol||'').toLowerCase().includes(filter) ||
+    (c.caratula||'').toLowerCase().includes(filter) ||
+    (c.materia||'').toLowerCase().includes(filter) ||
+    (c.name||'').toLowerCase().includes(filter)
+  );
   count.textContent = `${filtered.length} casos`;
   if (!filtered.length) {
     list.innerHTML = `<div class="empty-state" style="padding:32px"><div class="empty-icon">📁</div><h3>Sin casos</h3><p>${filter ? 'Sin resultados' : 'Crea tu primer expediente'}</p></div>`;
@@ -2122,22 +2127,22 @@ function renderCasosList(filter='') {
   }
   list.innerHTML = filtered.map(c => `
     <div class="caso-item${selectedCaso?.id===c.id?' active':''}" onclick="selectCaso('${c.id}')">
-      <span class="caso-num">${c.expediente||'—'}</span>
+      <span class="caso-num">${c.rol||'—'}</span>
       <div class="caso-info">
-        <div class="caso-title">${c.materia||'Sin descripción'}</div>
-        <div class="caso-meta">${c.procedimiento||'—'} · ${c.normativa||'—'}</div>
+        <div class="caso-title">${c.caratula||c.name||'Sin descripción'}</div>
+        <div class="caso-meta">${c.tipo_procedimiento||'—'} · ${c.materia||'—'}</div>
       </div>
-      <span class="caso-status ${getStatusClass(c.etapa)}">${c.etapa||'Activo'}</span>
+      <span class="caso-status ${getStatusClass(c.status||c.categoria)}">${c.status||'Activo'}</span>
     </div>
   `).join('');
 }
 
-function getStatusClass(etapa) {
-  if (!etapa) return 'status-investigacion';
-  const e = etapa.toLowerCase();
-  if (e.includes('sumario')) return 'status-sumario';
-  if (e.includes('sobreseido') || e.includes('absuelto')) return 'status-sobreseido';
-  if (e.includes('terminado') || e.includes('cerrado')) return 'status-terminado';
+function getStatusClass(status) {
+  if (!status) return 'status-investigacion';
+  const s = status.toLowerCase();
+  if (s.includes('sumario')) return 'status-sumario';
+  if (s.includes('sobreseido') || s.includes('absuelto')) return 'status-sobreseido';
+  if (s.includes('terminado') || s.includes('cerrado') || s === 'terminado') return 'status-terminado';
   return 'status-investigacion';
 }
 
@@ -2150,15 +2155,61 @@ function selectCaso(id) {
   selectedCaso = casos.find(c => c.id === id);
   renderCasosList(document.getElementById('casos-search').value.toLowerCase());
   if (selectedCaso) {
-    document.getElementById('caso-detail-header').textContent = `${selectedCaso.expediente || 'Sin número'} — ${selectedCaso.materia || 'Sin descripción'}`;
+    document.getElementById('caso-detail-header').textContent = `${selectedCaso.rol || 'Sin número'} — ${selectedCaso.caratula || selectedCaso.name || 'Sin descripción'}`;
     loadCasoTabs();
   }
 }
 
 function loadCasoTabs() {
   if (!selectedCaso) return;
-  document.getElementById('tab-participantes').innerHTML = `<p style="color:var(--text-dim);font-size:12px">Participantes del caso <strong>${selectedCaso.expediente}</strong></p><div class="empty-state" style="padding:20px"><p>Agrega participantes desde el expediente</p></div>`;
-  document.getElementById('tab-etapas').innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-icon">📋</div><h3>Etapas del Procedimiento</h3><p>Registra las etapas procesales</p></div>`;
+  const c = selectedCaso;
+  document.getElementById('tab-participantes').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Rol</th><th>Tipo</th><th>Origen</th><th>Protocolo</th></tr></thead>
+          <tbody><tr>
+            <td><strong>${c.rol||'—'}</strong></td>
+            <td>${c.tipo_procedimiento||'—'}</td>
+            <td>${c.origen||'—'}</td>
+            <td>${c.protocolo||'—'}</td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="table-card" style="padding:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Detalles del caso</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${[['Carátula', c.caratula], ['Materia', c.materia], ['Tipo caso', c.tipo_caso], ['Estado', c.status||c.categoria], ['Fecha denuncia', c.fecha_denuncia], ['Fecha resolución', c.fecha_resolucion], ['Actuario', c.actuario], ['Judicializada', c.judicializada ? 'Sí' : 'No']].map(([k,v]) => `<div style="font-size:12px"><span style="color:var(--text-muted);font-weight:600">${k}:</span> <span style="color:var(--text)">${v||'—'}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('tab-etapas').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${[['Fecha denuncia', c.fecha_denuncia], ['Fecha recepción fiscalía', c.fecha_recepcion_fiscalia], ['Fecha resolución', c.fecha_resolucion], ['Fecha nueva resolución', c.fecha_nueva_resolucion], ['Estado procedimiento', c.estado_procedimiento], ['Propuesta', c.propuesta], ['Fecha vista', c.fecha_vista]].filter(([,v])=>v).map(([k,v])=>`
+        <div class="pendiente-item" style="cursor:default">
+          <div class="pend-priority baja"></div>
+          <div class="pend-info"><div class="pend-title">${k}</div><div class="pend-meta">${v}</div></div>
+        </div>`).join('') || '<div class="empty-state"><div class="empty-icon">📋</div><h3>Sin etapas registradas</h3></div>'}
+    </div>`;
+  document.getElementById('tab-cronologia').innerHTML = `
+    <div style="padding:4px 0">
+      <div class="ley-article"><div class="ley-article-num">Creado</div><div class="ley-article-preview">${new Date(c.created_at).toLocaleString('es-CL')}</div></div>
+      <div class="ley-article"><div class="ley-article-num">Última actualización</div><div class="ley-article-preview">${new Date(c.updated_at).toLocaleString('es-CL')}</div></div>
+      ${c.fecha_denuncia ? `<div class="ley-article"><div class="ley-article-num">Denuncia</div><div class="ley-article-preview">${c.fecha_denuncia}</div></div>` : ''}
+      ${c.fecha_resolucion ? `<div class="ley-article"><div class="ley-article-num">Resolución</div><div class="ley-article-preview">${c.fecha_resolucion}</div></div>` : ''}
+    </div>`;
+  document.getElementById('tab-resoluciones').innerHTML = c.nueva_resolucion ? `
+    <div class="ley-article"><div class="ley-article-num">Nueva Resolución</div><div class="ley-article-title">${c.nueva_resolucion}</div><div class="ley-article-preview">${c.fecha_nueva_resolucion||''}</div></div>` :
+    `<div class="empty-state"><div class="empty-icon">📜</div><h3>Sin resoluciones registradas</h3></div>`;
+  document.getElementById('tab-diligencias').innerHTML = c.description ? `
+    <div class="ley-article"><div class="ley-article-num">Descripción</div><div class="ley-article-preview">${c.description}</div></div>
+    ${c.observaciones ? `<div class="ley-article"><div class="ley-article-num">Observaciones</div><div class="ley-article-preview">${c.observaciones}</div></div>` : ''}` :
+    `<div class="empty-state"><div class="empty-icon">📄</div><h3>Sin diligencias registradas</h3></div>`;
+  const memosList = c.memos ? (Array.isArray(c.memos) ? c.memos : [c.memos]) : [];
+  document.getElementById('tab-checklist').innerHTML = memosList.length ? memosList.map(m => `<div class="pendiente-item" style="cursor:default"><div class="pend-priority media"></div><div class="pend-info"><div class="pend-title">${typeof m === 'object' ? JSON.stringify(m) : m}</div></div></div>`).join('') :
+    `<div class="empty-state"><div class="empty-icon">✅</div><h3>Sin memos registrados</h3></div>`;
+  document.getElementById('tab-pendientes_caso').innerHTML = `
+    <div class="empty-state"><div class="empty-icon">⚡</div><h3>Sin acciones pendientes</h3><p>Agrega acciones desde el detalle del caso</p></div>`;
 }
 
 function switchCasoTab(tab) {
@@ -2183,8 +2234,15 @@ async function createCaso() {
   const norm = document.getElementById('nc-norm').value;
   if (!materia) { showToast('Ingresa una descripción', 'error'); return; }
   try {
-    const { data, error } = await sb.from('casos').insert([{
-      user_id: currentUser.id, expediente: exp, procedimiento: proc, materia, normativa: norm
+    const { data, error } = await sb.from('cases').insert([{
+      user_id: currentUser.id,
+      rol: exp,
+      name: `${exp} - ${proc}`,
+      tipo_procedimiento: proc,
+      materia,
+      protocolo: norm,
+      status: 'activo',
+      tipo_caso: norm === '21369' ? 'genero' : 'no_genero'
     }]).select().single();
     if (error) throw error;
     casos.unshift(data);
@@ -2199,33 +2257,31 @@ async function createCaso() {
 function updateCasoSelect() {
   const sel = document.getElementById('caso-select');
   sel.innerHTML = '<option value="">📂 Sin expediente</option>' +
-    casos.map(c => `<option value="${c.id}">${c.expediente||'—'} · ${c.materia?.substring(0,30)||''}</option>`).join('');
+    casos.map(c => `<option value="${c.id}">${c.rol||'—'} · ${(c.caratula||c.name||'').substring(0,35)}</option>`).join('');
 }
 
 // ─── STATS ───
 async function loadStats() {
   if (!currentUser) return;
   try {
-    const { data } = await sb.from('casos').select('*').eq('user_id', currentUser.id);
+    const { data } = await sb.from('cases').select('*').eq('user_id', currentUser.id).is('deleted_at', null);
     const all = data || [];
     const total = all.length;
-    const genero = all.filter(c => (c.normativa||'').includes('21369')).length;
-    const cargos = all.filter(c => (c.etapa||'').toLowerCase().includes('cargo')).length;
-    const terminados = all.filter(c => (c.etapa||'').toLowerCase().includes('terminado')).length;
+    const genero = all.filter(c => c.tipo_caso === 'genero').length;
+    const terminados = all.filter(c => (c.status||c.categoria||'').toLowerCase().includes('terminado')).length;
+    const enProceso = total - terminados;
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-genero').textContent = genero;
     document.getElementById('stat-nogenero').textContent = total - genero;
-    document.getElementById('stat-cargos').textContent = cargos;
+    document.getElementById('stat-cargos').textContent = all.filter(c => c.estado_procedimiento?.toLowerCase().includes('cargo')).length;
     document.getElementById('stat-finalizacion').textContent = terminados;
-    // Estadísticas view
     if (document.getElementById('est-total')) {
       document.getElementById('est-total').textContent = total;
-      document.getElementById('est-proceso').textContent = total - terminados;
+      document.getElementById('est-proceso').textContent = enProceso;
       document.getElementById('est-terminados').textContent = terminados;
     }
-    // Charts
-    renderBarChart('chart-procedimiento', buildCount(all, 'procedimiento'));
-    renderBarChart('chart-etapa', buildCount(all, 'etapa'));
+    renderBarChart('chart-procedimiento', buildCount(all, 'tipo_procedimiento'));
+    renderBarChart('chart-etapa', buildCount(all, 'status'));
   } catch(e) { console.error(e); }
 }
 
