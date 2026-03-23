@@ -448,6 +448,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Instru
           </div>
         </div>
 
+        <div class="form-section">Carpeta Drive del expediente</div>
+        <div class="form-field">
+          <label>URL de carpeta Google Drive</label>
+          <input id="fDriveUrl" placeholder="https://drive.google.com/drive/folders/…"/>
+        </div>
+
         <div id="modalDeleteBtn" style="display:none;margin-top:8px;">
           <button class="btn-danger" onclick="confirmDeleteCase()">🗑 Eliminar expediente</button>
         </div>
@@ -975,7 +981,7 @@ function filterAndShow(status, type){
 
 // ── Cases ─────────────────────────────────────────────────────────────────────
 async function loadCases(){
-  const{data}=await sb.from('cases').select('id,name,rol,caratula,status,description').is('deleted_at',null).order('updated_at',{ascending:false}).limit(200);
+  const{data}=await sb.from('cases').select('id,name,rol,caratula,status,description,drive_folder_url,drive_folder_id').is('deleted_at',null).order('updated_at',{ascending:false}).limit(200);
   allCases=data||[];
   renderCases(allCases);
 }
@@ -1019,6 +1025,9 @@ async function pickCase(c){
 function renderCaseHeader(c){
   const statusClass=c.status==='active'?'status-active':c.status==='terminado'?'status-terminado':'status-archived';
   const statusLabel=c.status==='active'?'Activo':c.status==='terminado'?'Terminado':'Archivado';
+  const driveBtn=c.drive_folder_url
+    ?`<a href="${c.drive_folder_url}" target="_blank" class="btn-sm" style="text-decoration:none">📁 Drive</a>`
+    :'<button class="btn-sm" onclick="openEditCase()" title="Agregar carpeta Drive">📁 +Drive</button>';
   document.getElementById('caseHeader').innerHTML=`
     <div class="case-header-info">
       <div class="case-header-name">${c.name}</div>
@@ -1027,6 +1036,7 @@ function renderCaseHeader(c){
     </div>
     <div class="case-header-right">
       <span class="status-badge ${statusClass}">${statusLabel}</span>
+      ${driveBtn}
       <button class="btn-sm" onclick="openEditCase()">✏ Editar</button>
       <button class="btn-sm" onclick="showTab('tabChat')">💬 Chat IA</button>
     </div>`;
