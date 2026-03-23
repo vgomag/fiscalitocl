@@ -970,7 +970,7 @@ async function saveCaseModal(){
     } else {
       // Crear nuevo
       const{data,error}=await sb.from('cases').insert({
-        name,rol,caratula,status,description,user_id:session.user.id
+        name,rol,caratula,status,description
       }).select().single();
       if(error) throw error;
       if(denunciante||denunciado||fiscal){
