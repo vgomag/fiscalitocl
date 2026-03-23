@@ -2103,7 +2103,7 @@ function switchFn(fn) {
 async function loadCasos() {
   if (!currentUser) return;
   try {
-    const { data, error } = await sb.from('cases').select('*').eq('user_id', currentUser.id).is('deleted_at', null).order('created_at', { ascending: false });
+    const { data, error } = await sb.from('cases').select('*').is('deleted_at', null).order('created_at', { ascending: false });
     if (error) throw error;
     casos = data || [];
     renderCasosList();
@@ -2264,7 +2264,7 @@ function updateCasoSelect() {
 async function loadStats() {
   if (!currentUser) return;
   try {
-    const { data } = await sb.from('cases').select('*').eq('user_id', currentUser.id).is('deleted_at', null);
+    const { data } = await sb.from('cases').select('*').is('deleted_at', null);
     const all = data || [];
     const total = all.length;
     const genero = all.filter(c => c.tipo_caso === 'genero').length;
