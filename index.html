@@ -429,13 +429,21 @@ async function loadCases(){
 function renderCases(cases){
   const c=document.getElementById('casesList');
   if(!cases.length){c.innerHTML='<div class="case-empty">Sin casos registrados</div>';return;}
+  // Store cases in a global map for safe lookup
+  window._casesMap={};
+  cases.forEach(x=>window._casesMap[x.id]=x);
   c.innerHTML=cases.map(x=>{
     const dotClass=x.status==='active'?'dot-active':x.status==='terminado'?'dot-terminado':'dot-archived';
-    return `<div class="case-item ${currentCase?.id===x.id?'active':''}" onclick="pickCase(${JSON.stringify(x).replace(/</g,'&lt;')})">
-      <div class="case-item-row"><div class="case-status-dot ${dotClass}"></div><div class="case-item-name">${x.name}</div></div>
-      ${x.rol?`<div class="case-item-rol">${x.rol}</div>`:''}
+    return `<div class="case-item ${currentCase?.id===x.id?'active':''}" onclick="pickCaseById('${x.id}')">
+      <div class="case-item-row"><div class="case-status-dot ${dotClass}"></div><div class="case-item-name">${esc(x.name||'')}</div></div>
+      ${x.rol?`<div class="case-item-rol">${esc(x.rol)}</div>`:''}
     </div>`;
   }).join('');
+}
+
+function pickCaseById(id){
+  const c=window._casesMap&&window._casesMap[id];
+  if(c) pickCase(c);
 }
 
 function filterCases(q){
