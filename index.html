@@ -709,6 +709,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Instru
           <span style="font-size:10px;color:var(--text-muted);">📚 Biblioteca RAG:</span>
           <select id="ragFolder" style="background:var(--bg);border:1px solid var(--border2);color:var(--text-dim);padding:2px 7px;border-radius:3px;font-size:10px;outline:none;font-family:'Instrument Sans',sans-serif;">
             <option value="">— Sin RAG —</option>
+            <option value="expediente">📂 Expediente (Drive del caso)</option>
             <option value="todos">🔍 Todas las colecciones</option>
             <option value="normativa">📋 Normativa vigente</option>
             <option value="dictamenes">⚖ Dictámenes CGR</option>
@@ -1209,7 +1210,6 @@ function renderCases(cases){
     const dotClass=x.status==='active'?'dot-active':x.status==='terminado'?'dot-terminado':'dot-archived';
     return `<div class="case-item ${currentCase?.id===x.id?'active':''}" onclick="pickCaseById('${x.id}')">
       <div class="case-item-row"><div class="case-status-dot ${dotClass}"></div><div class="case-item-name">${esc(x.name||'')}</div></div>
-      ${x.rol?`<div class="case-item-rol">${esc(x.rol)}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -1864,19 +1864,25 @@ async function sendMessage(text){
     let reply='';
 
     if(ragFolder){
-      // Usar RAG — buscar en Drive primero
-      if(ragStatus) ragStatus.textContent='Buscando en biblioteca…';
+      // Usar RAG — Drive del caso o Qdrant
+      if(ragStatus) ragStatus.textContent='Buscando documentos…';
       const ctx=buildContext();
       const r=await fetch('/.netlify/functions/rag',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({query:msg, folder:ragFolder, caseContext:ctx})
+        body:JSON.stringify({
+          query:msg,
+          folder:ragFolder,
+          caseContext:ctx,
+          driveFolderId: ragFolder==='expediente' ? (currentCase?.drive_folder_id||null) : null
+        })
       });
       if(!r.ok) throw new Error(`Error RAG ${r.status}`);
       const d=await r.json();
       reply=d.response||'Sin respuesta.';
       if(ragStatus){
-        const docs=d.docsConsultados?.length?`Consultados: ${d.docsConsultados.join(', ')}`:'';
-        ragStatus.textContent=docs?`✓ ${docs}`:'RAG activo';
+        const modeLabel=d.mode==='drive'?'📁 Drive del caso':'📚 Biblioteca';
+        const docs=d.docsConsultados?.length?` · ${d.docsConsultados.slice(0,2).join(', ')}${d.docsConsultados.length>2?'…':''}` :'';
+        ragStatus.textContent=`✓ ${modeLabel}${docs}`;
       }
     } else {
       // Chat normal con Claude
