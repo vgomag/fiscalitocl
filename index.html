@@ -58,8 +58,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
 .sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
 
 .sidebar-logo{padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#ffffff 0%,#f9fafb 100%);}
-.logo-img-wrap{width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid var(--gold-dim);box-shadow:0 0 10px var(--gold-glow2);}
-.logo-img-wrap img{width:100%;height:100%;object-fit:cover;}
+.logo-img-wrap{width:38px;height:38px;border-radius:50%;flex-shrink:0;border:1.5px solid var(--gold-dim);box-shadow:0 0 10px var(--gold-glow2);position:relative;}
+.logo-img-wrap img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 .logo-text-wrap{display:flex;flex-direction:column;}
 .logo-text{font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.1;}
 .logo-sub{font-size:8.5px;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin-top:1px;}
@@ -68,7 +68,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
 .sidebar-nav-item{display:flex;align-items:center;gap:9px;padding:6px 14px;font-size:10.5px;color:var(--text-dim);cursor:pointer;transition:all .15s;border-left:2px solid transparent;text-transform:uppercase;letter-spacing:.06em;font-weight:500;}
 .sidebar-nav-item:hover{background:var(--surface2);color:var(--text);}
 .sidebar-nav-item.active{background:var(--gold-glow);color:var(--gold);border-left-color:var(--gold);}
-.nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
+.nav-icon{width:16px;height:16px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;opacity:.8;vertical-align:middle;}
+.logo-img-wrap{cursor:pointer;position:relative;}.logo-img-wrap::after{content:'';position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,0);transition:background .2s;pointer-events:none;}.logo-img-wrap:hover::after{background:rgba(0,0,0,.45);}.logo-upload-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:50%;opacity:0;transition:opacity .2s;pointer-events:none;}.logo-img-wrap:hover .logo-upload-overlay{opacity:1;}
 
 /* Search in sidebar */
 .sidebar-search{padding:7px 8px 4px;}
@@ -557,9 +558,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
   <aside class="sidebar">
     <!-- LOGO -->
     <div class="sidebar-logo">
-      <div class="logo-img-wrap">
+      <div class="logo-img-wrap" onclick="document.getElementById('logoUploadInput').click()" title="Haz clic para cambiar el logo">
         <img id="sidebarLogoImg" src="https://i.imgur.com/0.png" alt="Fiscalito"/>
+        <div class="logo-upload-overlay"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v8M5 6l3-3 3 3"/><path d="M2 12h12"/></svg></div>
       </div>
+      <input type="file" id="logoUploadInput" accept="image/*" style="display:none" onchange="handleLogoUpload(this)"/>
       <div class="logo-text-wrap">
         <div class="logo-text">Fiscalito</div>
         <div class="logo-sub">Asistente Jurídico</div>
@@ -571,70 +574,70 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
       <!-- ADMINISTRACIÓN -->
       <div class="sidebar-section-label">Administración</div>
       <div class="sidebar-nav-item" onclick="alert('Admin usuarios — próximamente')">
-        <span class="nav-icon">👤</span>Admin Usuarios
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/></svg></span>Admin Usuarios
       </div>
 
       <!-- GESTIÓN -->
       <div class="sidebar-section-label">Gestión</div>
       <div class="sidebar-nav-item" id="navDashboard" onclick="openDashboard()">
-        <span class="nav-icon">⊞</span>Dashboard
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><rect x="2" y="2" width="5" height="5" rx="0.5"/><rect x="9" y="2" width="5" height="5" rx="0.5"/><rect x="2" y="9" width="5" height="5" rx="0.5"/><rect x="9" y="9" width="5" height="5" rx="0.5"/></svg></span>Dashboard
       </div>
       <div class="sidebar-nav-item" id="navTabla" onclick="openTabla()">
-        <span class="nav-icon">⊟</span>Mis Casos
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><line x1="5" y1="4" x2="14" y2="4"/><line x1="5" y1="8" x2="14" y2="8"/><line x1="5" y1="12" x2="14" y2="12"/><circle cx="2.5" cy="4" r="1" fill="currentColor" stroke="none"/><circle cx="2.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="2.5" cy="12" r="1" fill="currentColor" stroke="none"/></svg></span>Mis Casos
       </div>
       <div class="sidebar-nav-item" onclick="openPendientes()">
-        <span class="nav-icon">⏳</span>Pendientes
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><circle cx="8" cy="8" r="6"/><polyline points="8,4.5 8,8 10.5,10"/></svg></span>Pendientes
       </div>
       <div class="sidebar-nav-item" onclick="openEstadisticas()">
-        <span class="nav-icon">📈</span>Estadísticas
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><line x1="2" y1="14" x2="14" y2="14"/><rect x="2.5" y="8" width="3" height="6"/><rect x="6.5" y="5" width="3" height="9"/><rect x="10.5" y="10" width="3" height="4"/></svg></span>Estadísticas
       </div>
       <div class="sidebar-nav-item" onclick="pickFnAndChat('F10')">
-        <span class="nav-icon">⚖</span>Análisis Jurisprudencial
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><line x1="8" y1="2" x2="8" y2="14"/><line x1="5" y1="14" x2="11" y2="14"/><path d="M1.5 5.5 8 2l6.5 3.5"/><path d="M1.5 5.5 3.5 9.5a2 2 0 0 0 4 0l-2-4z"/><path d="M8.5 5.5 10.5 9.5a2 2 0 0 0 4 0l-2-4z"/></svg></span>Análisis Jurisprudencial
       </div>
       <div class="sidebar-nav-item" onclick="openAnalisisCasosExternos()">
-        <span class="nav-icon">📤</span>Análisis Casos Externos
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M7 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8A1.5 1.5 0 0 0 13 12.5V9"/><polyline points="10,2 14,2 14,6"/><line x1="8" y1="8" x2="14" y2="2"/></svg></span>Análisis Casos Externos
       </div>
       <div class="sidebar-nav-item" onclick="alert('Escritos judiciales — próximamente')">
-        <span class="nav-icon">📜</span>Escritos Judiciales
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="8" y2="12"/></svg></span>Escritos Judiciales
       </div>
       <div class="sidebar-nav-item" onclick="pickFnAndChat('F11')">
-        <span class="nav-icon">⚡</span>Ley 21.369
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M8 2L3 4.5v4.5C3 12 5.5 14.5 8 15c2.5-.5 5-3 5-6V4.5L8 2z"/><polyline points="6,8.5 7.5,10 10.5,7"/></svg></span>Ley 21.369
       </div>
       <div class="sidebar-nav-item" onclick="alert('Herramientas PDF — próximamente')">
-        <span class="nav-icon">🔧</span>Herramientas PDF
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M11 2a3 3 0 0 1 0 6 3 3 0 0 1-2.8-2H3a1 1 0 0 1 0-2h5.2A3 3 0 0 1 11 2z"/><path d="M5 10a3 3 0 0 0 0 6 3 3 0 0 0 2.8-2H13a1 1 0 0 0 0-2H7.8A3 3 0 0 0 5 10z"/></svg></span>Herramientas PDF
       </div>
 
       <!-- BIBLIOTECAS -->
       <div class="sidebar-section-label">Bibliotecas</div>
       <div class="sidebar-nav-item" onclick="openBiblioteca('normas')">
-        <span class="nav-icon">📋</span>Normas y Protocolos
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><rect x="3.5" y="4" width="9" height="10" rx="1"/><path d="M6 4V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="11" x2="9" y2="11"/></svg></span>Normas y Protocolos
       </div>
       <div class="sidebar-nav-item" onclick="openBiblioteca('modelos')">
-        <span class="nav-icon">📄</span>Modelos de Resolución
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><polyline points="9,2 9,6 13,6"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="9" y2="12"/></svg></span>Modelos de Resolución
       </div>
       <div class="sidebar-nav-item" onclick="openBiblioteca('parrafos')">
-        <span class="nav-icon">✍</span>Párrafos Tipo
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M10.5 2.5 13.5 5.5 6 13H3v-3z"/><line x1="9" y1="4" x2="12" y2="7"/></svg></span>Párrafos Tipo
       </div>
       <div class="sidebar-nav-item" onclick="openBiblioteca('procedimientos')">
-        <span class="nav-icon">📖</span>Procedimientos
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H8v12H3.5A1.5 1.5 0 0 1 2 12.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H8v12h4.5A1.5 1.5 0 0 0 14 12.5z"/></svg></span>Procedimientos
       </div>
       <div class="sidebar-nav-item" onclick="openPlantillasPersonalizadas()">
-        <span class="nav-icon">⭐</span>Plantillas Personalizadas
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><polygon points="8,2 9.8,6.5 14.5,6.8 11,9.9 12.1,14.5 8,12 3.9,14.5 5,9.9 1.5,6.8 6.2,6.5"/></svg></span>Plantillas Personalizadas
       </div>
 
       <!-- FUNCIONES IA -->
       <div class="sidebar-section-label">Funciones IA</div>
       <div class="fn-list" id="fnList">
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F0')"><span class="nav-icon">💬</span>Consulta General</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F2')"><span class="nav-icon">✏</span>Redacción y Estilo</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F11')"><span class="nav-icon">🎙</span>Transcripción de Actas</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F3')"><span class="nav-icon">👤</span>Cuestionario Inculpado</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F4')"><span class="nav-icon">👥</span>Cuestionario Testigos</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F5')"><span class="nav-icon">⚖</span>Aplicación del Método</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F6')"><span class="nav-icon">📋</span>Formulación de Cargos</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F7')"><span class="nav-icon">📄</span>Informe Final / Vista</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F8')"><span class="nav-icon">📑</span>Informes en Derecho</div>
-        <div class="sidebar-nav-item" onclick="pickFnAndChat('F9')"><span class="nav-icon">📝</span>Plantillas de Actuaciones</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F0')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M14 9.5A6 6 0 0 0 2 8a6 6 0 0 0 .9 3.2L2 14l3-.8A6 6 0 0 0 14 9.5z"/></svg></span>Consulta General</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F2')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M10.5 2.5 13.5 5.5 6 13H3v-3z"/><line x1="9" y1="4" x2="12" y2="7"/></svg></span>Redacción y Estilo</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F11')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><rect x="5.5" y="1.5" width="5" height="7" rx="2.5"/><path d="M3 8.5a5 5 0 0 0 10 0"/><line x1="8" y1="13.5" x2="8" y2="15"/><line x1="5.5" y1="15" x2="10.5" y2="15"/></svg></span>Transcripción de Actas</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F3')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/></svg></span>Cuestionario Inculpado</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F4')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><circle cx="6" cy="5" r="2"/><path d="M1.5 14c0-3 2-4.5 4.5-4.5s4.5 1.5 4.5 4.5"/><circle cx="11" cy="5" r="2"/><path d="M11 9.5c.8 0 3.5.8 3.5 4.5"/></svg></span>Cuestionario Testigos</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F5')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><line x1="8" y1="2" x2="8" y2="14"/><line x1="5" y1="14" x2="11" y2="14"/><path d="M1.5 5.5 8 2l6.5 3.5"/><path d="M1.5 5.5 3.5 9.5a2 2 0 0 0 4 0l-2-4z"/><path d="M8.5 5.5 10.5 9.5a2 2 0 0 0 4 0l-2-4z"/></svg></span>Aplicación del Método</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F6')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><rect x="3.5" y="4" width="9" height="10" rx="1"/><path d="M6 4V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="11" x2="9" y2="11"/></svg></span>Formulación de Cargos</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F7')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><polyline points="9,2 9,6 13,6"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="9" y2="12"/></svg></span>Informe Final / Vista</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F8')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 3h5l3 3v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="9,3 9,6 12,6"/><line x1="5.5" y1="9" x2="10.5" y2="9"/><line x1="5.5" y1="12" x2="9" y2="12"/></svg></span>Informes en Derecho</div>
+        <div class="sidebar-nav-item" onclick="pickFnAndChat('F9')"><span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ><rect x="2" y="2" width="12" height="12" rx="1.5"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="7" y1="6.5" x2="7" y2="14"/></svg></span>Plantillas de Actuaciones</div>
       </div>
 
       <!-- EXPEDIENTES mini-lista -->
@@ -805,8 +808,26 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
 
 <script>
 // ── LOGO ──────────────────────────────────────────────────────────────────────
-const LOGO_SRC = 'https://i.imgur.com/0.png';
-document.querySelectorAll('#authLogoImg,#sidebarLogoImg,#welcomeLogoImg').forEach(img=>img.src=LOGO_SRC);
+const LOGO_DEFAULT = 'https://i.imgur.com/0.png';
+let LOGO_SRC = localStorage.getItem('fiscalito_logo') || LOGO_DEFAULT;
+function applyLogo(src){
+  LOGO_SRC = src;
+  document.querySelectorAll('#authLogoImg,#sidebarLogoImg,#welcomeLogoImg').forEach(img=>img.src=src);
+}
+applyLogo(LOGO_SRC);
+function handleLogoUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    try { localStorage.setItem('fiscalito_logo', dataUrl); } catch(err) { console.warn('Logo storage:', err); }
+    applyLogo(dataUrl);
+    showToast('✓ Logo actualizado');
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
 
 const SB_URL='https://zgoxrzbkftzulsphmtfk.supabase.co';
 const SB_KEY='sb_publishable_qIWOIFlcCKbtr8_2Gf0FQA_73kSqD9-';
