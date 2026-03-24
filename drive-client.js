@@ -79,9 +79,9 @@
 
   // ── Carga los datos del caso desde Supabase ──
   async function loadCaseContext(caseId) {
-    if (!caseId || !window.SB_URL || !window.SB_KEY) return null;
-    var h = {apikey: window.SB_KEY, Authorization: 'Bearer '+window.SB_KEY};
-    var url = window.SB_URL + '/rest/v1/';
+    if (!caseId || !SB_URL || !SB_KEY) return null;
+    var h = {apikey: SB_KEY, Authorization: 'Bearer '+SB_KEY};
+    var url = SB_URL + '/rest/v1/';
 
     var [parts, dils, etapas, cron, resoluciones] = await Promise.all([
       fetch(url+'case_participants?select=role,name,rut,estamento,carrera,dependencia,email&case_id=eq.'+caseId+'&order=role.asc', {headers:h}).then(r=>r.json()),
@@ -321,7 +321,7 @@ async function driveUnlink(){
   if(!confirm('\u00bfDesvincular carpeta? No la elimina en Drive.'))return;
   var caso=window._currentDriveCase;if(!caso)return;
   try{
-    await fetch(window.SB_URL+'/rest/v1/cases?id=eq.'+caso.id,{method:'PATCH',headers:{apikey:window.SB_KEY,Authorization:'Bearer '+window.SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({drive_folder_id:null,drive_folder_url:null})});
+    await fetch(SB_URL+'/rest/v1/cases?id=eq.'+caso.id,{method:'PATCH',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({drive_folder_id:null,drive_folder_url:null})});
     window._currentDriveCase.drive_folder_id=null;window._currentDriveCase.drive_folder_url=null;
     if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=null;window._casesMap[caso.id].drive_folder_url=null;}
     await loadDriveTab();
