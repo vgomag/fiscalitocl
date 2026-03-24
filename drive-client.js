@@ -59,33 +59,28 @@
     console.log('[Fiscalito] v6 instalado — CRUD + contexto IA activos.');
   }
 
-  // ── Observer para inyectar botones CRUD al cargar cada pestaña ──
+  // ── Observer para inyectar botones CRUD ──
   function injectCrudObserver() {
-    var targets = {
-      diligenciasList:   injectCrudDiligencias,
-      cronologiaList:    injectCrudCronologia,
-      participantesList: injectCrudParticipantes,
-      accionesList:      injectCrudAcciones,
-      resolucionesList:  injectCrudResoluciones,
-    };
-    var obs = new MutationObserver(function(mutations) {
-      mutations.forEach(function(m) {
-        m.addedNodes.forEach(function(node) {
-          if (!node.id) return;
-          if (targets[node.id]) targets[node.id](node);
-          // Buscar dentro del nodo
-          Object.keys(targets).forEach(function(id) {
-            var el = node.querySelector ? node.querySelector('#'+id) : null;
-            if (el) targets[id](el);
-          });
-        });
-        // Cuando cambia innerHTML de un contenedor conocido
-        if (m.target && m.target.id && targets[m.target.id]) {
-          targets[m.target.id](m.target);
-        }
-      });
+    // Parchear las funciones de carga para inyectar CRUD después de renderizar
+    var loadFns = ['loadDiligencias','loadCronologia','loadParticipantes','loadAcciones','loadResoluciones'];
+    loadFns.forEach(function(fnName) {
+      if (typeof window[fnName] !== 'function') return;
+      var _orig = window[fnName];
+      window[fnName] = async function() {
+        var result = await _orig.apply(this, arguments);
+        setTimeout(function() { injectAllCrudButtons(); }, 100);
+        return result;
+      };
     });
-    obs.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // Inyectar botones en todos los containers de una vez
+  function injectAllCrudButtons() {
+    injectCrudDiligencias(document.getElementById('dilContent') || document.getElementById('diligenciasList'));
+    injectCrudCronologia(document.getElementById('cronologiaList'));
+    injectCrudParticipantes(document.getElementById('participantesList'));
+    injectCrudAcciones(document.getElementById('accionesList') || document.getElementById('tabAcciones'));
+    injectCrudResoluciones(document.getElementById('resolucionesList') || document.getElementById('tabResoluciones'));
   }
 
   // ── CRUD helpers Supabase ──
@@ -157,23 +152,25 @@
 
   // ── CRUD Diligencias ──
   function injectCrudDiligencias(container) {
-    if (container._crudInjected) return;
-    container._crudInjected = true;
-    // Agregar botón "+ Agregar diligencia" al inicio
-    var addBar = document.createElement('div');
-    addBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 0 10px;';
-    addBar.innerHTML = '<button onclick="window.crudAddDiligencia()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar diligencia</button>';
-    container.insertBefore(addBar, container.firstChild);
-
-    // Agregar botones a cada item
-    var items = container.querySelectorAll('.dil-item, .diligencia-item, tr[data-id], [data-id]');
-    items.forEach(function(item) {
-      var id = item.dataset.id || item.getAttribute('data-id');
-      if (!id || item.querySelector('.crud-btns')) return;
+    if (!container) return;
+    // Agregar botón "+ Agregar" si no existe
+    if (!container.querySelector('.crud-add-dil')) {
+      var addBar = document.createElement('div');
+      addBar.className = 'crud-add-dil';
+      addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
+      addBar.innerHTML = '<button onclick="window.crudAddDiligencia()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar diligencia</button>';
+      container.insertBefore(addBar, container.firstChild);
+    }
+    // Agregar botones a cada .dil-item extrayendo ID del onclick
+    container.querySelectorAll('.dil-item').forEach(function(item) {
+      if (item.querySelector('.crud-btns')) return;
+      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      if (!m) return;
+      var id = m[1];
       var btns = document.createElement('span');
       btns.className = 'crud-btns';
-      btns.style.cssText = 'float:right;white-space:nowrap;';
-      btns.innerHTML = crudBtn('✏','#5c6bc0','window.crudEditDiligencia("'+id+'")')+crudBtn('🗑','#e53935','window.crudDelDiligencia("'+id+'")');
+      btns.style.cssText = 'float:right;white-space:nowrap;margin-left:6px;';
+      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditDiligencia("'+id+'")')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelDiligencia("'+id+'")');
       item.appendChild(btns);
     });
   }
@@ -231,21 +228,25 @@
 
   // ── CRUD Cronología ──
   function injectCrudCronologia(container) {
-    if (container._crudInjected) return;
-    container._crudInjected = true;
-    var addBar = document.createElement('div');
-    addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
-    addBar.innerHTML = '<button onclick="window.crudAddCronologia()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar evento</button>';
-    container.insertBefore(addBar, container.firstChild);
-
-    var items = container.querySelectorAll('[data-id], .cron-item, .event-item');
-    items.forEach(function(item) {
-      var id = item.dataset.id;
-      if (!id || item.querySelector('.crud-btns')) return;
+    if (!container) return;
+    if (!container.querySelector('.crud-add-cron')) {
+      var addBar = document.createElement('div');
+      addBar.className = 'crud-add-cron';
+      addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
+      addBar.innerHTML = '<button onclick="window.crudAddCronologia()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar evento</button>';
+      container.insertBefore(addBar, container.firstChild);
+    }
+    // Los items de cronología tienen clase y onclick con UUID
+    var allEls = container.querySelectorAll('div[onclick], [class*=cron-item], [class*=event-item]');
+    allEls.forEach(function(item) {
+      if (item.querySelector('.crud-btns')) return;
+      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      if (!m) return;
+      var id = m[1];
       var btns = document.createElement('span');
       btns.className = 'crud-btns';
-      btns.style.cssText = 'float:right;';
-      btns.innerHTML = crudBtn('✏','#5c6bc0','window.crudEditCronologia("'+id+'")')+crudBtn('🗑','#e53935','window.crudDelCronologia("'+id+'")');
+      btns.style.cssText = 'float:right;white-space:nowrap;';
+      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditCronologia("'+id+'")')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelCronologia("'+id+'")');
       item.appendChild(btns);
     });
   }
@@ -298,21 +299,25 @@
 
   // ── CRUD Participantes ──
   function injectCrudParticipantes(container) {
-    if (container._crudInjected) return;
-    container._crudInjected = true;
-    var addBar = document.createElement('div');
-    addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
-    addBar.innerHTML = '<button onclick="window.crudAddParticipante()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar participante</button>';
-    container.insertBefore(addBar, container.firstChild);
-
-    var items = container.querySelectorAll('[data-id]');
-    items.forEach(function(item) {
-      var id = item.dataset.id;
-      if (!id || item.querySelector('.crud-btns')) return;
+    if (!container) return;
+    if (!container.querySelector('.crud-add-part')) {
+      var addBar = document.createElement('div');
+      addBar.className = 'crud-add-part';
+      addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
+      addBar.innerHTML = '<button onclick="window.crudAddParticipante()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar participante</button>';
+      container.insertBefore(addBar, container.firstChild);
+    }
+    // Buscar cualquier div con onclick que tenga un UUID (participantes usan onclick con ID)
+    var allEls = container.querySelectorAll('div[onclick], [class*=part], [class*=participant]');
+    allEls.forEach(function(item) {
+      if (item.querySelector('.crud-btns')) return;
+      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      if (!m) return;
+      var id = m[1];
       var btns = document.createElement('span');
       btns.className = 'crud-btns';
-      btns.style.cssText = 'float:right;';
-      btns.innerHTML = crudBtn('✏','#5c6bc0','window.crudEditParticipante("'+id+'")')+crudBtn('🗑','#e53935','window.crudDelParticipante("'+id+'")');
+      btns.style.cssText = 'float:right;white-space:nowrap;';
+      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditParticipante("'+id+'")')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelParticipante("'+id+'")');
       item.appendChild(btns);
     });
   }
@@ -376,21 +381,24 @@
 
   // ── CRUD Acciones Pendientes ──
   function injectCrudAcciones(container) {
-    if (container._crudInjected) return;
-    container._crudInjected = true;
-    var addBar = document.createElement('div');
-    addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
-    addBar.innerHTML = '<button onclick="window.crudAddAccion()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar acción</button>';
-    container.insertBefore(addBar, container.firstChild);
-
-    var items = container.querySelectorAll('[data-id]');
-    items.forEach(function(item) {
-      var id = item.dataset.id;
-      if (!id || item.querySelector('.crud-btns')) return;
+    if (!container) return;
+    if (!container.querySelector('.crud-add-acc')) {
+      var addBar = document.createElement('div');
+      addBar.className = 'crud-add-acc';
+      addBar.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 8px;';
+      addBar.innerHTML = '<button onclick="window.crudAddAccion()" style="padding:5px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Agregar acción</button>';
+      container.insertBefore(addBar, container.firstChild);
+    }
+    var allEls = container.querySelectorAll('div[onclick], [class*=accion], [class*=action], [class*=pending]');
+    allEls.forEach(function(item) {
+      if (item.querySelector('.crud-btns')) return;
+      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      if (!m) return;
+      var id = m[1];
       var btns = document.createElement('span');
       btns.className = 'crud-btns';
-      btns.style.cssText = 'float:right;';
-      btns.innerHTML = crudBtn('✏','#5c6bc0','window.crudEditAccion("'+id+'")')+crudBtn('🗑','#e53935','window.crudDelAccion("'+id+'")');
+      btns.style.cssText = 'float:right;white-space:nowrap;';
+      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditAccion("'+id+'")')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelAccion("'+id+'")');
       item.appendChild(btns);
     });
   }
@@ -443,17 +451,17 @@
 
   // ── CRUD Resoluciones ──
   function injectCrudResoluciones(container) {
-    if (container._crudInjected) return;
-    container._crudInjected = true;
-
-    var items = container.querySelectorAll('[data-id]');
-    items.forEach(function(item) {
-      var id = item.dataset.id;
-      if (!id || item.querySelector('.crud-btns')) return;
+    if (!container) return;
+    var allEls = container.querySelectorAll('div[onclick], [class*=resol], [class*=resolution]');
+    allEls.forEach(function(item) {
+      if (item.querySelector('.crud-btns')) return;
+      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      if (!m) return;
+      var id = m[1];
       var btns = document.createElement('span');
       btns.className = 'crud-btns';
-      btns.style.cssText = 'float:right;margin-top:4px;';
-      btns.innerHTML = crudBtn('✏','#5c6bc0','window.crudEditResolucion("'+id+'")')+crudBtn('🗑','#e53935','window.crudDelResolucion("'+id+'")');
+      btns.style.cssText = 'float:right;margin-top:4px;white-space:nowrap;';
+      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditResolucion("'+id+'")')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelResolucion("'+id+'")');
       item.appendChild(btns);
     });
   }
