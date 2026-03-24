@@ -156,7 +156,7 @@
     // Agregar botones a cada .dil-item extrayendo ID del onclick
     container.querySelectorAll('.dil-item').forEach(function(item) {
       if (item.querySelector('.crud-btns')) return;
-      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if (!m) return;
       var id = m[1];
       var btns = document.createElement('span');
@@ -232,7 +232,7 @@
     var allEls = container.querySelectorAll('div[onclick], [class*=cron-item], [class*=event-item]');
     allEls.forEach(function(item) {
       if (item.querySelector('.crud-btns')) return;
-      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if (!m) return;
       var id = m[1];
       var btns = document.createElement('span');
@@ -303,7 +303,7 @@
     var allEls = container.querySelectorAll('div[onclick], [class*=part], [class*=participant]');
     allEls.forEach(function(item) {
       if (item.querySelector('.crud-btns')) return;
-      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if (!m) return;
       var id = m[1];
       var btns = document.createElement('span');
@@ -384,7 +384,7 @@
     var allEls = container.querySelectorAll('div[onclick], [class*=accion], [class*=action], [class*=pending]');
     allEls.forEach(function(item) {
       if (item.querySelector('.crud-btns')) return;
-      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if (!m) return;
       var id = m[1];
       var btns = document.createElement('span');
@@ -447,7 +447,7 @@
     var allEls = container.querySelectorAll('div[onclick], [class*=resol], [class*=resolution]');
     allEls.forEach(function(item) {
       if (item.querySelector('.crud-btns')) return;
-      var m = (item.getAttribute('onclick')||'').match(/['"]([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})['"]/);
+      var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if (!m) return;
       var id = m[1];
       var btns = document.createElement('span');
@@ -581,7 +581,7 @@
       }
       dil.querySelectorAll('.dil-item').forEach(function(item) {
         if (item.querySelector('.crud-btns')) return;
-        var m = (item.getAttribute('onclick')||'').match(/['"]([\w-]{36})['"]/);
+        var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
         var id = m[1];
         var btns = document.createElement('span');
@@ -603,7 +603,7 @@
       }
       cron.querySelectorAll('div[onclick]').forEach(function(item) {
         if (item.querySelector('.crud-btns')) return;
-        var m = (item.getAttribute('onclick')||'').match(/['"]([\w-]{36})['"]/);
+        var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
         var id = m[1];
         var btns = document.createElement('span');
@@ -625,7 +625,7 @@
       }
       part.querySelectorAll('div[onclick]').forEach(function(item) {
         if (item.querySelector('.crud-btns')) return;
-        var m = (item.getAttribute('onclick')||'').match(/['"]([\w-]{36})['"]/);
+        var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
         var id = m[1];
         var btns = document.createElement('span');
@@ -647,7 +647,7 @@
       }
       acc.querySelectorAll('div[onclick]').forEach(function(item) {
         if (item.querySelector('.crud-btns')) return;
-        var m = (item.getAttribute('onclick')||'').match(/['"]([\w-]{36})['"]/);
+        var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
         var id = m[1];
         var btns = document.createElement('span');
@@ -662,7 +662,7 @@
     if (res) {
       res.querySelectorAll('div[onclick]').forEach(function(item) {
         if (item.querySelector('.crud-btns')) return;
-        var m = (item.getAttribute('onclick')||'').match(/['"]([\w-]{36})['"]/);
+        var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
         var id = m[1];
         var btns = document.createElement('span');
