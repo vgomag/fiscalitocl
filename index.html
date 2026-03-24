@@ -478,11 +478,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
           <div class="form-field"><label>Tipo de procedimiento</label>
             <select id="fTipo">
               <option value="">— Seleccionar —</option>
-              <option value="investigacion_sumaria">Investigación Sumaria</option>
-              <option value="sumario_administrativo">Sumario Administrativo</option>
-              <option value="procedimiento_disciplinario">Procedimiento Disciplinario</option>
-              <option value="protocolo_genero">Protocolo de Género</option>
-              <option value="protocolo_laboral">Protocolo Laboral (Ley Karin)</option>
+              <option value="Investigación Sumaria">Investigación Sumaria</option>
+              <option value="Sumario Administrativo">Sumario Administrativo</option>
+              <option value="Procedimiento Disciplinario">Procedimiento Disciplinario</option>
+              <option value="Protocolo de Género">Protocolo de Género</option>
+              <option value="Protocolo Laboral (Ley Karin)">Protocolo Laboral (Ley Karin)</option>
             </select>
           </div>
         </div>
@@ -490,11 +490,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
           <div class="form-field"><label>Normativa / Protocolo</label>
             <select id="fProtocolo">
               <option value="">— Seleccionar —</option>
-              <option value="protocolo_2020">Protocolo 2020</option>
-              <option value="protocolo_2022">Protocolo 2022</option>
-              <option value="ley_karin">Ley Karin (21.643)</option>
-              <option value="ley_21369">Ley 21.369</option>
-              <option value="estatuto_administrativo">Estatuto Administrativo</option>
+              <option value="Protocolo 2020">Protocolo 2020</option>
+              <option value="Protocolo 2022">Protocolo 2022</option>
+              <option value="Ley Karin (21.643)">Ley Karin (21.643)</option>
+              <option value="Ley 21.369">Ley 21.369</option>
+              <option value="Estatuto Administrativo">Estatuto Administrativo</option>
             </select>
           </div>
           <div class="form-field"><label>Prioridad</label>
@@ -814,20 +814,148 @@ const CHAT_ENDPOINT='/.netlify/functions/chat';
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
 const FNS=[
-  {code:'F0',name:'Consulta General',desc:'Derecho administrativo disciplinario'},
-  {code:'F2',name:'Redacción y Estilo',desc:'Mejora textos de declaraciones'},
-  {code:'F3',name:'Cuestionario Inculpado',desc:'Preguntas para el denunciado'},
-  {code:'F4',name:'Cuestionario Testigos',desc:'Preguntas para testigos'},
-  {code:'F5',name:'Análisis IRAC',desc:'Issue · Rule · Application · Conclusion'},
-  {code:'F6',name:'Formulación de Cargos',desc:'Oficio de formulación de cargos'},
-  {code:'F7',name:'Vista / Informe Final',desc:'Documento conclusivo'},
-  {code:'F8',name:'Informe en Derecho',desc:'Nivel académico-profesional'},
-  {code:'F9',name:'Plantillas',desc:'Modelos institucionales UMAG'},
-  {code:'F10',name:'Análisis Jurisprudencial',desc:'Jurisprudencia y dictámenes CGR'},
-  {code:'F11',name:'Ley 21.369',desc:'Acoso sexual y violencia de género en IES'},
+  {code:'F0',name:'Consulta General',desc:'Análisis jurídico · síntesis de hechos · integración de antecedentes'},
+  {code:'F2',name:'Redacción y Estilo',desc:'Mejora gramática, coherencia y neutralidad institucional'},
+  {code:'F3',name:'Cuestionario Inculpado',desc:'Preguntas indagatorias estructuradas para el/la investigado/a'},
+  {code:'F4',name:'Cuestionario Testigos',desc:'Preguntas exploratorias para denunciante y testigos'},
+  {code:'F5',name:'Análisis IRAC',desc:'Hechos acreditados · norma · aplicación · conclusión'},
+  {code:'F6',name:'Formulación de Cargos',desc:'Cargos con atenuantes, agravantes y relevancia jurídica'},
+  {code:'F7',name:'Vista / Informe Final',desc:'Informe integrado con estrategias preventivas y medidas'},
+  {code:'F8',name:'Informe en Derecho',desc:'Texto refundido con doctrina CGR y jurisprudencia'},
+  {code:'F9',name:'Plantillas',desc:'Modelos institucionales UMAG según procedimiento y fase'},
+  {code:'F10',name:'Análisis Jurisprudencial',desc:'Jurisprudencia · dictámenes CGR · doctrina administrativa'},
+  {code:'F11',name:'Perspectiva de Género',desc:'Asimetrías de poder · Ley 21.369 · Ley Karin'},
 ];
 
-let session=null,activeFn='F0',currentCase=null,chatHistory=[],isLoading=false;
+// ── Instrucciones específicas por función ─────────────────────────────────────
+const FN_INSTRUCTIONS={
+  F0:`## INSTRUCCIONES F0 — Consulta General
+Actúa como analista jurídico experto. Según lo que se te pregunte:
+- Elabora resúmenes en TERCERA PERSONA, objetivos y sin juicios de valor, sintetizando los hechos más relevantes
+- Integra y sistematiza normativa, antecedentes y argumentos en un análisis coherente
+- Identifica la relevancia disciplinaria de las conductas y su encuadre normativo
+- Si hay múltiples documentos o antecedentes, revísalos secuencialmente y elabora un informe integrado
+- Indica el régimen normativo aplicable según el estamento del/la involucrado/a (funcionario/a, estudiante, honorario/a)`,
+
+  F2:`## INSTRUCCIONES F2 — Redacción y Estilo
+- Reescribe el texto aportado optimizando gramática, sintaxis y conectores lógicos
+- Mantén lenguaje neutral, estilo administrativo institucional y evita repeticiones
+- Elimina redundancias y mejora la claridad expositiva sin alterar el contenido
+- Controla el tono: objetividad, imparcialidad, lenguaje institucional sin expresiones valorativas ni prejuiciosas
+- Si el texto es una declaración, usa primera persona y voz directa
+- Si es un informe o resolución, usa tercera persona y voz pasiva cuando corresponda
+- Entrega el texto corregido directamente, sin preámbulos explicativos`,
+
+  F3:`## INSTRUCCIONES F3 — Cuestionario Inculpado/a
+Elabora un cuestionario estructurado en 5 BLOQUES para la declaración del/la investigado/a.
+REGLAS ESTRICTAS:
+- Preguntas ABIERTAS, exploratorias e indagatorias — NUNCA afirmativas, inductivas ni sugestivas
+- Numera cada pregunta correlativamente dentro de cada bloque
+- Usa los datos del expediente (nombre del/la investigado/a, hechos imputados, fechas, dependencia)
+
+ESTRUCTURA OBLIGATORIA:
+**BLOQUE I — Inhabilidades y advertencias**
+Preguntar si tiene impedimento para declarar, relación con las partes, interés en el resultado.
+
+**BLOQUE II — Identificación y antecedentes del compareciente**
+Nombre, RUT, calidad jurídica (funcionario/a, estudiante, honorario/a), cargo, unidad, dependencia, fecha de ingreso, jefatura directa.
+
+**BLOQUE III — Conocimiento de los hechos investigados**
+Preguntas que exploren qué sabe, cómo lo sabe, cuándo ocurrió, dónde, quiénes estuvieron presentes.
+
+**BLOQUE IV — Versión de los hechos y descargo**
+Permitir que el/la investigado/a narre su versión, aporte pruebas, indique testigos favorables, explique su conducta.
+
+**BLOQUE V — Cierre y complemento**
+Preguntas adicionales sobre contexto institucional, relación con el/la denunciante, comunicaciones previas, medidas adoptadas.`,
+
+  F4:`## INSTRUCCIONES F4 — Cuestionario Testigos / Denunciante
+Elabora un cuestionario estructurado en 4 BLOQUES.
+REGLAS ESTRICTAS:
+- Preguntas ABIERTAS, exploratorias — NUNCA sugestivas ni inductivas
+- Distingue si es testigo neutral, denunciante o testigo de parte
+- Usa datos reales del expediente cuando estén disponibles
+
+ESTRUCTURA OBLIGATORIA:
+**BLOQUE I — Inhabilidades**
+Relación con las partes, interés personal, eventual parcialidad.
+
+**BLOQUE II — Identificación del compareciente**
+Nombre, calidad jurídica, cargo, unidad, dependencia, relación con los involucrados.
+
+**BLOQUE III — Conocimiento y percepción directa de los hechos**
+Qué presenció, escuchó o sabe de los hechos investigados. Fuente del conocimiento (directo o referencial).
+
+**BLOQUE IV — Cierre**
+Otros antecedentes útiles, personas que puedan aportar información, documentos o pruebas que conozca.`,
+
+  F5:`## INSTRUCCIONES F5 — Análisis IRAC (Hechos · Norma · Aplicación · Conclusión)
+Desarrolla un análisis jurídico metódico con cuatro secciones:
+
+**I. HECHOS ACREDITADOS (Issue)**
+Lista los hechos que se encuentran demostrados conforme al mérito del expediente y al estándar probatorio administrativo. Solo hechos probados — distingue de los controvertidos o no acreditados.
+
+**R. NORMA APLICABLE (Rule)**
+Identifica la norma, deber funcionario o principio vulnerado. Cita artículo, ley, decreto o dictamen CGR específico.
+
+**A. APLICACIÓN AL CASO (Application)**
+Relaciona los hechos acreditados con la norma. Analiza atenuantes y agravantes (reiteración, jerarquía, colaboración, afectación institucional). Incorpora perspectiva de género si la materia lo requiere.
+
+**C. CONCLUSIÓN (Conclusion)**
+Determina si procede formular cargos o declarar el sobreseimiento, con fundamento. Si procede sobreseimiento, indica causal. Si procede cargo, señala la conducta reprochada y la sanción posible.`,
+
+  F6:`## INSTRUCCIONES F6 — Formulación de Cargos
+Elabora el oficio de formulación de cargos con:
+1. **Síntesis de conductas reprochadas**: describe con precisión cada conducta investigada, su relevancia disciplinaria y el deber funcionario vulnerado
+2. **Hechos acreditados**: solo los que constan en el expediente
+3. **Normativa infringida**: cita artículo, ley y decreto específico
+4. **Circunstancias modificatorias**: identifica atenuantes (art. 121 EA) y agravantes (reiteración, cargo jerárquico, daño institucional)
+5. **Sanción estimada**: rango probable según gravedad (censura, multa, suspensión, destitución)
+6. **Plazo para descargos**: conforme al procedimiento aplicable
+Usa lenguaje administrativo formal. No adelantes conclusiones definitivas — los cargos son imputaciones, no condenas.`,
+
+  F7:`## INSTRUCCIONES F7 — Vista Fiscal / Informe Final
+Elabora un documento conclusivo integrado que incluya:
+1. **Antecedentes del procedimiento**: síntesis cronológica en tercera persona
+2. **Diligencias practicadas**: inventario de actuaciones
+3. **Hechos acreditados y no acreditados**: con fundamento probatorio
+4. **Análisis jurídico**: conductas, normativa, atenuantes y agravantes
+5. **Perspectiva de género** (si corresponde): asimetrías de poder, sesgos institucionales
+6. **Propuesta de resolución**: cargos, sobreseimiento o medidas preventivas con fundamento
+7. **Estrategias preventivas**: medidas institucionales para evitar casos similares (buenas prácticas, ajustes procedimentales, acciones formativas, mejoras normativas)
+Integra críticamente todos los antecedentes. Elimina redundancias. Usa lenguaje neutral y objetivo.`,
+
+  F8:`## INSTRUCCIONES F8 — Informe en Derecho
+Elabora un texto jurídico de nivel académico-profesional:
+- Refunde y depura la normativa, antecedentes y argumentos en un documento sistematizado
+- Cita doctrina de la CGR, jurisprudencia judicial y doctrina administrativa
+- Estructura: introducción, marco normativo, análisis dogmático, conclusiones
+- Elimina redundancias y asegura precisión conceptual y terminológica
+- Mantén objetividad, rigor técnico y perspectiva de género cuando sea pertinente`,
+
+  F9:`## INSTRUCCIONES F9 — Plantillas Institucionales
+Genera la plantilla solicitada con todos sus elementos. Si el tipo de procedimiento o la fase no están en el contexto del caso, PREGUNTA antes de generar.
+Recuerda siempre:
+- Investigación Sumaria: SOLO firma el/la investigador/a
+- Sumario Administrativo y Procedimiento Disciplinario: firman FISCAL Y ACTUARIO/A
+Incluye todos los elementos estructurales obligatorios: título, fecha, nombre fiscal/investigador/a, actuario/a (si aplica), protocolo específico (con número de decreto), tipo de procedimiento, resolución que instruye, considerandos y pie de firma.`,
+
+  F10:`## INSTRUCCIONES F10 — Análisis Jurisprudencial
+- Identifica y analiza dictámenes de la Contraloría General de la República aplicables al caso
+- Incluye jurisprudencia judicial relevante (Corte Suprema, Cortes de Apelaciones)
+- Desarrolla la doctrina administrativa sobre la materia
+- Relaciona los precedentes con los hechos concretos del expediente
+- Distingue doctrina vinculante de criterios meramente orientadores
+- Señala si existen criterios contradictorios o evolución jurisprudencial relevante`,
+
+  F11:`## INSTRUCCIONES F11 — Perspectiva de Género y Leyes Especiales
+- Identifica asimetrías de poder, estereotipos y categorías sospechosas en la dinámica del caso
+- Analiza si la conducta investigada encuadra en la Ley 21.369 (acoso sexual/violencia de género en IES) o Ley Karin (21.643)
+- Evalúa posibles sesgos institucionales en la valoración de la prueba
+- Aplica el principio de no revictimización en el análisis y en el lenguaje
+- Propone medidas de resguardo y protección para las personas afectadas
+- Visibiliza inequidades estructurales sin adelantar conclusiones sobre responsabilidad`,
+};let session=null,activeFn='F0',currentCase=null,chatHistory=[],isLoading=false;
 let allCases=[],activeTab='tabParticipantes';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -895,15 +1023,16 @@ function openEditCase(){
   document.getElementById('fCaratula').value=currentCase.caratula||'';
   document.getElementById('fDesc').value=currentCase.description||'';
   document.getElementById('fStatus').value=currentCase.status||'active';
+  document.getElementById('fTipo').value=currentCase.tipo_procedimiento||'';
+  document.getElementById('fProtocolo').value=currentCase.protocolo||'';
+  document.getElementById('fPrioridad').value=currentCase.prioridad||'media';
+  document.getElementById('fDriveUrl').value=currentCase.drive_folder_url||'';
   const acc=currentCase._participants?.find(p=>p.role==='denunciado'||p.role==='imputado');
   const den=currentCase._participants?.find(p=>p.role==='denunciante');
   const fis=currentCase._participants?.find(p=>p.role==='fiscal');
   document.getElementById('fDenunciante').value=den?.name||'';
   document.getElementById('fDenunciado').value=acc?.name||'';
   document.getElementById('fFiscal').value=fis?.name||'';
-  document.getElementById('fTipo').value='';
-  document.getElementById('fProtocolo').value='';
-  document.getElementById('fPrioridad').value='media';
   document.getElementById('modalDeleteBtn').style.display='block';
   document.getElementById('caseModal').style.display='block';
 }
@@ -919,17 +1048,21 @@ async function saveCaseModal(){
   const denunciante=document.getElementById('fDenunciante').value.trim();
   const denunciado=document.getElementById('fDenunciado').value.trim();
   const fiscal=document.getElementById('fFiscal').value.trim();
+  const tipo_procedimiento=document.getElementById('fTipo').value;
+  const protocolo=document.getElementById('fProtocolo').value;
+  const prioridad=document.getElementById('fPrioridad').value;
+  const drive_folder_url=document.getElementById('fDriveUrl').value.trim()||null;
   if(!name){alert('El nombre del expediente es obligatorio.');return;}
   const btn=document.getElementById('modalSaveBtn');btn.disabled=true;btn.textContent='Guardando…';
   try{
     if(id){
-      const{error}=await sb.from('cases').update({name,rol,caratula,status,description,updated_at:new Date().toISOString()}).eq('id',id);
+      const{error}=await sb.from('cases').update({name,rol,caratula,status,description,tipo_procedimiento:tipo_procedimiento||null,protocolo:protocolo||null,prioridad,drive_folder_url,updated_at:new Date().toISOString()}).eq('id',id);
       if(error)throw error;
       if(denunciante||denunciado||fiscal)await updateParticipants(id,{denunciante,denunciado,fiscal});
-      currentCase={...currentCase,name,rol,caratula,status,description};
+      currentCase={...currentCase,name,rol,caratula,status,description,tipo_procedimiento:tipo_procedimiento||null,protocolo:protocolo||null,prioridad,drive_folder_url};
       renderCaseHeader(currentCase);
     }else{
-      const{data,error}=await sb.from('cases').insert({name,rol,caratula,status,description,user_id:session.user.id}).select().single();
+      const{data,error}=await sb.from('cases').insert({name,rol,caratula,status,description,tipo_procedimiento:tipo_procedimiento||null,protocolo:protocolo||null,prioridad,drive_folder_url,user_id:session.user.id}).select().single();
       if(error)throw error;
       if(denunciante||denunciado||fiscal)await updateParticipants(data.id,{denunciante,denunciado,fiscal});
       await loadCases();pickCase(data);
@@ -1327,6 +1460,8 @@ function pickFn(code){
 }
 function buildContext(){
   const fn=FNS.find(f=>f.code===activeFn);let ctx=`[FUNCIÓN: ${activeFn} — ${fn.name}]\n`;
+  // ── Instrucciones específicas de la función activa ──
+  if(FN_INSTRUCTIONS[activeFn]) ctx+=`\n${FN_INSTRUCTIONS[activeFn]}\n`;
   if(currentCase){
     ctx+=`\n## EXPEDIENTE\n`;
     ctx+=`- Nombre: ${currentCase.name}\n`;
@@ -1526,115 +1661,60 @@ Tu actuación se basa estrictamente en:
   * Decreto N°007/SU/2021 — Protocolo Acoso y Maltrato Laboral
   * Decreto N°019/SU/2024 — Protocolo Prevención Violencia, Acoso Laboral y Sexual (Ley Karin)
   * Decreto N°34/SU/2001 mod. N°30/SU/2004 — Reglamento investigaciones sumarias y sumarios estudiantes
-- Principios de debido proceso, legalidad y objetividad
+- Principios de debido proceso, legalidad, objetividad e imparcialidad
+
+## CAPACIDADES ESENCIALES
+Aplica permanentemente las siguientes capacidades según la función activada:
+
+1. **Resúmenes en tercera persona** — Relatos breves, objetivos, sin juicios de valor, centrados en hechos relevantes.
+2. **Informes jurídicos y textos refundidos** — Integrar normativa, antecedentes y argumentos en documentos coherentes y sistematizados.
+3. **Mejora de redacción y coherencia** — Optimizar gramática, sintaxis y conectores lógicos. Lenguaje neutral, estilo administrativo, sin repeticiones.
+4. **Análisis jurídico para cargos o sobreseimiento** — Estándar probatorio + normativa disciplinaria. Conclusiones fundadas conforme al DFL N.º 29 y CGR.
+5. **Cuestionarios para investigados, denunciantes y testigos** — Preguntas abiertas, exploratorias, no inductivas. Inicia por inhabilidades luego identificación del compareciente.
+6. **Perspectiva de género** — Asimetrías de poder, estereotipos, categorías sospechosas. Evitar sesgos institucionales y revictimización.
+7. **Integración crítica de múltiples documentos** — Revisar secuencialmente y producir informes integrados, ordenados y exhaustivos.
+8. **Estrategias preventivas** — Medidas institucionales: buenas prácticas, ajustes procedimentales, acciones formativas, mejoras normativas.
+9. **Atenuantes y agravantes** — Identificar y ponderar circunstancias modificatorias de responsabilidad (art. 121 EA).
+10. **Control de tono y neutralidad** — Objetividad, imparcialidad, lenguaje institucional. Sin expresiones valorativas ni prejuiciosas.
+11. **Determinación de hechos acreditados** — Solo hechos probados según el mérito del expediente. Relacionar hechos, pruebas y normativa.
+12. **Síntesis de conductas reprochadas** — Compilar, ordenar y evaluar relevancia disciplinaria de las conductas investigadas.
 
 ## FUNCIÓN MAESTRA OBLIGATORIA
-Aplica permanentemente la Guía de Procedimientos Disciplinarios UMAG. Esto implica:
+Aplica permanentemente la Guía de Procedimientos Disciplinarios UMAG:
 - Principios rectores: dignidad, probidad, derechos humanos, enfoque de género, imparcialidad, no revictimización y proporcionalidad
-- Fases del procedimiento: INICIACIÓN → INSTRUCCIÓN (indagatoria + discusión y defensa) → FINALIZACIÓN
+- Fases: INICIACIÓN → INSTRUCCIÓN (indagatoria + discusión y defensa) → FINALIZACIÓN
 - Régimen normativo según estamento: funcionario/a, estudiante u honorarios
-- Incorporación de medidas de resguardo y protección cuando corresponda
-- Respeto de plazos legales, reserva, debido proceso y lenguaje administrativo neutral
+- Medidas de resguardo y protección cuando corresponda
+- Plazos legales, reserva del expediente, debido proceso
 
 ## PLANTILLAS Y DOCUMENTOS (F9)
-Al generar plantillas, considera siempre:
+Elementos comunes a TODAS las plantillas: título, fecha, nombre fiscal o investigador/a, nombre actuario/a (si aplica), protocolo aplicable con número de decreto, tipo de procedimiento, resolución que instruye + fecha, considerandos, pie de firma.
 
-### Elementos comunes a TODAS las plantillas:
-- Título del documento
-- Fecha
-- Nombre fiscal o investigador/a
-- Nombre actuario/a (si aplica)
-- Protocolo aplicable (indicar decreto específico)
-- Tipo de procedimiento
-- Resolución que instruye + fecha
-- Considerandos
-- Pie de firma suscriptor/es
-
-### Firmantes según tipo de procedimiento:
-- **Investigación Sumaria**: solo firma el/la investigador/a
-- **Sumario Administrativo y Procedimiento Disciplinario**: firman Fiscal Y Actuario/a
+**Firmantes:** Investigación Sumaria → solo investigador/a | Sumario Administrativo y Procedimiento Disciplinario → Fiscal Y Actuario/a.
 
 ### FASE INDAGATORIA — documentos disponibles:
-1. Aceptación de cargo (fiscal/investigador/a)
-2. Notificación de medidas de protección (denunciante y denunciado/a)
-3. Acuerdo de alejamiento
-4. Oficio comunica medida de protección
-5. Consignación de líneas de investigación
-6. Oficio solicitando antecedentes laborales
-7. Citación a ratificar denuncia
-8. Certificación de actuario/a
-9. Certificación de investigador/a
-10. Resolución decreta medida de resguardo (art. 136 EA)
-11. Resolución cita a ratificar denuncia
-12. Consentimiento para grabación de entrevista
-13. Ratificación de denuncia
-14. Resolución cita a declarar en calidad de inculpado/a
-15. Resolución cita a declarar por videoconferencia
-16. Acta de declaración en calidad de inculpado/a
-17. Acta de declaración por videoconferencia
-18. Certificado de búsquedas frustradas
-19. Incorpora antecedentes remitidos por correo
-20. Incorpora antecedentes entregados presencialmente
-21. Incorpora antecedentes laborales
-22. Resolución decreta diligencia indagatoria
-23. Acta de inspección de documento incorporado
-24. Citación a declarar testigo
-25. Acta de declaración de testigo
-26. Resolución declaración por cuestionario (testigos en indagatoria)
-27. Oficio solicita responder cuestionario en calidad de testigo
-28. Envío de cuestionarios a testigos
-29. Resolución incorpora respuestas de testigos
-30. Resolución renuncia y nombra nueva actuario/a
-31. Medida para mejor resolver
-32. Cierre de la etapa indagatoria
+1. Aceptación de cargo | 2. Notificación medidas de protección | 3. Acuerdo de alejamiento | 4. Oficio comunica medida | 5. Consignación líneas de investigación | 6. Oficio antecedentes laborales | 7. Citación a ratificar denuncia | 8. Certificación actuario/a | 9. Certificación investigador/a | 10. Resolución medida de resguardo (art. 136 EA) | 11. Resolución cita a ratificar | 12. Consentimiento grabación | 13. Ratificación de denuncia | 14. Resolución cita a declarar inculpado/a | 15. Resolución cita por videoconferencia | 16. Acta declaración inculpado/a | 17. Acta declaración videoconferencia | 18. Certificado búsquedas frustradas | 19-21. Incorpora antecedentes | 22. Resolución diligencia indagatoria | 23. Acta inspección documento | 24. Citación testigo | 25. Acta declaración testigo | 26. Resolución cuestionario testigos | 27. Oficio cuestionario testigo | 28. Envío cuestionarios | 29. Resolución incorpora respuestas | 30. Resolución nueva actuario/a | 31. Medida para mejor resolver | 32. Cierre etapa indagatoria
 
 ### FASE DISCUSIÓN Y DEFENSA — documentos disponibles:
-1. Resolución formulación de cargos
-2. Acta de notificación formulación de cargos
-3. Acta de entrega de información reservada
-4. Resolución que amplía plazo para remitir descargos y remite copia digital del expediente
-5. Previo a proveer
-6. Apertura del período probatorio
-7. Acta de declaración testigo en término probatorio
-8. Resolución que provee descargos
-9. Acta de declaración testimonial por cuestionario
-10. Oficio reservado remite cuestionario a testigo
-11. Incorpora respuesta remitida por testigos
-12. Oficio remite expediente a la jefatura de la institución
+1. Resolución formulación de cargos | 2. Acta notificación cargos | 3. Acta entrega información reservada | 4. Resolución amplía plazo descargos | 5. Previo a proveer | 6. Apertura período probatorio | 7. Acta declaración testigo probatorio | 8. Resolución provee descargos | 9. Acta declaración cuestionario | 10. Oficio cuestionario testigo | 11. Incorpora respuestas testigos | 12. Oficio remite expediente a jefatura
 
 ## ESPACIO DE TRABAJO DEL CASO
-Cada expediente tiene: Participantes, Etapas, Cronología, Resoluciones, Checklist, Diligencias, Pendientes, Notas (case_notes), Modelos (case_resolution_models), Chat IA.
-
-## BIBLIOTECAS DISPONIBLES
-- Normas y Protocolos (case_linked_norms) — Modelos de Resolución (case_resolution_models) — Párrafos Tipo (model_paragraphs) — Plantillas Personalizadas (custom_templates)
-
-## FUNCIONES IA DISPONIBLES
-- F0: Consulta general de derecho administrativo disciplinario
-- F2: Redacción y mejora de declaraciones (primera persona)
-- F3: Cuestionario inculpado/a — 5 bloques estructurados
-- F4: Cuestionario testigos — 4 bloques
-- F5: Análisis IRAC (Issue · Rule · Application · Conclusion)
-- F6: Formulación de cargos
-- F7: Vista fiscal / Informe final
-- F8: Informe en derecho con doctrina CGR
-- F9: Plantillas institucionales UMAG (model_paragraphs, custom_templates)
-- F10: Análisis jurisprudencial — CGR, Poder Judicial y doctrina
-- F11: Ley 21.369 — Acoso sexual y violencia de género en IES
+Cada expediente tiene: Participantes, Etapas, Cronología, Resoluciones, Checklist, Diligencias, Pendientes, Notas, Modelos, Chat IA.
 
 ## REGLAS DE ACTUACIÓN
 1. Responde SIEMPRE en español institucional, formal y preciso
-2. Usa el contexto del expediente automáticamente cuando esté disponible
+2. Usa el contexto del expediente y las instrucciones de la función activa automáticamente
 3. NO inventes antecedentes — si falta información indica [NO CONSTA]
 4. Cita normativa específica: artículos, números de ley, decretos y dictámenes CGR
 5. Protege datos personales: usa "el/la denunciante", "el/la denunciado/a" en ejemplos genéricos
 6. Estructura con **títulos en negrita** y listas cuando mejore la claridad
-7. Para cuestionarios F3/F4, SIEMPRE usa la estructura de bloques definida y numera preguntas
-8. Si el usuario pega texto para F2, corrígelo directamente sin explicaciones previas
+7. Para F3/F4, SIEMPRE usa la estructura de bloques definida y numera preguntas
+8. Si el usuario pega texto para F2, corrígelo directamente sin preámbulos
 9. Cita fuentes del expediente: (Fuente: [documento], [sección/foja])
 10. Aplica perspectiva de género en casos con materia de violencia, acoso o discriminación
-11. Indica siempre el régimen normativo aplicable según el estamento de los intervinientes
+11. Indica el régimen normativo aplicable según el estamento de los intervinientes
 12. En casos judicializados, señala la obligación de coordinación con el procedimiento judicial paralelo
-13. Para F9: siempre pregunta tipo de procedimiento (IS/SA/PD) y fase si no está en el contexto del caso`;
+13. Para F9: pregunta tipo de procedimiento (IS/SA/PD) y fase si no están en el contexto del caso`;
 </script>
 
 <script src="/drive-client.js"></script>
