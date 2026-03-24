@@ -1151,6 +1151,8 @@ async function loadParticipantes(){
   const el=document.getElementById('participantesList');el.innerHTML='<div class="loading">Cargando…</div>';
   const{data}=await sb.from('case_participants').select('role,name,email,estamento,rut,carrera,dependencia').eq('case_id',currentCase.id).order('role');
   if(!data?.length){el.innerHTML='<div class="empty-state">⚖<p>Sin participantes registrados</p></div>';return;}
+  // ── Cachear participantes en currentCase para que buildContext() los use ──
+  if(currentCase) currentCase._participants=data;
   const roleOrder=['denunciante','denunciado','imputado','testigo','fiscal','actuario','abogado'];
   const sorted=[...data].sort((a,b)=>{const ia=roleOrder.indexOf(a.role?.toLowerCase())||99,ib=roleOrder.indexOf(b.role?.toLowerCase())||99;return ia-ib;});
   el.innerHTML=`<div class="part-grid">${sorted.map(p=>`<div class="part-card"><div class="part-role">${p.role||'—'}</div><div class="part-name">${p.name||'[Sin nombre]'}</div><div class="part-meta">${p.estamento?`<span>👤 ${p.estamento}</span>`:''}${p.carrera?`<span>🎓 ${p.carrera}</span>`:''}${p.dependencia?`<span>🏛 ${p.dependencia}</span>`:''}${p.email?`<span>✉ ${p.email}</span>`:''}</div></div>`).join('')}</div>`;
@@ -1325,7 +1327,39 @@ function pickFn(code){
 }
 function buildContext(){
   const fn=FNS.find(f=>f.code===activeFn);let ctx=`[FUNCIÓN: ${activeFn} — ${fn.name}]\n`;
-  if(currentCase){ctx+=`\n## EXPEDIENTE\n- Nombre: ${currentCase.name}\n`;if(currentCase.rol)ctx+=`- ROL: ${currentCase.rol}\n`;if(currentCase.caratula)ctx+=`- Carátula: ${currentCase.caratula}\n`;if(currentCase.status)ctx+=`- Estado: ${currentCase.status}\n`;if(currentCase.description)ctx+=`- Descripción: ${currentCase.description}\n`;}
+  if(currentCase){
+    ctx+=`\n## EXPEDIENTE\n`;
+    ctx+=`- Nombre: ${currentCase.name}\n`;
+    if(currentCase.rol)ctx+=`- ROL: ${currentCase.rol}\n`;
+    if(currentCase.caratula)ctx+=`- Carátula: ${currentCase.caratula}\n`;
+    if(currentCase.tipo_procedimiento)ctx+=`- Tipo de procedimiento: ${currentCase.tipo_procedimiento}\n`;
+    if(currentCase.protocolo)ctx+=`- Protocolo/Normativa aplicable: ${currentCase.protocolo}\n`;
+    if(currentCase.materia)ctx+=`- Materia: ${currentCase.materia}\n`;
+    if(currentCase.status)ctx+=`- Estado: ${currentCase.status}\n`;
+    if(currentCase.estado_procedimiento)ctx+=`- Etapa actual: ${currentCase.estado_procedimiento}\n`;
+    if(currentCase.description)ctx+=`- Descripción del caso: ${currentCase.description}\n`;
+    if(currentCase.judicializada)ctx+=`- Judicializada: Sí\n`;
+    if(currentCase.medida_cautelar)ctx+=`- Medida cautelar: Sí${currentCase.medida_cautelar_detalle?' — '+currentCase.medida_cautelar_detalle:''}\n`;
+    if(currentCase.actuario&&currentCase.actuario!=='No aplica')ctx+=`- Actuario/a: ${currentCase.actuario}\n`;
+    if(currentCase.fecha_denuncia)ctx+=`- Fecha denuncia: ${currentCase.fecha_denuncia}\n`;
+    if(currentCase.fecha_resolucion)ctx+=`- Fecha resolución inicio: ${currentCase.fecha_resolucion}\n`;
+    if(currentCase.fecha_recepcion_fiscalia)ctx+=`- Fecha recepción fiscalía: ${currentCase.fecha_recepcion_fiscalia}\n`;
+    if(currentCase.nueva_resolucion&&currentCase.nueva_resolucion!=='No aplica')ctx+=`- Nueva resolución: ${currentCase.nueva_resolucion}${currentCase.fecha_nueva_resolucion?' ('+currentCase.fecha_nueva_resolucion+')':''}\n`;
+    if(currentCase.observaciones)ctx+=`- Observaciones: ${currentCase.observaciones}\n`;
+    // ── Participantes ──
+    if(currentCase._participants?.length){
+      ctx+=`\n## PARTICIPANTES\n`;
+      const roleLabels={denunciante:'Denunciante',denunciado:'Denunciado/a',imputado:'Imputado/a',testigo:'Testigo',fiscal:'Fiscal instructor/a',actuario:'Actuario/a',abogado:'Abogado/a defensor/a'};
+      currentCase._participants.forEach(p=>{
+        const label=roleLabels[p.role?.toLowerCase()]||p.role||'Participante';
+        ctx+=`- ${label}: ${p.name||'[Sin nombre]'}`;
+        if(p.estamento)ctx+=` (${p.estamento})`;
+        if(p.carrera)ctx+=` — ${p.carrera}`;
+        if(p.dependencia)ctx+=` — ${p.dependencia}`;
+        ctx+=`\n`;
+      });
+    }
+  }
   return ctx;
 }
 async function sendMessage(text){
