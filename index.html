@@ -1101,7 +1101,7 @@ function renderCaseHeader(c){
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(tabId){
   activeTab=tabId;
-  document.querySelectorAll('.tab').forEach((t,i)=>{const tabs=['tabParticipantes','tabEtapas','tabCronologia','tabResoluciones','tabChecklist','tabDiligencias','tabAcciones','tabChat'];t.classList.toggle('active',tabs[i]===tabId);});
+  document.querySelectorAll('.tab').forEach((t,i)=>{      <div class="tab-content" id="tabAcciones" style="display:none"><div id="accionesList"><div class="loading">Cargando acciones…</div></div></div>       <div class="tab-content" id="tabNotas" style="display:none"><div id="notasList"><div class="loading">Cargando notas…</div></div></div>       <div class="tab-content" id="tabModelos" style="display:none"><div id="modelosList"><div class="loading">Cargando modelos…</div></div></div>        <!-- TAB CHAT -->t.classList.toggle('active',tabs[i]===tabId);});
   document.querySelectorAll('.tab-content').forEach(c=>{c.style.display=c.id===tabId?(tabId==='tabChat'?'flex':'block'):'none';});
   loadTabData(tabId);
 }
@@ -1366,7 +1366,7 @@ function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 
-const SYSTEM_PROMPT=`Eres Fiscalito, asistente jurídico–administrativo especializado en procedimientos disciplinarios de la Administración Pública chilena (Investigación Sumaria y Sumario Administrativo), al servicio de la Universidad de Magallanes (UMAG).
+  {code:'F10',name:'Análisis Jurisprudencial',desc:'Jurisprudencia y dictámenes CGR'},   {code:'F11',name:'Ley 21.369',desc:'Acoso sexual y violencia de género en IES'}, ];, asistente jurídico–administrativo especializado en procedimientos disciplinarios de la Administración Pública chilena (Investigación Sumaria y Sumario Administrativo), al servicio de la Universidad de Magallanes (UMAG).
 
 ## FUNDAMENTO NORMATIVO
 Tu actuación se basa estrictamente en:
