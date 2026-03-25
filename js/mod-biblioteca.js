@@ -22,7 +22,7 @@ const BIBLIO_CATEGORIES = [
   { value:'probidad',                      label:'Probidad Administrativa' },
   { value:'responsabilidad_administrativa',label:'Responsabilidad Administrativa' },
   { value:'dictamenes_cgr',                label:'Dictámenes CGR' },
-  { value:'normativa_interna',             label:'Normativa Interna UMAG' },
+  { value:'normativa_interna',             label:'Normativa Interna' },
   { value:'jurisprudencia',                label:'Jurisprudencia Relevante' },
   { value:'modelos_informes',              label:'Modelos de Informes' },
 ];
@@ -73,7 +73,7 @@ function renderBibliotecaView() {
   if (!container) return;
 
   const tabs = [
-    { id:'documentos', label:'📚 Documentos' },
+    { id:'documentos', label:'📚 Libros' },
     { id:'normas',     label:'📋 Normas' },
     { id:'parrafos',   label:'✏️ Párrafos' },
     { id:'chat',       label:'💬 Chat IA' },
@@ -174,7 +174,7 @@ function renderBibDocumentos() {
           </div>
           <div class="mini-field">
             <label>O pega el contenido directamente</label>
-            <textarea id="bibAddContent" rows="4" placeholder="Contenido del documento…" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-family:'Inter',sans-serif;font-size:12px;outline:none;resize:vertical;width:100%;transition:border-color .15s;"></textarea>
+            <textarea id="bibAddContent" rows="4" placeholder="Contenido del documento…" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-family:var(--font-body,'Inter',sans-serif);font-size:12px;outline:none;resize:vertical;width:100%;transition:border-color .15s;"></textarea>
           </div>
           <div class="mini-modal-actions">
             <button class="btn-cancel" onclick="closeBibAddModal()">Cancelar</button>
@@ -289,24 +289,80 @@ function filterBibBooks(q) {
 }
 
 /* ── TAB NORMAS ── */
-const LEY_NORMAS = [
-  { id:'ea', label:'DFL N°29 / Ley 18.834 — Estatuto Administrativo', desc:'Texto refundido del Estatuto Administrativo. Base normativa de los procedimientos disciplinarios.', arts:['Art. 119-145 (Procedimientos disciplinarios)','Art. 121 (Sanciones)','Art. 157 (Prescripción)'] },
-  { id:'ley19880', label:'Ley 19.880 — Bases de Procedimientos Administrativos', desc:'Regula los actos y procedimientos de la Administración del Estado.', arts:['Art. 17 (Derechos de los administrados)','Art. 18-22 (Plazos)','Art. 41-44 (Resolución)'] },
-  { id:'ley21369', label:'Ley 21.369 — Acoso Sexual y Violencia de Género en IES', desc:'Prevención y sanción del acoso sexual, violencia y discriminación de género en instituciones de educación superior.', arts:['Art. 1-4 (Obligaciones institucionales)','Art. 5-10 (Procedimiento)','Art. 11-15 (Sanciones)'] },
-  { id:'ley21643', label:'Ley 21.643 — Ley Karin', desc:'Modifica el Código del Trabajo y el Estatuto Administrativo para prevenir el acoso laboral, sexual y violencia en el trabajo.', arts:['Art. 1 (Definiciones)','Art. 2 (Obligaciones del empleador)','Art. 3 (Procedimiento de investigación)'] },
-  { id:'ley18575', label:'Ley 18.575 — Ley Orgánica Constitucional de Bases', desc:'Bases generales de la Administración del Estado. Principios de probidad y transparencia.', arts:['Art. 52-62 (Principio de probidad)','Art. 63-65 (Declaración de patrimonio e intereses)'] },
-  { id:'ley19880b', label:'Ley 20.285 — Transparencia y Acceso a la Información', desc:'Acceso a la información pública y transparencia activa.', arts:['Art. 5-7 (Información activa)','Art. 10-15 (Solicitudes de información)'] },
+
+// Estado de normas custom (Supabase: tabla normas_custom, o localStorage como fallback)
+if (!window._normasCustom) {
+  // Cargar desde localStorage como fallback rápido
+  try { window._normasCustom = JSON.parse(localStorage.getItem('fiscalito_normas') || '[]'); }
+  catch { window._normasCustom = []; }
+}
+
+const LEY_NORMAS_BASE = [
+  { id:'ea',       label:'DFL N°29 / Ley 18.834 — Estatuto Administrativo',          desc:'Texto refundido del Estatuto Administrativo. Base normativa de los procedimientos disciplinarios.',               arts:['Art. 119-145 (Procedimientos disciplinarios)','Art. 121 (Sanciones)','Art. 157 (Prescripción)'],    custom:false },
+  { id:'ley19880', label:'Ley 19.880 — Bases de Procedimientos Administrativos',      desc:'Regula los actos y procedimientos de la Administración del Estado.',                                             arts:['Art. 17 (Derechos de los administrados)','Art. 18-22 (Plazos)','Art. 41-44 (Resolución)'],          custom:false },
+  { id:'ley21369', label:'Ley 21.369 — Acoso Sexual y Violencia de Género en IES',    desc:'Prevención y sanción del acoso sexual, violencia y discriminación de género en instituciones de educación superior.', arts:['Art. 1-4 (Obligaciones institucionales)','Art. 5-10 (Procedimiento)','Art. 11-15 (Sanciones)'],   custom:false },
+  { id:'ley21643', label:'Ley 21.643 — Ley Karin',                                   desc:'Modifica el Código del Trabajo y el Estatuto Administrativo para prevenir el acoso laboral, sexual y violencia en el trabajo.', arts:['Art. 1 (Definiciones)','Art. 2 (Obligaciones del empleador)','Art. 3 (Procedimiento de investigación)'], custom:false },
+  { id:'ley18575', label:'Ley 18.575 — Ley Orgánica Constitucional de Bases',         desc:'Bases generales de la Administración del Estado. Principios de probidad y transparencia.',                    arts:['Art. 52-62 (Principio de probidad)','Art. 63-65 (Declaración de patrimonio e intereses)'],         custom:false },
+  { id:'ley20285', label:'Ley 20.285 — Transparencia y Acceso a la Información',      desc:'Acceso a la información pública y transparencia activa.',                                                        arts:['Art. 5-7 (Información activa)','Art. 10-15 (Solicitudes de información)'],                         custom:false },
 ];
 
+function getAllNormas() {
+  return [...LEY_NORMAS_BASE, ...(window._normasCustom || [])];
+}
+
+function saveNormasCustom() {
+  try { localStorage.setItem('fiscalito_normas', JSON.stringify(window._normasCustom || [])); } catch {}
+}
+
 function renderBibNormas() {
-  return `<div class="bib-normas-list">
-    ${LEY_NORMAS.map(n => `
+  const all = getAllNormas();
+  return `
+  <div class="bib-normas-toolbar">
+    <span style="font-size:11.5px;color:var(--text-muted)">${all.length} norma(s) disponibles</span>
+    <button class="btn-save" style="padding:5px 14px;font-size:11.5px" onclick="showNormaAddForm()">+ Agregar normativa</button>
+  </div>
+
+  <!-- Formulario agregar/editar (oculto por defecto) -->
+  <div id="normaFormWrap" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
+    <input type="hidden" id="normaEditId"/>
+    <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px" id="normaFormTitle">Nueva normativa</div>
+    <div class="mini-row" style="margin-bottom:8px">
+      <div class="mini-field">
+        <label>Nombre / Ley *</label>
+        <input id="normaFLabel" placeholder="Ej: Ley 19.296 — Asociaciones de Funcionarios"/>
+      </div>
+    </div>
+    <div class="mini-field" style="margin-bottom:8px">
+      <label>Descripción</label>
+      <input id="normaFDesc" placeholder="Descripción breve de la normativa"/>
+    </div>
+    <div class="mini-field" style="margin-bottom:8px">
+      <label>Artículos clave (uno por línea)</label>
+      <textarea id="normaFArts" rows="3" placeholder="Art. 1 (Objeto)&#10;Art. 5 (Afiliación)&#10;Art. 12 (Derechos)" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-family:var(--font-body,Inter,sans-serif);font-size:12px;outline:none;resize:vertical;transition:border-color .15s;"></textarea>
+    </div>
+    <div class="mini-field" style="margin-bottom:10px">
+      <label>Contenido / Texto relevante <span style="font-weight:400;color:var(--text-muted)">(opcional — el agente lo usará en análisis)</span></label>
+      <textarea id="normaFContent" rows="4" placeholder="Pega aquí el texto de la ley o los artículos más relevantes…" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-family:var(--font-body,Inter,sans-serif);font-size:12px;outline:none;resize:vertical;transition:border-color .15s;"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-save" style="padding:6px 16px" onclick="saveNormaForm()">Guardar normativa</button>
+      <button class="btn-cancel" onclick="hideNormaAddForm()">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="bib-normas-list">
+    ${all.map(n => `
       <div class="bib-norma-card">
-        <div class="bib-norma-title">⚖️ ${esc(n.label)}</div>
-        <div class="bib-norma-desc">${esc(n.desc)}</div>
-        <div class="bib-norma-arts">
-          ${n.arts.map(a => `<span class="bib-norma-art">📌 ${esc(a)}</span>`).join('')}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div class="bib-norma-title">⚖️ ${esc(n.label)}</div>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <button class="btn-edit" style="padding:2px 9px;font-size:10.5px" onclick="editNormaForm('${n.id}')">✎ Editar</button>
+            ${n.custom !== false ? `<button class="btn-del" onclick="deleteNorma('${n.id}')">✕</button>` : ''}
+          </div>
         </div>
+        <div class="bib-norma-desc">${esc(n.desc)}</div>
+        ${n.arts?.length ? `<div class="bib-norma-arts">${n.arts.map(a=>`<span class="bib-norma-art">📌 ${esc(a)}</span>`).join('')}</div>` : ''}
+        ${n.content ? `<div style="font-size:10px;color:var(--green);margin-top:5px">✓ Contiene texto para consulta IA (${n.content.length.toLocaleString()} chars)</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px">
           <button class="btn-sm" onclick="bibConsultarNorma('${n.id}')">💬 Consultar con IA</button>
         </div>
@@ -314,8 +370,97 @@ function renderBibNormas() {
   </div>`;
 }
 
+function showNormaAddForm() {
+  document.getElementById('normaEditId').value = '';
+  document.getElementById('normaFLabel').value = '';
+  document.getElementById('normaFDesc').value = '';
+  document.getElementById('normaFArts').value = '';
+  document.getElementById('normaFContent').value = '';
+  document.getElementById('normaFormTitle').textContent = 'Nueva normativa';
+  const w = document.getElementById('normaFormWrap');
+  if (w) { w.style.display = 'block'; w.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+}
+
+function hideNormaAddForm() {
+  const w = document.getElementById('normaFormWrap');
+  if (w) w.style.display = 'none';
+}
+
+function editNormaForm(id) {
+  const all = getAllNormas();
+  const n = all.find(x => x.id === id);
+  if (!n) return;
+  document.getElementById('normaEditId').value = id;
+  document.getElementById('normaFLabel').value = n.label || '';
+  document.getElementById('normaFDesc').value = n.desc || '';
+  document.getElementById('normaFArts').value = (n.arts || []).join('\n');
+  document.getElementById('normaFContent').value = n.content || '';
+  document.getElementById('normaFormTitle').textContent = 'Editar normativa';
+  const w = document.getElementById('normaFormWrap');
+  if (w) { w.style.display = 'block'; w.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+}
+
+function saveNormaForm() {
+  const label   = document.getElementById('normaFLabel')?.value.trim();
+  const desc    = document.getElementById('normaFDesc')?.value.trim();
+  const artsRaw = document.getElementById('normaFArts')?.value.trim();
+  const content = document.getElementById('normaFContent')?.value.trim();
+  const editId  = document.getElementById('normaEditId')?.value;
+
+  if (!label) { showToast('⚠ El nombre es obligatorio'); return; }
+
+  const arts = artsRaw ? artsRaw.split('\n').map(a=>a.trim()).filter(Boolean) : [];
+
+  if (!window._normasCustom) window._normasCustom = [];
+
+  // Check if editing base norma
+  const baseIdx = LEY_NORMAS_BASE.findIndex(n => n.id === editId);
+  if (baseIdx >= 0) {
+    // Override base norma data in custom array
+    const existingCustomIdx = window._normasCustom.findIndex(n => n.id === editId);
+    const updated = { id: editId, label, desc, arts, content: content || '', custom: 'override' };
+    if (existingCustomIdx >= 0) {
+      window._normasCustom[existingCustomIdx] = updated;
+    } else {
+      // We patch the base array temporarily
+      LEY_NORMAS_BASE[baseIdx] = { ...LEY_NORMAS_BASE[baseIdx], label, desc, arts, content: content||'' };
+    }
+    saveNormasCustom();
+    hideNormaAddForm();
+    const body = document.getElementById('bibBody');
+    if (body) body.innerHTML = renderBibTabBody();
+    showToast('✓ Normativa actualizada');
+    return;
+  }
+
+  if (editId) {
+    // Edit existing custom
+    const idx = window._normasCustom.findIndex(n => n.id === editId);
+    if (idx >= 0) window._normasCustom[idx] = { id: editId, label, desc, arts, content: content||'', custom:true };
+  } else {
+    // New
+    const id = 'custom_' + Date.now();
+    window._normasCustom.push({ id, label, desc, arts, content: content||'', custom:true });
+  }
+
+  saveNormasCustom();
+  hideNormaAddForm();
+  const body = document.getElementById('bibBody');
+  if (body) body.innerHTML = renderBibTabBody();
+  showToast('✓ Normativa guardada');
+}
+
+function deleteNorma(id) {
+  if (!confirm('¿Eliminar esta normativa?')) return;
+  window._normasCustom = (window._normasCustom || []).filter(n => n.id !== id);
+  saveNormasCustom();
+  const body = document.getElementById('bibBody');
+  if (body) body.innerHTML = renderBibTabBody();
+  showToast('✓ Normativa eliminada');
+}
+
 function bibConsultarNorma(normaId) {
-  const norma = LEY_NORMAS.find(n => n.id === normaId);
+  const norma = getAllNormas().find(n => n.id === normaId);
   if (!norma) return;
   biblioteca.activeTab = 'chat';
   renderBibliotecaView();
@@ -339,7 +484,7 @@ const PARRAFOS_SISTEMA = [
 
 function renderBibParrafos() {
   const cats = [...new Set(PARRAFOS_SISTEMA.map(p => p.cat))];
-  return `<div style="margin-bottom:10px;font-size:11px;color:var(--text-muted)">Párrafos modelo institucionales UMAG. Haz clic en cualquiera para usarlo en el chat.</div>
+  return `<div style="margin-bottom:10px;font-size:11px;color:var(--text-muted)">Párrafos modelo institucionales. Haz clic en cualquiera para usarlo en el chat.</div>
     ${cats.map(cat => `
       <div style="margin-bottom:12px">
         <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-dim);font-family:'DM Mono',monospace;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">${cat}</div>
@@ -417,6 +562,8 @@ async function sendBibChat() {
   }
 
   // Build context from books
+  // Also include normas with content
+  const normasCtx = getAllNormas().filter(n=>n.content).map(n=>`[NORMA: ${n.label}]\n${n.content.substring(0,600)}`).join('\n\n---\n\n');
   const booksCtx = biblioteca.books.filter(b => b.content_text).slice(0, 10).map(b =>
     `[${b.name}]\n${b.content_text.substring(0, 800)}`
   ).join('\n\n---\n\n');
@@ -428,10 +575,10 @@ async function sendBibChat() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1500,
-        system: `Eres Fiscalito, asistente jurídico de la Biblioteca de Referencia UMAG. Tienes acceso a los documentos de la biblioteca y a normativa de procedimientos disciplinarios. Responde con precisión, cita normas específicas y usa lenguaje institucional formal.
+        system: `Eres Fiscalito, asistente jurídico de la Biblioteca de Referencia. Tienes acceso a los documentos de la biblioteca y a normativa de procedimientos disciplinarios. Responde con precisión, cita normas específicas y usa lenguaje institucional formal.
 
 DOCUMENTOS DE LA BIBLIOTECA (primeros ${biblioteca.books.length} docs):
-${booksCtx || 'Sin documentos cargados aún.'}`,
+${[normasCtx, booksCtx].filter(Boolean).join('\n\n---\n\n') || 'Sin documentos cargados aún.'}`,
         messages: biblioteca.chatMessages.slice(-12)
       })
     });
@@ -488,6 +635,7 @@ ${booksCtx || 'Sin documentos cargados aún.'}`,
 .bib-parr-item:hover{border-color:var(--gold-dim);background:var(--gold-glow);}
 .bib-parr-label{font-size:12px;font-weight:500;margin-bottom:3px;}
 .bib-parr-preview{font-size:11px;color:var(--text-muted);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bib-normas-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);}
 .bib-chat-wrap{display:flex;flex-direction:column;gap:0;}
 .bib-chat-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
 `;
