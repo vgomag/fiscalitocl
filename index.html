@@ -760,15 +760,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
           </div>
           <!-- State: Folder linked -->
           <div id="driveHasFolder" style="display:none">
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gold-glow);border:1px solid rgba(79,70,229,.15);border-radius:var(--radius);margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gold-glow);border:1px solid rgba(79,70,229,.15);border-radius:var(--radius);margin-bottom:8px">
               <span style="font-size:18px">📁</span>
               <div style="flex:1;min-width:0">
                 <a id="driveFolderLink" href="#" target="_blank" style="font-size:13px;font-weight:600;color:var(--gold);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="driveFolderName">Abrir carpeta en Drive</span> ↗</a>
                 <div id="driveFolderUrl" style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px"></div>
               </div>
+              <button class="btn-sm" onclick="driveImportData()" title="Leer documentos y extraer datos del caso" style="background:var(--gold);color:#fff;border-color:var(--gold);font-size:10px;white-space:nowrap">📥 Importar datos</button>
               <button class="drive-btn" onclick="driveRefreshFiles()" title="Actualizar archivos">↻</button>
               <button class="drive-btn danger" onclick="driveUnlink()" title="Desvincular carpeta">✕</button>
             </div>
+            <div id="driveImportPreview" style="display:none"></div>
             <div id="driveFilesList"><div class="loading">Cargando archivos…</div></div>
           </div>
         </div>
@@ -1431,6 +1433,7 @@ function showTab(tabId){
   if(tabId==='tabChecklist')loadChecklist();
   if(tabId==='tabAcciones')loadAcciones();
   if(tabId==='tabNotas')loadNotas();
+  if(tabId==='tabModelos')loadModelos();
   if(tabId==='tabDrive')loadDrivePanel();
 }
 
@@ -2400,6 +2403,56 @@ async function deletePendiente(id){
   await loadAcciones();showToast('✓ Pendiente eliminado');
 }
 
+/* ── Modelos / Plantillas ── */
+function loadModelos(){
+  if(!currentCase)return;
+  const el=document.getElementById('modelosList');if(!el)return;
+  const c=currentCase;
+  const fmtArr=v=>{if(!v)return'';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
+  const modelos=[
+    {icon:'📋',title:'Resolución de inicio',desc:'Resolución que instruye el procedimiento disciplinario',prompt:`Genera una resolución de inicio de ${c.tipo_procedimiento||'procedimiento disciplinario'} para este expediente. Incluye vistos, considerandos y resuelvo.`},
+    {icon:'📝',title:'Acta de declaración denunciante',desc:'Acta formal para la declaración del/la denunciante',prompt:`Genera un acta de declaración para el/la denunciante ${fmtArr(c.denunciantes)||'del caso'}. Incluye encabezado, datos del compareciente, preguntas y cierre.`},
+    {icon:'👤',title:'Acta de declaración denunciado/a',desc:'Acta formal para la declaración del/la denunciado/a',prompt:`Genera un acta de declaración para el/la denunciado/a ${fmtArr(c.denunciados)||'del caso'}. Incluye encabezado, inhabilidades, identificación, hechos, descargo y cierre.`},
+    {icon:'👥',title:'Acta de declaración testigo',desc:'Acta formal para declaración de testigos',prompt:'Genera un acta de declaración para testigo. Incluye contexto sin datos sensibles, inhabilidades, relación con las partes, conocimiento de hechos y cierre.'},
+    {icon:'📨',title:'Oficio de notificación',desc:'Oficio para notificar resoluciones o diligencias',prompt:'Genera un oficio de notificación formal para comunicar la resolución de inicio al/la denunciado/a. Incluye antecedentes, lo que se notifica y plazo para responder.'},
+    {icon:'⚖️',title:'Formulación de cargos',desc:'Oficio formal de formulación de cargos',prompt:`Genera el oficio de formulación de cargos para ${fmtArr(c.denunciados)||'el/la investigado/a'} por ${c.materia||'los hechos investigados'}. Incluye conducta reprochada, normativa infringida, circunstancias modificatorias y sanción estimada.`},
+    {icon:'📄',title:'Resolución de sobreseimiento',desc:'Resolución que propone el sobreseimiento del caso',prompt:'Genera una resolución de sobreseimiento fundada en la insuficiencia de prueba o inexistencia de infracción. Incluye vistos, considerandos y resuelvo.'},
+    {icon:'📑',title:'Vista Fiscal / Informe final',desc:'Informe integrado final del procedimiento',prompt:'Genera la vista fiscal completa del expediente. Incluye antecedentes, diligencias practicadas, hechos acreditados, análisis jurídico, ponderación y propuesta de resolución.'},
+    {icon:'🛡️',title:'Medida de protección',desc:'Resolución de medida cautelar o de resguardo',prompt:`Genera una resolución de medida de protección para este caso. ${c.medida_cautelar_detalle?'Medida solicitada: '+c.medida_cautelar_detalle:'Evalúa qué medida corresponde según la materia y las partes involucradas.'}`},
+    {icon:'📮',title:'Oficio de remisión',desc:'Oficio para remitir el expediente a la jefatura',prompt:'Genera el oficio de remisión del expediente terminado a la jefatura de la institución, incluyendo resumen del procedimiento y propuesta.'},
+  ];
+
+  el.innerHTML=`
+    <div style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">🧩 Modelos de documentos</div>
+      <div style="font-size:11px;color:var(--text-muted)">Selecciona un modelo para que el agente lo genere con los datos del expediente <strong>${esc(c.name)}</strong>.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">
+      ${modelos.map(m=>`
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:all .12s;display:flex;flex-direction:column;gap:4px" 
+           onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'" 
+           onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
+           onclick="useModelo(this)" data-prompt="${esc(m.prompt)}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">${m.icon}</span>
+          <span style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(m.title)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4">${esc(m.desc)}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+function useModelo(el){
+  const prompt=el.dataset.prompt;
+  if(!prompt)return;
+  showTab('tabChat');
+  pickFn('F9');
+  setTimeout(()=>{
+    const inp=document.getElementById('inputBox');
+    if(inp){inp.value=prompt;inp.focus();}
+  },200);
+}
+
 async function loadNotas(){
   if(!currentCase)return;
   const el=document.getElementById('notasList');if(!el)return;
@@ -2546,6 +2599,179 @@ async function driveUnlink(){
   const idx=allCases.findIndex(c=>c.id===currentCase.id);
   if(idx>=0)allCases[idx].drive_folder_url=null;
   await loadDrivePanel();showToast('✓ Carpeta desvinculada');
+}
+
+/* ── Drive Import: leer documentos y extraer datos del caso ── */
+async function driveImportData(){
+  if(!currentCase)return;
+  const preview=document.getElementById('driveImportPreview');
+  if(!preview)return;
+  preview.style.display='block';
+  preview.innerHTML=`<div style="padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="animation:spin .8s linear infinite;display:inline-block">↻</span>
+      <span style="font-size:12px;font-weight:500">Leyendo documentos del expediente…</span>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted)" id="driveImportStatus">Conectando con Drive…</div>
+  </div>`;
+
+  try{
+    const m=currentCase.drive_folder_url?.match(/folders\/([^?&/]+)/);
+    if(!m)throw new Error('No se pudo obtener el ID de la carpeta.');
+    const folderId=m[1];
+    const statusEl=document.getElementById('driveImportStatus');
+
+    /* 1. List files via Netlify drive function */
+    let filesData=[];
+    if(statusEl)statusEl.textContent='Listando archivos…';
+    try{
+      const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',folderId})});
+      if(res.ok){const d=await res.json();filesData=(d?.files||d||[]);}
+      if(!Array.isArray(filesData))filesData=[];
+    }catch(e){console.warn('Drive list:',e);}
+
+    /* 2. Try to read content for each file */
+    let docsContent=[];
+    if(filesData.length){
+      if(statusEl)statusEl.textContent=`${filesData.length} archivos. Leyendo contenido…`;
+      for(const f of filesData.filter(f=>!f.mimeType?.includes('folder')).slice(0,8)){
+        try{
+          const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',fileId:f.id})});
+          if(res.ok){const d=await res.json();const txt=d?.content||d?.text||d?.body||'';if(txt)docsContent.push({name:f.name,content:txt.substring(0,3000)});}
+        }catch(e){}
+        /* Also try export for Google Docs */
+        if(!docsContent.find(d=>d.name===f.name)){
+          try{
+            const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'export',fileId:f.id,mimeType:'text/plain'})});
+            if(res.ok){const d=await res.json();const txt=d?.content||d?.text||d?.body||'';if(txt)docsContent.push({name:f.name,content:txt.substring(0,3000)});}
+          }catch(e){}
+        }
+      }
+    }
+
+    /* 3. Send to AI for extraction */
+    if(statusEl)statusEl.textContent='Analizando con IA…';
+    const fileList=filesData.map(f=>`- ${f.name} (${f.mimeType||'?'})`).join('\n');
+    const docsText=docsContent.length?docsContent.map(d=>`### ${d.name}\n${d.content}`).join('\n\n---\n\n'):'[No se pudo leer el contenido de los documentos]';
+    const currentData=JSON.stringify({nombre:currentCase.name,rol:currentCase.rol,materia:currentCase.materia,protocolo:currentCase.protocolo,tipo_procedimiento:currentCase.tipo_procedimiento});
+
+    const extractPrompt=`Analiza los documentos de este expediente disciplinario y extrae datos estructurados.
+
+DATOS ACTUALES DEL CASO: ${currentData}
+
+ARCHIVOS EN LA CARPETA:
+${fileList||'[Carpeta vacía o sin acceso]'}
+
+${docsContent.length?'CONTENIDO EXTRAÍDO DE DOCUMENTOS:\n'+docsText:'NOTA: No se pudo leer el contenido de los archivos. Analiza los NOMBRES de los archivos para inferir datos del caso (números de resolución, fechas, nombres de partes, etc.)'}
+
+EXTRAE EN JSON PURO (sin markdown, sin backticks, solo el objeto JSON):
+{
+  "nueva_resolucion": "número de resolución o null",
+  "fecha_resolucion": "DD-MM-YYYY o null",
+  "fecha_denuncia": "DD-MM-YYYY o null",
+  "fecha_recepcion_fiscalia": "DD-MM-YYYY o null",
+  "tipo_procedimiento": "Investigación Sumaria | Sumario Administrativo | Procedimiento Disciplinario | null",
+  "protocolo": "2020 | 2022 | 18834 | Laboral | Ley Karin | null",
+  "materia": "materia investigada o null",
+  "denunciantes": ["nombres"] o null,
+  "estamentos_denunciante": ["estamentos"] o null,
+  "denunciados": ["nombres"] o null,
+  "estamentos_denunciado": ["estamentos"] o null,
+  "medida_cautelar": true/false/null,
+  "medida_cautelar_detalle": "descripción o null",
+  "observaciones": "notas relevantes o null"
+}
+Solo datos que encuentres en los documentos. Si no hay dato, usa null.`;
+
+    const r=await fetch(CHAT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',max_tokens:2000,
+      system:'Eres un extractor de datos de documentos jurídicos. Responde SOLO con JSON válido sin markdown.',
+      messages:[{role:'user',content:extractPrompt}]
+    })});
+    const data=await r.json();
+    const aiText=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'';
+
+    /* 4. Parse */
+    let extracted={};
+    try{extracted=JSON.parse(aiText.replace(/```json|```/g,'').trim());}
+    catch(e){
+      preview.innerHTML=`<div style="padding:14px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);border-radius:var(--radius);margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">⚠️ Error al extraer datos</div>
+        <div style="font-size:11px;color:var(--text-dim);max-height:150px;overflow-y:auto;white-space:pre-wrap">${esc(aiText.substring(0,500))}</div>
+        <button class="btn-sm" style="margin-top:8px" onclick="document.getElementById('driveImportPreview').style.display='none'">Cerrar</button>
+      </div>`;
+      return;
+    }
+
+    /* 5. Show preview */
+    const fields=[['Resolución','nueva_resolucion'],['Fecha resolución','fecha_resolucion'],['Fecha denuncia','fecha_denuncia'],['Recepción fiscalía','fecha_recepcion_fiscalia'],['Procedimiento','tipo_procedimiento'],['Protocolo','protocolo'],['Materia','materia'],['Denunciante(s)','denunciantes'],['Est. denunciante','estamentos_denunciante'],['Denunciado/a(s)','denunciados'],['Est. denunciado/a','estamentos_denunciado'],['Medida cautelar','medida_cautelar'],['Detalle medida','medida_cautelar_detalle'],['Observaciones','observaciones']];
+    const fmtV=(k,v)=>{if(v===null||v===undefined)return'';if(Array.isArray(v))return v.join(', ');if(typeof v==='boolean')return v?'Sí':'No';return String(v);};
+    const hasData=fields.some(([,k])=>extracted[k]!==null&&extracted[k]!==undefined);
+
+    if(!hasData){
+      preview.innerHTML=`<div style="padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
+        <div style="font-size:12px;color:var(--text-muted)">📂 ${filesData.length} archivos encontrados pero no se pudieron extraer datos estructurados.</div>
+        <button class="btn-sm" style="margin-top:8px" onclick="document.getElementById('driveImportPreview').style.display='none'">Cerrar</button>
+      </div>`;
+      return;
+    }
+
+    window._driveImportExtracted=extracted;
+    preview.innerHTML=`<div style="padding:14px;background:var(--surface);border:1px solid var(--gold-dim);border-radius:var(--radius);margin-bottom:10px">
+      <div style="font-size:13px;font-weight:600;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        📥 Datos extraídos del expediente
+        <span style="font-size:10px;color:var(--text-muted);font-weight:400;margin-left:auto">${filesData.length} archivo(s) · ${docsContent.length} leído(s)</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;margin-bottom:12px">
+        ${fields.map(([label,key])=>{const v=fmtV(key,extracted[key]);if(!v)return'';return `<div style="padding:4px 0"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">${label}</div><div style="font-size:12px;font-weight:500">${esc(v)}</div></div>`;}).join('')}
+      </div>
+      <div style="display:flex;gap:8px;border-top:1px solid var(--border);padding-top:10px">
+        <button class="btn-save" onclick="driveImportApply()">✓ Aplicar datos al caso</button>
+        <button class="btn-cancel" onclick="document.getElementById('driveImportPreview').style.display='none'">Cancelar</button>
+      </div>
+    </div>`;
+  }catch(err){
+    preview.innerHTML=`<div style="padding:14px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);border-radius:var(--radius);margin-bottom:10px">
+      <div style="font-size:12px;color:var(--red)">⚠️ Error: ${esc(err.message)}</div>
+      <button class="btn-sm" style="margin-top:8px" onclick="document.getElementById('driveImportPreview').style.display='none'">Cerrar</button>
+    </div>`;
+  }
+}
+
+async function driveImportApply(){
+  if(!currentCase||!window._driveImportExtracted)return;
+  const ex=window._driveImportExtracted;
+  /* Build update payload — only non-null fields, don't overwrite existing data */
+  const payload={updated_at:new Date().toISOString()};
+  const setIfNew=(field,val)=>{if(val!==null&&val!==undefined&&!currentCase[field])payload[field]=val;};
+  const setAlways=(field,val)=>{if(val!==null&&val!==undefined)payload[field]=val;};
+
+  setIfNew('nueva_resolucion',ex.nueva_resolucion);
+  setIfNew('fecha_resolucion',ex.fecha_resolucion);
+  setIfNew('fecha_denuncia',ex.fecha_denuncia);
+  setIfNew('fecha_recepcion_fiscalia',ex.fecha_recepcion_fiscalia);
+  setIfNew('tipo_procedimiento',ex.tipo_procedimiento);
+  setIfNew('protocolo',ex.protocolo);
+  setIfNew('materia',ex.materia);
+  setIfNew('observaciones',ex.observaciones);
+  /* Denunciantes/denunciados: only set if currently empty */
+  if(ex.denunciantes?.length&&!currentCase.denunciantes)payload.denunciantes=ex.denunciantes;
+  if(ex.estamentos_denunciante?.length&&!currentCase.estamentos_denunciante)payload.estamentos_denunciante=ex.estamentos_denunciante;
+  if(ex.denunciados?.length&&!currentCase.denunciados)payload.denunciados=ex.denunciados;
+  if(ex.estamentos_denunciado?.length&&!currentCase.estamentos_denunciado)payload.estamentos_denunciado=ex.estamentos_denunciado;
+  if(ex.medida_cautelar!==null&&ex.medida_cautelar!==undefined)payload.medida_cautelar=ex.medida_cautelar;
+  if(ex.medida_cautelar_detalle)setIfNew('medida_cautelar_detalle',ex.medida_cautelar_detalle);
+
+  const{error}=await sb.from('cases').update(payload).eq('id',currentCase.id);
+  if(error)return alert('Error: '+error.message);
+  /* Update local state */
+  Object.assign(currentCase,payload);
+  const idx=allCases.findIndex(c=>c.id===currentCase.id);
+  if(idx>=0)Object.assign(allCases[idx],payload);
+  renderCaseHeader();
+  document.getElementById('driveImportPreview').style.display='none';
+  window._driveImportExtracted=null;
+  showToast('✓ Datos importados al caso');
 }
 
 /* ── Análisis Jurisprudencial ── */
