@@ -280,4 +280,20 @@ ${draft.content.replace(/\*\*(.*?)\*\*/g, '{\\b $1}').replace(/\n/g, '\\par\n')}
 .esc-streaming-badge{display:flex;align-items:center;font-size:12px;font-weight:500;color:var(--gold);}
 `;
   document.head.appendChild(style);
+
+
+// PDF export for escritos
+function exportEscritosPDF(){
+  var drafts = typeof window._ejDrafts !== 'undefined' ? window._ejDrafts : [];
+  var activeId = typeof window._ejActiveId !== 'undefined' ? window._ejActiveId : null;
+  var draft = activeId ? drafts.find(function(d){return d.id===activeId}) : null;
+  var content = draft ? draft.content : '';
+  if(!content && typeof window._ejStreamContent !== 'undefined') content = window._ejStreamContent;
+  if(!content){showToast('Sin contenido para exportar');return;}
+  if(typeof exportToPDF === 'function'){
+    exportToPDF(content, 'escrito_judicial_' + Date.now(), {title: draft ? draft.title : 'Escrito Judicial'});
+  } else { showToast('Modulo de exportacion no cargado'); }
+}
+window.exportEscritosPDF = exportEscritosPDF;
+
 })();
