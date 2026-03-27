@@ -1,0 +1,18 @@
+[functions]
+  directory = "netlify/functions"
+
+# Extended timeout for AI processing (chat, OCR, transcription)
+# Free plan: max 10s, Pro plan: max 26s
+# If you're on Pro, set to 26
+[functions."chat"]
+  external_node_modules = ["@anthropic-ai/sdk"]
+
+[functions."ocr"]
+  external_node_modules = ["@anthropic-ai/sdk"]
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
