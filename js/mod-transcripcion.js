@@ -187,7 +187,8 @@ function buildF11HTML(){
       <div class="f11-result-actions">
         <button class="btn-save" onclick="saveTranscripcionToCase()" style="font-size:11.5px">💾 Guardar al expediente</button>
         <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar</button>
-        <button class="btn-sm" onclick="downloadTransWord()">⬇ Descargar</button>
+        <button class="btn-sm" onclick="downloadTransWord()">⬇ TXT</button>
+        <button class="btn-sm" onclick="exportActaToWord()" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600">📄 Word</button>
         ${!transcripcion.summary?'<button class="btn-sm" onclick="generateTransSummary()">📊 Resumen IA</button>':''}
         <button class="btn-cancel" style="margin-left:auto" onclick="resetTranscripcion()">↺ Nueva</button>
       </div>
