@@ -156,7 +156,7 @@ RESPONDE SOLO JSON puro (sin backticks ni markdown). Array de objetos:
         ? await driveGet(`/drive/v3/files/${fileId}/export?mimeType=application%2Fpdf`, token, true)
         : await driveGet(`/drive/v3/files/${fileId}?alt=media`, token, true);
 
-      if (r.status >= 300 || !r.data || r.data.length < 100) throw new Error('No se pudo descargar');
+      if (r.status >= 300 || !r.data || r.data.length < 100) throw new Error('No se pudo descargar (status: ' + r.status + ', bytes: ' + (r.data?.length || 0) + ')');
 
       const b64 = r.data.toString('base64');
       const isPdf = mime.includes('pdf');
@@ -168,9 +168,13 @@ RESPONDE SOLO JSON puro (sin backticks ni markdown). Array de objetos:
       else if (isImg) content = [{ type: 'image', source: { type: 'base64', media_type: m, data: b64 } }, { type: 'text', text: 'Extrae todo el texto visible. Solo texto.' }];
       else content = [{ type: 'document', source: { type: 'base64', media_type: m, data: b64 } }, { type: 'text', text: 'Extrae todo el texto. Solo texto.' }];
 
-      const ocr = await callClaude(apiKey, HAIKU, 'Extrae todo el texto del documento. Manten formato original (parrafos, listas, tablas). Solo el texto extraido, sin comentarios.', content, 16000);
+      const ocr = await callClaude(apiKey, SONNET, 'Extrae todo el texto del documento. Manten formato original (parrafos, listas, tablas). Solo el texto extraido, sin comentarios.', content, 16000);
+      
+      /* Check for API errors */
+      if (ocr.error) throw new Error('Claude API: ' + (ocr.error.message || JSON.stringify(ocr.error)));
+      
       txt = (ocr.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-      if (!txt) throw new Error('No se pudo extraer texto');
+      if (!txt) throw new Error('Claude no devolvio texto (model: ' + SONNET + ', bytes: ' + r.data.length + ', mime: ' + mime + ')');
     }
 
     /* Skip summary in extract phase to save time — summary done in analyze phase */
