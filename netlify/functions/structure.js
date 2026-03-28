@@ -106,13 +106,13 @@ exports.handler = async (event) => {
     const systemPrompt = PROMPTS[mode] || PROMPTS.directa;
     let fullPrompt = systemPrompt;
     if (caseContext) fullPrompt += '\n' + caseContext;
-    if (baseDocText) fullPrompt += '\n\nDOCUMENTO BASE:\n' + baseDocText.substring(0, 1500);
+    if (baseDocText) fullPrompt += '\n\nDOCUMENTO BASE:\n' + baseDocText.substring(0, 3000);
 
-    /* For long texts, truncate to fit within timeout */
-    const text = rawText.substring(0, 4000);
+    /* Allow more text for better quality structuring */
+    const text = rawText.substring(0, 8000);
     const userMsg = 'Estructura la siguiente declaración transcrita:\n\n' + text;
 
-    const result = await callAnthropic(apiKey, fullPrompt, userMsg, 3000);
+    const result = await callAnthropic(apiKey, fullPrompt, userMsg, 4000);
     const structured = (result.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
 
     if (!structured) throw new Error('No se generó texto estructurado');
