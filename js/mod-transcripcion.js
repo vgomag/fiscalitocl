@@ -145,9 +145,9 @@ function buildF11HTML(){
         Subir audio / video (MP3, M4A, WAV, OGG, MP4…)
         <input type="file" accept="${T_ACCEPT}" style="display:none" onchange="handleTransAudioUpload(this)"/>
       </label>
-      <label class="f11-upload-btn" style="font-size:11px;padding:4px 10px">
+      <label class="f11-upload-btn" style="font-size:11px;padding:4px 10px" title="Suba el acta/cuestionario con las preguntas para que se llene con las respuestas del audio">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Doc. base (opcional)
+        Acta / Cuestionario base (opcional)
         <input type="file" accept=".pdf,.docx,.doc,.txt" style="display:none" onchange="handleTransDocUpload(this)"/>
       </label>
     </div>
@@ -155,8 +155,8 @@ function buildF11HTML(){
       ?`<div class="f11-file-chip">🔊 ${esc(transcripcion.audioFile.name)} <span style="font-size:10px;opacity:.7;margin-left:4px">(${_sz(transcripcion.audioFile.size)})</span>
           <button onclick="transcripcion.audioFile=null;transcripcion.audioUrl=null;renderF11Panel()" class="f11-chip-del">✕</button></div>`:''}
     ${transcripcion.baseDocName
-      ?`<div class="f11-file-chip">📄 ${esc(transcripcion.baseDocName)} <button onclick="clearTransDoc()" class="f11-chip-del">✕</button></div>`
-      :`<div class="f11-empty-docs">Use el botón de arriba para cargar su archivo de audio</div>`}
+      ?`<div class="f11-file-chip">📄 ${esc(transcripcion.baseDocName)} <span style="font-size:10px;opacity:.7;margin-left:4px">(se llenará con audio)</span> <button onclick="clearTransDoc()" class="f11-chip-del">✕</button></div>`
+      :`<div class="f11-empty-docs">${transcripcion.audioFile?'Opcionalmente suba un acta/cuestionario base para llenar con el audio':'Use el botón de arriba para cargar su archivo de audio'}</div>`}
     ${transcripcion.audioUrl?`<audio controls src="${transcripcion.audioUrl}" style="width:100%;margin-top:8px;height:32px"></audio>`:''}
   </div>`;
 

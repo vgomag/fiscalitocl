@@ -38,59 +38,120 @@ function callAnthropic(apiKey, system, userMsg, maxTokens) {
   });
 }
 
-const PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes.
+const PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
 
-Instrucción de trabajo para incorporación de declaración transcrita al acta:
-Elabora un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración en audio, integrándolo al acta que se adjunta. El documento final debe presentarse en formato pregunta-respuesta, respetando la estructura del acta.
+CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes. Actúo como Fiscal Investigadora.
 
-La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes, en el cual actúo como Fiscal Investigadora.
+REGLAS DE EDICIÓN:
+- Conservar la redacción en primera persona y el estilo expresivo del declarante
+- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea") y repeticiones innecesarias
+- NO agregar información nueva ni interpretar intenciones
+- Mantener palabras originales del declarante salvo errores gramaticales
+- Unir frases fragmentadas para fluidez sin cambiar sentido
+- Conservar comillas, fechas, cifras y nombres propios exactamente como están
+- Tono formal, claro y preciso, coherente con documento legal
+- Respetar terminología jurídica y secuencia cronológica
 
-La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas. Es importante que se conserve, en lo posible, la redacción en primera persona y el estilo expresivo del declarante, realizando únicamente correcciones gramaticales menores, tales como concordancia, puntuación y eliminación de repeticiones innecesarias que no alteren el sentido ni el tono del testimonio.
-
-Una vez integradas todas las partes, el documento debe presentar una redacción fluida, coherente y ordenada, que facilite su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
-
-Objetivo:
-- Mejorar la gramática, claridad y coherencia del texto
-- Eliminar muletillas ("eh", "mmm") y repeticiones innecesarias
-- Conservar la estructura lógica de los párrafos y la secuencia cronológica de los hechos
-- Respetar la terminología jurídica y los nombres propios tal como aparecen en la transcripción
-
-Instrucciones específicas:
-- No agregar información nueva ni interpretar intenciones; solo reescribir lo existente
-- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical
-- Unir frases fragmentadas cuando sea necesario para fluidez, sin cambiar el sentido
-- Conservar comillas, fechas y cifras exactamente como están
-- Usar un tono formal, claro y preciso, coherente con un documento legal
-
-Formato de entrega:
-- Texto corregido en formato pregunta-respuesta con párrafos separados
-- Sin comentarios ni marcadores de edición; solo la versión final`;
+ENTREGA: Solo la versión final, sin comentarios ni marcas de edición.`;
 
 const PROMPTS = {
-  pregunta_respuesta: PROMPT_BASE,
+  pregunta_respuesta: PROMPT_BASE + `
+
+FORMATO: Pregunta-Respuesta
+- Estructura el texto como diálogo formal entre Fiscal y declarante
+- Cada pregunta precedida de "PREGUNTA:" o "FISCAL:"
+- Cada respuesta precedida de "RESPUESTA:" o "DECLARANTE:"
+- Párrafos separados, numerados si es posible`,
 
   directa: PROMPT_BASE + `
 
-FORMATO ADICIONAL: Estructura como ACTA FORMAL de declaración rendida en procedimiento disciplinario.
-Incluir encabezado institucional, cuerpo de declaración en párrafos y cierre con "Leída que le fue su declaración, se ratifica y firma" más espacios para firmas.`,
+FORMATO: ACTA FORMAL UMAG — Declaración en procedimiento disciplinario.
+
+Genera el documento completo con esta estructura EXACTA:
+
+═══ ENCABEZADO ═══
+UNIVERSIDAD DE MAGALLANES
+DIRECCIÓN DE PERSONAL / [UNIDAD QUE CORRESPONDA]
+
+**ACTA DE DECLARACIÓN DE [TESTIGO/DENUNCIANTE/PERSONA DENUNCIADA]**
+
+En [LUGAR], a [FECHA EN PALABRAS], siendo las [HORA] horas, ante la Fiscal Investigadora [NOMBRE FISCAL], en el marco del procedimiento [TIPO] Rol N° [ROL], por presuntas infracciones a [MATERIA], comparece:
+
+**[NOMBRE COMPLETO DEL DECLARANTE]**, quien previamente advertido/a de:
+- Su obligación de decir verdad conforme al artículo 17 de la Ley N° 19.880
+- Las penas del falso testimonio según los artículos 206 y siguientes del Código Penal
+- Su derecho a no declarar contra sí mismo/a (si es persona denunciada)
+- Las causales de inhabilidad
+
+Declara no tener inhabilidad para declarar en este procedimiento y expone lo siguiente:
+
+═══ CUERPO ═══
+Declaración en formato pregunta-respuesta, con correcciones gramaticales aplicadas.
+
+═══ CIERRE ═══
+No habiendo más que agregar, y leída que le fue su declaración, se ratifica en ella y firma para constancia.
+
+[Espacio firma]
+_________________________________
+[NOMBRE DECLARANTE]
+[CALIDAD: Testigo / Denunciante / Persona denunciada]
+
+[Espacio firma]
+_________________________________
+[NOMBRE FISCAL]
+Fiscal Investigadora
+
+Si falta algún dato, usar [COMPLETAR].`,
 
   con_expediente: PROMPT_BASE + `
 
-FORMATO ADICIONAL: Estructura como ACTA FORMAL institucional COMPLETA.
-1. ENCABEZADO FORMAL:
-   - Título: "ACTA DE DECLARACIÓN" (o "ACTA DE DECLARACIÓN DE TESTIGO" según corresponda)
-   - Nombre del expediente y ROL
-   - Fecha de la declaración
-   - Nombre del/la fiscal o investigador/a
-   - Nombre del/la declarante con su calidad procesal (denunciante, denunciado/a, testigo)
-   - Tipo de procedimiento y materia investigada
+FORMATO: ACTA FORMAL UMAG — Declaración en procedimiento disciplinario.
+Usa los DATOS DEL EXPEDIENTE proporcionados para completar TODOS los campos del encabezado.
+NO dejes campos como [COMPLETAR] si el dato está disponible en el contexto.
 
-2. CUERPO: Declaración en formato pregunta-respuesta con las correcciones gramaticales.
+Genera el documento completo con esta estructura EXACTA:
 
-3. CIERRE FORMAL:
-   - "Leída que le fue su declaración, se ratifica y firma"
-   - Espacios para firmas del/la declarante, fiscal y actuario/a
-   - Si falta algún dato del expediente, marcar como [COMPLETAR]`
+═══ ENCABEZADO ═══
+UNIVERSIDAD DE MAGALLANES
+
+**ACTA DE [TIPO DE ACTA según metadatos]**
+
+En [LUGAR], a [FECHA EN PALABRAS], ante la Fiscal Investigadora, en el marco del procedimiento [TIPO] Rol N° [ROL], por presuntas infracciones a [MATERIA], comparece:
+
+**[NOMBRE DEL DECLARANTE]**, en calidad de [CALIDAD PROCESAL], quien previamente advertido/a de:
+- Su obligación de decir verdad conforme al artículo 17 de la Ley N° 19.880
+- Las penas del falso testimonio según los artículos 206 y siguientes del Código Penal
+- Su derecho a no declarar contra sí mismo/a (si corresponde)
+- Las causales de inhabilidad
+
+Declara no tener inhabilidad y expone:
+
+═══ CUERPO ═══
+Declaración en formato pregunta-respuesta con correcciones.
+
+═══ CIERRE ═══
+Leída que le fue su declaración, se ratifica y firma.
+
+_________________________________
+[NOMBRE DECLARANTE] / [CALIDAD]
+
+_________________________________
+Fiscal Investigadora`,
+
+  fill_acta: PROMPT_BASE + `
+
+INSTRUCCIÓN ESPECIAL — MODO LLENAR ACTA EXISTENTE:
+Se adjunta un DOCUMENTO BASE que es la plantilla/acta original con las preguntas del cuestionario.
+Tu tarea es LLENAR esa plantilla con las respuestas extraídas del audio transcrito.
+
+REGLAS:
+1. PRESERVA la estructura exacta del documento base (encabezado, numeración, preguntas)
+2. Después de cada pregunta del documento base, inserta la respuesta correspondiente del audio
+3. Si una pregunta NO tiene respuesta en el audio, escribe: "[Sin respuesta en el audio]"
+4. Si el audio contiene información adicional, agrégala al final como "DECLARACIÓN COMPLEMENTARIA"
+5. Mantén el formato formal del documento base
+6. Completa campos del encabezado con datos del expediente si están disponibles
+7. Agrega cierre formal: "Leída que le fue su declaración, se ratifica y firma" con espacios para firmas`
 };
 
 exports.handler = async (event) => {
@@ -117,13 +178,16 @@ exports.handler = async (event) => {
     const systemPrompt = PROMPTS[mode] || PROMPTS.directa;
     let fullPrompt = systemPrompt;
     if (caseContext) fullPrompt += '\n' + caseContext;
-    if (baseDocText) fullPrompt += '\n\nDOCUMENTO BASE:\n' + baseDocText.substring(0, 3000);
+    if (baseDocText) fullPrompt += '\n\nDOCUMENTO BASE (plantilla del acta — preservar su estructura y llenar con las respuestas del audio):\n' + baseDocText.substring(0, 5000);
 
     /* Pro plan: 26s timeout allows more text */
     const text = rawText.substring(0, 12000);
-    const userMsg = 'Estructura la siguiente declaración transcrita:\n\n' + text;
+    const userMsg = mode === 'fill_acta'
+      ? 'Llena el acta adjunta (DOCUMENTO BASE) con las respuestas de la siguiente transcripción de audio:\n\n' + text
+      : 'Estructura la siguiente declaración transcrita como acta formal:\n\n' + text;
 
-    const result = await callAnthropic(apiKey, fullPrompt, userMsg, 6000);
+    const maxTok = (mode === 'fill_acta' || mode === 'con_expediente' || mode === 'directa') ? 8000 : 6000;
+    const result = await callAnthropic(apiKey, fullPrompt, userMsg, maxTok);
     const structured = (result.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
 
     if (!structured) throw new Error('No se generó texto estructurado');
