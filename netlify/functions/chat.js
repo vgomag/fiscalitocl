@@ -54,9 +54,41 @@ export default async (req) => {
       return json({ transcript, provider });
     }
 
-    /* ═══ MODO NORMAL — Claude ═══ */
+    /* ═══ MODO NORMAL — Claude (con streaming) ═══ */
     const key = Netlify.env.get('ANTHROPIC_API_KEY');
     if (!key) return json({ error: 'API key no configurada' }, 500);
+
+    /* Si el cliente pide streaming (stream: true en body) */
+    if (body.stream) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: body.model || 'claude-sonnet-4-20250514',
+          max_tokens: body.max_tokens || 2000,
+          system: body.system,
+          messages: body.messages,
+          stream: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.text();
+        return new Response(errData, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      /* Reenviar el stream SSE de Anthropic directamente al cliente */
+      return new Response(res.body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+    /* Modo sin streaming (fallback para compatibilidad) */
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },

@@ -2747,16 +2747,63 @@ async function sendMessage(){
 
     const body={
       model:'claude-sonnet-4-20250514',
-      max_tokens:activeFn==='F7'||activeFn==='F8'?16000:activeFn==='F5'?2000:4000,
+      max_tokens:activeFn==='F7'||activeFn==='F8'?16000:activeFn==='F5'?4096:4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
-      messages:[...historyMsgs,{role:'user',content:text}]
+      messages:[...historyMsgs,{role:'user',content:text}],
+      stream:true
     };
     const r=await authFetch(CHAT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     removeTyping(typingId);
-    if(!r.ok){const e=await r.json().catch(()=>({}));appendMsg('assistant','⚠️ Error: '+(e.error||r.status));return;}
-    const data=await r.json();
-    const reply=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin respuesta.';
-    appendMsg('assistant',reply);
+    if(!r.ok){const e=await r.text().catch(()=>'');try{const ej=JSON.parse(e);appendMsg('assistant','⚠️ Error: '+(ej.error||r.status));}catch{appendMsg('assistant','⚠️ Error: '+r.status);}return;}
+
+    /* ── Streaming: leer SSE progresivamente ── */
+    const fn=FNS.find(f=>f.code===activeFn);
+    const msgDiv=document.createElement('div');msgDiv.className='msg assistant';
+    const actions=currentCase?`<div style="display:flex;gap:4px;margin-top:6px;padding-top:5px;border-top:1px solid var(--border)">
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsNota(this)" title="Guardar como nota del caso">📝 Nota</button>
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsPendiente(this)" title="Crear pendiente desde esta respuesta">⚡ Pendiente</button>
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="navigator.clipboard.writeText(this.closest('.msg').querySelector('.msg-bub').innerText);showToast('✓ Copiado')" title="Copiar al portapapeles">📋 Copiar</button>
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="exportChatResponseToWord(this)" title="Descargar como Word">📄 Word</button>
+    </div>`:'';
+    msgDiv.innerHTML=`<div class="msg-av-icon">⚖️</div><div class="msg-body"><div class="msg-tag">${activeFn} · ${fn?.name||'Fiscalito'}</div><div class="msg-bub"></div><div class="msg-actions-placeholder"></div></div>`;
+    const msgsC=document.getElementById('msgs');
+    msgsC.appendChild(msgDiv);
+    const bubEl=msgDiv.querySelector('.msg-bub');
+    const actionsPlaceholder=msgDiv.querySelector('.msg-actions-placeholder');
+
+    let fullText='';
+    const reader=r.body.getReader();
+    const decoder=new TextDecoder();
+    let sseBuffer='';
+
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      sseBuffer+=decoder.decode(value,{stream:true});
+      const lines=sseBuffer.split('\n');
+      sseBuffer=lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        const payload=line.slice(6).trim();
+        if(payload==='[DONE]')continue;
+        try{
+          const evt=JSON.parse(payload);
+          if(evt.type==='content_block_delta'&&evt.delta?.type==='text_delta'){
+            fullText+=evt.delta.text;
+            bubEl.innerHTML=md(fullText);
+            msgsC.scrollTop=msgsC.scrollHeight;
+          }
+        }catch{}
+      }
+    }
+    if(!fullText)fullText='Sin respuesta.';
+    bubEl.innerHTML=md(fullText);
+    actionsPlaceholder.outerHTML=actions;
+    msgsC.scrollTop=msgsC.scrollHeight;
+    /* Persist to Supabase */
+    if(currentCase&&session){
+      sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error)console.warn('Chat save:',error);});
+    }
   }catch(err){removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
   finally{setLoading(false);}
 }
