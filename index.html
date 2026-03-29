@@ -3371,6 +3371,33 @@ async function addNewNota(prefillTitle,prefillContent){
   };
   openMiniModal();
 }
+async function addNewNotaWithSource(prefillTitle,prefillContent,source){
+  if(!currentCase)return;
+  document.getElementById('miniModalTitle').textContent='Guardar como Nota';
+  document.getElementById('miniModalBody').innerHTML=`
+    <div class="mini-field"><label>Título</label><input id="mNotaTitle" placeholder="Ej: Análisis IRAC del caso" value="${esc(prefillTitle||'')}"/></div>
+    <div class="mini-field"><label>Etiqueta</label>
+      <select id="mNotaSource" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface)">
+        <option value="irac" ${source==='irac'?'selected':''}>📊 Análisis IRAC</option>
+        <option value="hechos" ${source==='hechos'?'selected':''}>📋 Hechos Acreditados</option>
+        <option value="parrafo_modelo" ${source==='parrafo_modelo'?'selected':''}>📝 Párrafo Modelo</option>
+        <option value="cargos" ${source==='cargos'?'selected':''}>⚖️ Formulación de Cargos</option>
+        <option value="vista_fiscal" ${source==='vista_fiscal'?'selected':''}>📑 Vista Fiscal</option>
+        <option value="informe_derecho" ${source==='informe_derecho'?'selected':''}>📚 Informe en Derecho</option>
+        <option value="cuestionario" ${source==='cuestionario'?'selected':''}>❓ Cuestionario</option>
+        <option value="chat" ${source==='chat'?'selected':''}>💬 Chat IA</option>
+        <option value="manual" ${source==='manual'?'selected':''}>✏️ Manual</option>
+      </select>
+    </div>
+    <div class="mini-field"><label>Contenido</label><textarea id="mNotaContent" rows="6" placeholder="Contenido de la nota…" style="min-height:120px">${esc(prefillContent||'')}</textarea></div>`;
+  window._miniModalSave=async()=>{
+    const content=document.getElementById('mNotaContent').value.trim();if(!content)return alert('El contenido es obligatorio.');
+    const{error}=await sb.from('case_notes').insert({case_id:currentCase.id,user_id:session.user.id,title:document.getElementById('mNotaTitle').value.trim()||null,content,source:document.getElementById('mNotaSource').value});
+    if(error)return alert('Error: '+error.message);
+    closeMiniModal();await loadNotas();showToast('✓ Nota guardada');
+  };
+  openMiniModal();
+}
 async function deleteNota(id){
   if(!confirm('¿Eliminar esta nota?'))return;
   await sb.from('case_notes').delete().eq('id',id);
@@ -3382,7 +3409,11 @@ function saveChatAsNota(btn){
   if(!msgBub||!currentCase)return showToast('Selecciona un caso primero');
   const text=msgBub.innerText;
   const fnTag=btn.closest('.msg')?.querySelector('.msg-tag')?.innerText||'';
-  addNewNota(fnTag?fnTag+' — '+currentCase.name:'Nota desde Chat',text);
+  /* Auto-detect source label based on active function */
+  const sourceMap={'F5':'irac','F6':'cargos','F7':'vista_fiscal','F8':'informe_derecho','F3':'cuestionario','F4':'cuestionario'};
+  const autoSource=sourceMap[activeFn]||'chat';
+  const title=fnTag?fnTag+' — '+currentCase.name:'Nota desde Chat';
+  addNewNotaWithSource(title,text,autoSource);
 }
 function saveChatAsPendiente(btn){
   const msgBub=btn.closest('.msg')?.querySelector('.msg-bub');
