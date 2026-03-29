@@ -794,8 +794,9 @@ async function saveTranscripcionToCase(){
     try{await sb.from('diligencias').insert({
       id:crypto.randomUUID(),
       case_id:caseRef.id,user_id:session.user.id,
-      diligencia_label:title,diligencia_type:'Declaración transcrita',
-      fecha_diligencia:new Date().toISOString().split('T')[0],
+      diligencia_label:title,
+      diligencia_type:mt.tipoDeclarante==='testigo'?'declaracion_testigo':mt.tipoDeclarante==='denunciante'?'ratificacion':mt.tipoDeclarante==='denunciado'?'declaracion_denunciado':'otro',
+      fecha_diligencia:mt.fecha||new Date().toISOString().split('T')[0],
       file_name:audioName,ai_summary:transcripcion.summary||null,
       extracted_text:text.substring(0,5000)
     });}catch(e){console.warn('Diligencia:',e);}
