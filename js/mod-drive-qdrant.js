@@ -24,7 +24,7 @@ const DQ_BASE_FOLDERS = [
   { id:'1TvLs0J94gKAZKEe8ZF9o77oLJmVNAx2C', name:'Dictámenes CGR',          collection:'rulings'                   },
   { id:'11Vz73Te97ZHPc9f2E-_6cHLSi7LLLZ0g', name:'Doctrina Administrativo',  collection:'administrative_discipline'  },
   { id:'1Gng03HxH7G_JyGfBiYDkEkcgBpTcrTpX', name:'Jurisprudencia Relevante', collection:'relevant_jurisprudence'    },
-  { id:'1cqDHOAZX-jul7vpyzpJLW4BEYrkzvS9u', name:'Libros Administrativo',    collection:'administrative_book'       },
+  { id:'1cqDHOAZX-jul7vpyzpJLW4BEYrkzvS9u', name:'Libros Administrativo',    collection:'reference_books'           },
   { id:'1iBT8QA8-OZ7QWP4XctbQykoiEg4rYiSU', name:'Normativa Vigente',        collection:'current_regulations'       },
   { id:'1SDBYlUQoEah7sBVBnGmqymW1S-hR-k1B', name:'Temáticas Específicas',    collection:'specific_topics'           },
 ];
@@ -33,7 +33,7 @@ const DQ_BASE_LABELS = {
   rulings:                  'Dictámenes CGR',
   administrative_discipline:'Normativa / Doctrina',
   relevant_jurisprudence:   'Jurisprudencia Relevante',
-  administrative_book:      'Libros Administrativo',
+  reference_books:      'Libros Administrativo',
   current_regulations:      'Normativa Vigente',
   specific_topics:          'Temáticas Específicas',
 };

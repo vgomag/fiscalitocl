@@ -40,7 +40,7 @@ const LEGAL_CATEGORIES = {
   sanciones:      { label:'Sanciones Administrativas',      keywords:['destitución','suspensión','multa','censura','amonestación'],                collections:['rulings','administrative_discipline'] },
   garantias:      { label:'Garantías y Debido Proceso',     keywords:['debido proceso','defensa','notificación','plazo','prescripción','nulidad'], collections:['relevant_jurisprudence','rulings'] },
   recursos:       { label:'Recursos e Impugnaciones',       keywords:['recurso','apelación','reposición','protección','reclamación'],              collections:['relevant_jurisprudence','rulings'] },
-  funcionarios:   { label:'Régimen Funcionario',            keywords:['funcionario','estatuto','contrata','planta','honorarios','probidad'],       collections:['administrative_discipline','administrative_book'] },
+  funcionarios:   { label:'Régimen Funcionario',            keywords:['funcionario','estatuto','contrata','planta','honorarios','probidad'],       collections:['administrative_discipline','reference_books'] },
   contraloria:    { label:'Jurisprudencia CGR',             keywords:['dictamen','toma de razón','contraloría','pronunciamiento'],                 collections:['rulings','administrative_discipline'] },
 };
 

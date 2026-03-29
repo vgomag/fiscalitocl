@@ -117,7 +117,7 @@ export default async (req) => {
     const { query, folder = 'todos' } = body;
     if (!query) return new Response(JSON.stringify({ error: 'query required' }), { status: 400, headers });
 
-    const qdrantUrl = Netlify.env.get('QDRANT_URL');
+    const qdrantUrl = (Netlify.env.get('QDRANT_URL') || '').replace(/\/+$/, '');
     const qdrantKey = Netlify.env.get('QDRANT_API_KEY');
     const saKey = Netlify.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
 

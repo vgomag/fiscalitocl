@@ -362,4 +362,43 @@ window.dqDeleteCollection = async function dqDeleteCollection(dbId, name) {
   }
 };
 
+/* ═══ Override dqRecordFile — firma compatible con el patch ═══ */
+window.dqRecordFile = async function dqRecordFile(sb, file, folderId, collection, status, chunks) {
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+    const userId = user.id;
+
+    const { data: existing } = await sb.from('drive_processed_files')
+      .select('id')
+      .eq('drive_file_id', file.id || file)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const record = {
+      file_name:    file.name || 'unknown',
+      chunks_count: chunks || 0,
+      processed_at: new Date().toISOString(),
+      status:       status || 'indexed',
+      qdrant_collection: collection || '',
+    };
+
+    if (existing) {
+      await sb.from('drive_processed_files').update(record).eq('id', existing.id);
+    } else {
+      await sb.from('drive_processed_files').insert({
+        user_id:             userId,
+        drive_file_id:       file.id || file,
+        mime_type:           file.mimeType || null,
+        file_size:           file.size ? parseInt(file.size) : null,
+        drive_modified_time: file.modifiedTime || null,
+        drive_folder_id:     folderId || null,
+        ...record,
+      });
+    }
+  } catch (e) {
+    console.warn('dqRecordFile error:', e.message);
+  }
+};
+
 console.log('%c🔧 Parche Qdrant cargado — funciones corregidas para usar Netlify', 'color:#10b981;font-weight:bold');
