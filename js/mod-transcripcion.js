@@ -327,10 +327,15 @@ function buildF11HTML(){
 /* ── Chips ── */
 function buildF11Chips(){
   const row=document.getElementById('fnChipsRow');if(!row)return;
-  const modes=[
-    {id:'solo',label:'+ Solo transcribir'},
-    {id:'pregunta_respuesta',label:'+ Formato pregunta-respuesta'},
-    {id:'con_expediente',label:'+ Con datos del expediente'},
+  const hasDoc=!!transcripcion.baseDocText;
+  const modes=hasDoc?[
+    {id:'fill_acta',label:'📄 Llenar acta con audio'},
+    {id:'pregunta_respuesta',label:'+ Solo Q&A'},
+    {id:'con_expediente',label:'+ Acta formal nueva'},
+  ]:[
+    {id:'directa',label:'+ Acta formal'},
+    {id:'pregunta_respuesta',label:'+ Formato Q&A'},
+    {id:'con_expediente',label:'+ Con expediente'},
   ];
   row.innerHTML=modes.map(m=>
     `<button class="fn-chip ${transcripcion.selectedMode===m.id?'fn-chip-active':''}"
