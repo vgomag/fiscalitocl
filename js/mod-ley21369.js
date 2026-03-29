@@ -603,24 +603,26 @@ async function sendChat(){
     const s=globalStats();
     const context=`Estado cumplimiento Ley 21.369:\n- Total requisitos: ${s.total}\n- Cumplidos: ${s.cumplidos} (${s.pct}%)\n- En proceso: ${s.enProceso}\n- Pendientes: ${s.pendientes}\n\nÁreas:\n${analyzeAreas().map(a=>`${a.label}: ${a.pct}% (${a.cumplidos}/${a.total})`).join("\n")}`;
 
+    /* Only include user/assistant messages (not system) */
+    const apiMessages=chatMessages.filter(m=>m.role==="user"||m.role==="assistant").map(m=>({role:m.role,content:m.content}));
+
     const body={
-      messages:[
-        {role:"system",content:`Eres un experto en la Ley 21.369 de Chile (acoso sexual, violencia y discriminación de género en educación superior). Responde en español, de forma clara y profesional. Contexto actual:\n${context}`},
-        ...chatMessages.map(m=>({role:m.role,content:m.content}))
-      ]
+      system:`Eres un experto en la Ley 21.369 de Chile (acoso sexual, violencia y discriminación de género en educación superior). Responde en español, de forma clara y profesional. Contexto actual:\n${context}`,
+      messages:apiMessages
     };
 
     const _ctrl=new AbortController();
     const _tout=setTimeout(()=>_ctrl.abort(),30000);
     try{
+      const token=typeof session!=="undefined"?session?.access_token||"":"";
       const res=await fetch(CHAT_ENDPOINT,{
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:{"Content-Type":"application/json","x-auth-token":token},
         body:JSON.stringify(body),
         signal:_ctrl.signal
       });
       const data=await res.json();
-      const reply=data.reply||data.choices?.[0]?.message?.content||"Sin respuesta";
+      const reply=(data.content&&data.content[0]?.text)||data.reply||"Sin respuesta";
       chatMessages.push({role:"assistant",content:reply});
     }finally{
       clearTimeout(_tout);
@@ -653,23 +655,29 @@ async function generateReport(){
     }).join("\n\n");
 
     const body={
+      system:`Genera un INFORME DE CUMPLIMIENTO formal de la Ley 21.369 para la Superintendencia de Educación Superior. Incluye: resumen ejecutivo, análisis por área, brechas, recomendaciones priorizadas, cronograma sugerido. Lenguaje formal institucional.`,
+      max_tokens:4000,
       messages:[
-        {role:"system",content:`Genera un INFORME DE CUMPLIMIENTO formal de la Ley 21.369 para la Superintendencia de Educación Superior. Incluye: resumen ejecutivo, análisis por área, brechas, recomendaciones priorizadas, cronograma sugerido. Lenguaje formal institucional.`},
         {role:"user",content:`Datos:\n- Total requisitos: ${s.total}, Cumplidos: ${s.cumplidos} (${s.pct}%), En proceso: ${s.enProceso}, Pendientes: ${s.pendientes}\n- Documentos verificadores: ${docs.length}\n\nDETALLE:\n${areasDetail}\n\nFecha: ${new Date().toLocaleDateString("es-CL",{year:"numeric",month:"long",day:"numeric"})}`}
       ]
     };
 
     const _ctrl=new AbortController();
-    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    const _tout=setTimeout(()=>_ctrl.abort(),60000);
     try{
+      const token=typeof session!=="undefined"?session?.access_token||"":"";
       const res=await fetch(CHAT_ENDPOINT,{
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:{"Content-Type":"application/json","x-auth-token":token},
         body:JSON.stringify(body),
         signal:_ctrl.signal
       });
+      if(!res.ok){
+        const errData=await res.json().catch(()=>({}));
+        throw new Error(errData.error||"HTTP "+res.status);
+      }
       const data=await res.json();
-      aiReport=data.reply||data.choices?.[0]?.message?.content||"Error al generar";
+      aiReport=(data.content&&data.content.filter(b=>b.type==="text").map(b=>b.text).join(""))||data.reply||"Error al generar";
       showToast("Informe generado con IA","success");
     }finally{
       clearTimeout(_tout);
