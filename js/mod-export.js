@@ -25,7 +25,12 @@ function loadScript(url){
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ── Helper to extract document title ── */
+function getTitleFromFilename(filename,ext){
+  return filename.replace(new RegExp(`\\.${ext}$`,"i"),"").replace(/_/g," ");
+}
+
+/* ═════════════════════════════════════════════════════════════════════
    EXPORT TO WORD (.docx)
    Uses docx library for proper Word documents
    ═══════════════════════════════════════════════════════════════════ */
@@ -46,7 +51,7 @@ async function exportToWord(text, filename, options={}){
     const D=window.docx;
     if(!D||!D.Document){return exportWordFallback(text, filename, options);}
 
-    const titulo=options.title||filename.replace(/\.docx$/,"").replace(/_/g," ");
+    const titulo=options.title||getTitleFromFilename(filename,"docx");
     const institucion=options.institution||"Universidad de Magallanes";
     const fecha=new Date().toLocaleDateString("es-CL",{day:"numeric",month:"long",year:"numeric"});
 
@@ -141,7 +146,7 @@ async function exportToWord(text, filename, options={}){
 
 /* Fallback Word export using HTML Blob */
 function exportWordFallback(text, filename, options={}){
-  const titulo=options.title||filename.replace(/\.docx$/,"").replace(/_/g," ");
+  const titulo=options.title||getTitleFromFilename(filename,"docx|doc");
   const fecha=new Date().toLocaleDateString("es-CL",{day:"numeric",month:"long",year:"numeric"});
 
   const htmlContent=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
@@ -215,7 +220,7 @@ async function exportPdfLib(text, filename, options={}){
     const font=await doc.embedFont(StandardFonts.Helvetica);
     const fontBold=await doc.embedFont(StandardFonts.HelveticaBold);
 
-    const titulo=options.title||filename.replace(/\.pdf$/,"").replace(/_/g," ");
+    const titulo=options.title||getTitleFromFilename(filename,"pdf");
     const fecha=new Date().toLocaleDateString("es-CL",{day:"numeric",month:"long",year:"numeric"});
 
     const PAGE_W=595.28; // A4
@@ -327,7 +332,7 @@ async function exportJsPDF(text, filename, options={}){
   try{
     const{jsPDF}=window.jspdf;
     const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-    const titulo=options.title||filename.replace(/\.pdf$/,"").replace(/_/g," ");
+    const titulo=options.title||getTitleFromFilename(filename,"pdf");
     const MARGIN=20;const MAX_W=170;
     let y=20;
 
