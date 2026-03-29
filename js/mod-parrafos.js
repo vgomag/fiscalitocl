@@ -18,6 +18,219 @@ const PARRAFOS_CATS = [
 ];
 
 const PARRAFOS_DB = [
+  /* ═══════════ VISTOS ═══════════ */
+  {
+    id:'p_vistos_sumario',
+    cat:'antecedentes',
+    label:'VISTOS — Sumario Administrativo',
+    text:`V I S T O S:
+
+La denuncia presentada con fecha [FECHA_DENUNCIA] por don/doña [NOMBRE_DENUNCIANTE], [CARGO_DENUNCIANTE], en contra de don/doña [NOMBRE_DENUNCIADO], [CARGO_DENUNCIADO], por hechos constitutivos de [MATERIA_INVESTIGACIÓN]; la Resolución Exenta N°[NÚMERO_RESOLUCIÓN] de fecha [FECHA_RESOLUCIÓN], dictada por el Sr. Rector de la Universidad de Magallanes, que ordena instruir sumario administrativo y designa como Fiscal a [NOMBRE_FISCAL] y como Actuaria a [NOMBRE_ACTUARIA]; lo dispuesto en los artículos 119 y siguientes del D.F.L. N°29 de 2005, que fija el texto refundido, coordinado y sistematizado de la Ley N°18.834 sobre Estatuto Administrativo; la Ley N°19.880, que Establece Bases de los Procedimientos Administrativos; la Ley N°18.575, Orgánica Constitucional de Bases Generales de la Administración del Estado; y demás normativa aplicable.`
+  },
+  {
+    id:'p_vistos_investigacion',
+    cat:'antecedentes',
+    label:'VISTOS — Investigación Sumaria',
+    text:`V I S T O S:
+
+La denuncia de fecha [FECHA_DENUNCIA] formulada por [NOMBRE_DENUNCIANTE]; la Resolución Exenta N°[NÚMERO_RESOLUCIÓN] de fecha [FECHA_RESOLUCIÓN], del Sr. Rector de la Universidad de Magallanes, que ordena instruir investigación sumaria y designa como Investigador/a a [NOMBRE_INVESTIGADOR/A]; lo dispuesto en los artículos 126 y siguientes del D.F.L. N°29 de 2005; la Ley N°19.880; y demás normativa aplicable.`
+  },
+
+  /* ═══════════ ANTECEDENTES PROCESALES ═══════════ */
+  {
+    id:'p_instruccion',
+    cat:'antecedentes',
+    label:'Instrucción del procedimiento',
+    text:`Que, mediante Resolución Exenta N°[NÚMERO] de fecha [FECHA], el Sr. Rector de la Universidad de Magallanes ordenó instruir [SUMARIO ADMINISTRATIVO/INVESTIGACIÓN SUMARIA] con el objeto de investigar y establecer las eventuales responsabilidades administrativas derivadas de [DESCRIPCIÓN_HECHOS].
+
+Que, en la referida resolución se designó como Fiscal a don/doña [NOMBRE_FISCAL], [CARGO], y como Actuaria/o a don/doña [NOMBRE_ACTUARIA], [CARGO], quienes aceptaron el encargo y se declararon no inhabilitados para instruir el presente procedimiento.`
+  },
+  {
+    id:'p_plazos',
+    cat:'antecedentes',
+    label:'Plazos y prórrogas',
+    text:`Que, el presente procedimiento fue instruido con fecha [FECHA_INICIO], fijándose un plazo de [20/60] días hábiles para su tramitación, conforme al artículo [126/129] del D.F.L. N°29 de 2005.
+
+Que, mediante Resolución Exenta N°[NÚMERO_PRÓRROGA] de fecha [FECHA_PRÓRROGA], se concedió una prórroga de [DÍAS] días hábiles al plazo de investigación, atendida la complejidad de las diligencias pendientes, de conformidad con [FUNDAMENTO_LEGAL].`
+  },
+  {
+    id:'p_notificaciones',
+    cat:'antecedentes',
+    label:'Notificaciones practicadas',
+    text:`Que, con fecha [FECHA], se notificó personalmente al inculpado/a don/doña [NOMBRE_COMPLETO] de la resolución que ordenó instruir el presente procedimiento disciplinario, así como de los hechos materia de la investigación, conforme consta a fojas [FOJAS].
+
+Que, asimismo, se le informó de sus derechos, en particular el de ser oído, presentar descargos y rendir prueba dentro de los plazos legales, y el de ser asistido por un abogado.`
+  },
+
+  /* ═══════════ DILIGENCIAS ═══════════ */
+  {
+    id:'p_declaracion_denunciante',
+    cat:'hechos',
+    label:'Declaración del denunciante',
+    text:`Que, a fojas [FOJAS], obra la declaración prestada por don/doña [NOMBRE_DENUNCIANTE], [CARGO/RELACIÓN], de fecha [FECHA], quien señaló en lo sustancial que [RESUMEN_DECLARACIÓN].
+
+Que, el/la declarante manifestó haber tomado conocimiento de los hechos [DIRECTAMENTE/POR REFERENCIA DE TERCEROS], indicando que [DETALLE_RELEVANTE]. Agregó que [CONTEXTO_ADICIONAL], ratificando lo expuesto en su denuncia original.`
+  },
+  {
+    id:'p_declaracion_inculpado',
+    cat:'hechos',
+    label:'Declaración del inculpado/a',
+    text:`Que, a fojas [FOJAS], consta la declaración del inculpado/a don/doña [NOMBRE_COMPLETO], [CARGO], prestada con fecha [FECHA], oportunidad en la que, debidamente informado/a de sus derechos y advertido/a de las consecuencias legales, señaló en lo sustancial que [RESUMEN_DECLARACIÓN].
+
+Que, el/la inculpado/a [RECONOCIÓ/NEGÓ] los hechos que se le imputan, manifestando que [DESCARGO_PRINCIPAL]. Indicó además que [VERSIÓN_DE_LOS_HECHOS].`
+  },
+  {
+    id:'p_declaracion_testigo',
+    cat:'hechos',
+    label:'Declaración testimonial',
+    text:`Que, a fojas [FOJAS], rola la declaración testimonial de don/doña [NOMBRE_TESTIGO], [CARGO/RELACIÓN], prestada con fecha [FECHA], quien advertido/a del deber de verdad conforme al artículo 17 de la Ley N°19.880 y de las penas del falso testimonio, declaró en lo sustancial que [RESUMEN_DECLARACIÓN].
+
+Que, el/la testigo manifestó tener conocimiento [DIRECTO/INDIRECTO] de los hechos, señalando que [DETALLE_RELEVANTE].`
+  },
+  {
+    id:'p_oficio_informe',
+    cat:'hechos',
+    label:'Oficio o informe solicitado',
+    text:`Que, a fojas [FOJAS], obra el Oficio N°[NÚMERO] de fecha [FECHA], mediante el cual esta Fiscalía solicitó a [DESTINATARIO/UNIDAD] que informara sobre [MATERIA_CONSULTADA].
+
+Que, mediante [OFICIO/MEMORÁNDUM/CORREO] de fecha [FECHA_RESPUESTA], que rola a fojas [FOJAS_RESPUESTA], [DESTINATARIO] informó que [CONTENIDO_RESPUESTA], antecedente que resulta relevante para acreditar [HECHO_QUE_ACREDITA].`
+  },
+  {
+    id:'p_prueba_documental',
+    cat:'hechos',
+    label:'Prueba documental incorporada',
+    text:`Que, a fojas [FOJAS_INICIO] a [FOJAS_FIN], se incorporó al expediente [DESCRIPCIÓN_DOCUMENTO: correos electrónicos / registros de asistencia / informes / contratos / resoluciones], los que dan cuenta de [CONTENIDO_RELEVANTE].
+
+Que, del análisis de dicha prueba documental se desprende que [CONCLUSIÓN_PROBATORIA], lo que resulta concordante con [OTROS_ANTECEDENTES] y permite acreditar [HECHO_QUE_ACREDITA].`
+  },
+
+  /* ═══════════ CARGOS Y DESCARGOS ═══════════ */
+  {
+    id:'p_formulacion_cargos',
+    cat:'hechos',
+    label:'Formulación de cargos',
+    text:`Que, con fecha [FECHA], mediante Resolución que rola a fojas [FOJAS], esta Fiscalía formuló cargos en contra de don/doña [NOMBRE_COMPLETO], imputándole [NÚMERO] cargo(s):
+
+CARGO PRIMERO: [DESCRIPCIÓN_CARGO_1], infringiendo el artículo [ARTÍCULO] del D.F.L. N°29 de 2005.
+[CARGO SEGUNDO: [DESCRIPCIÓN_CARGO_2], infringiendo el artículo [ARTÍCULO] del D.F.L. N°29 de 2005.]
+
+Que, la referida resolución fue notificada al inculpado/a con fecha [FECHA_NOTIFICACIÓN], conforme consta a fojas [FOJAS_NOTIFICACIÓN], concediéndosele el plazo de cinco días hábiles para presentar sus descargos conforme al artículo 133 del Estatuto Administrativo.`
+  },
+  {
+    id:'p_descargos',
+    cat:'hechos',
+    label:'Descargos del inculpado/a',
+    text:`Que, con fecha [FECHA], dentro del plazo legal, el/la inculpado/a don/doña [NOMBRE_COMPLETO] presentó sus descargos, los que rolan a fojas [FOJAS], señalando en lo medular que [RESUMEN_DESCARGOS].
+
+Que, respecto del Cargo Primero, el/la inculpado/a argumentó que [ARGUMENTO_DEFENSA_1].
+[Que, respecto del Cargo Segundo, manifestó que [ARGUMENTO_DEFENSA_2].]
+
+Que, asimismo, el/la inculpado/a [OFRECIÓ/NO OFRECIÓ] rendir prueba dentro del término probatorio de [DÍAS] días que le fue conferido.`
+  },
+  {
+    id:'p_sin_descargos',
+    cat:'hechos',
+    label:'Inculpado/a no presenta descargos',
+    text:`Que, no obstante haber sido debidamente notificado/a de la formulación de cargos con fecha [FECHA_NOTIFICACIÓN], conforme consta a fojas [FOJAS], el/la inculpado/a don/doña [NOMBRE_COMPLETO] no presentó descargos dentro del plazo legal de cinco días hábiles establecido en el artículo 133 del D.F.L. N°29 de 2005.
+
+Que, la falta de presentación de descargos no impide la prosecución del procedimiento ni exime al fiscal de la obligación de ponderar la totalidad de los antecedentes obrantes en el expediente.`
+  },
+
+  /* ═══════════ HECHOS ACREDITADOS ═══════════ */
+  {
+    id:'p_hechos_acreditados',
+    cat:'hechos',
+    label:'Hechos acreditados',
+    text:`Que, del mérito de la investigación practicada, de las diligencias realizadas y de la prueba rendida en autos, esta Fiscalía tiene por acreditados los siguientes hechos:
+
+PRIMERO: Que, con fecha [FECHA], don/doña [NOMBRE_COMPLETO], en su calidad de [CARGO], [DESCRIPCIÓN_HECHO_1], según consta de [MEDIO_PROBATORIO] que rola a fojas [FOJAS].
+
+[SEGUNDO: Que, [DESCRIPCIÓN_HECHO_2], lo que se acredita con [MEDIO_PROBATORIO] de fojas [FOJAS].]
+
+Que, los hechos descritos se encuentran debidamente acreditados por los medios de prueba señalados, los que apreciados conforme a las reglas de la sana crítica, producen convicción suficiente en esta Fiscalía.`
+  },
+
+  /* ═══════════ VALORACIÓN DE LA PRUEBA ═══════════ */
+  {
+    id:'p_valoracion',
+    cat:'valoracion',
+    label:'Valoración de la prueba',
+    text:`Que, en cuanto a la prueba rendida en autos, esta Fiscalía la valora conforme a la sana crítica, esto es, mediante la aplicación de los principios de la lógica, las máximas de la experiencia y los conocimientos científicamente afianzados, de conformidad con el artículo 35 de la Ley N°19.880.
+
+Que, del examen de la prueba rendida, se aprecia que los testimonios de los testigos [NOMBRES_TESTIGOS] son concordantes entre sí y con los antecedentes documentales del expediente, lo que otorga plena credibilidad a sus declaraciones.
+
+Que, en contraste, los descargos del inculpado/a no han sido respaldados por elementos probatorios suficientes que permitan desvirtuar los hechos acreditados por la investigación, no siendo suficiente la mera negativa del imputado para enervar los cargos formulados en su contra.`
+  },
+  {
+    id:'p_valoracion_insuficiente',
+    cat:'valoracion',
+    label:'Prueba insuficiente para acreditar',
+    text:`Que, no obstante las diligencias practicadas, esta Fiscalía estima que la prueba rendida resulta insuficiente para acreditar la responsabilidad administrativa del inculpado/a en los hechos investigados.
+
+Que, en efecto, las declaraciones testimoniales resultan [CONTRADICTORIAS/INSUFICIENTES/DE OÍDAS], la prueba documental no permite establecer con certeza la participación del inculpado/a, y no se han reunido otros elementos probatorios que permitan formar convicción.
+
+Que, conforme al principio de inocencia que informa el derecho disciplinario, la falta de prueba suficiente impide formular cargos y obliga a proponer el sobreseimiento del procedimiento.`
+  },
+
+  /* ═══════════ ANÁLISIS JURÍDICO ═══════════ */
+  {
+    id:'p_gravedad',
+    cat:'analisis',
+    label:'Gravedad de la infracción',
+    text:`Que, respecto a la gravedad de la infracción imputada, cabe señalar que la conducta acreditada constituye una vulneración [GRAVE/LEVE/GRAVÍSIMA] a los principios de [PROBIDAD/BUENA FE/EFICIENCIA] que deben regir la actuación de los funcionarios públicos.
+
+Que, la gravedad de los hechos se ve agravada por [CIRCUNSTANCIA_AGRAVANTE: la posición jerárquica del funcionario / el carácter reiterado de la conducta / el daño causado a la institución / la posición de confianza ejercida], lo que amerita una sanción proporcional a dicha gravedad.
+
+Que, lo anterior, conforme a la doctrina de la Contraloría General de la República, constituye suficiente mérito para proponer la aplicación de la sanción disciplinaria solicitada.`
+  },
+  {
+    id:'p_subsuncion',
+    cat:'analisis',
+    label:'Subsunción jurídica (hechos en norma)',
+    text:`Que, los hechos acreditados en la presente investigación configuran una infracción al artículo [ARTÍCULO] del D.F.L. N°29 de 2005, que establece [CONTENIDO_NORMA], toda vez que la conducta desplegada por el/la inculpado/a consistió en [DESCRIPCIÓN_CONDUCTA], lo que contraviene directamente el deber funcionario [DEBER_INFRINGIDO].
+
+Que, en efecto, la conducta acreditada se subsume en la hipótesis normativa descrita, pues [RAZONAMIENTO_SUBSUNCIÓN], configurándose así la infracción administrativa que da mérito a la aplicación de la sanción propuesta.`
+  },
+  {
+    id:'p_analisis_defensas',
+    cat:'analisis',
+    label:'Análisis de defensas del inculpado/a',
+    text:`Que, en relación con los descargos presentados por el/la inculpado/a, esta Fiscalía procede a analizarlos en los siguientes términos:
+
+Que, respecto de la alegación de [DEFENSA_1], cabe señalar que [ANÁLISIS_CONTRAARGUMENTO_1], razón por la cual dicha defensa no logra desvirtuar los cargos formulados.
+
+[Que, en cuanto a la alegación de [DEFENSA_2], si bien [RECONOCIMIENTO_PARCIAL], ello no resulta suficiente para eximir de responsabilidad al inculpado/a, por cuanto [FUNDAMENTO].]
+
+Que, en consecuencia, los descargos presentados no logran enervar los cargos formulados ni desvirtuar los hechos acreditados por la investigación.`
+  },
+
+  /* ═══════════ EXIMENTES Y ATENUANTES ═══════════ */
+  {
+    id:'p_atenuantes',
+    cat:'eximentes',
+    label:'Atenuantes y agravantes (Art. 120 EA)',
+    text:`Que, para determinar la sanción procedente, se han analizado las circunstancias modificatorias de responsabilidad concurrentes en el presente caso, conforme al artículo 120 del D.F.L. N°29 de 2005.
+
+ATENUANTES:
+- [La conducta funcionaria anterior del inculpado/a ha sido irreprochable, sin registrar anotaciones desfavorables en su hoja de vida]
+- [La ambigüedad normativa existente en el período de los hechos generó incertidumbre razonable en el funcionario]
+- [El funcionario colaboró con la investigación y reconoció los hechos oportunamente]
+
+AGRAVANTES:
+- [La posición jerárquica del funcionario implicaba una mayor responsabilidad institucional]
+- [La conducta tuvo carácter reiterado, lo que denota dolo o negligencia inexcusable]
+- [Se causó perjuicio concreto a la institución o a terceros]`
+  },
+  {
+    id:'p_eximente',
+    cat:'eximentes',
+    label:'Eximente de responsabilidad',
+    text:`Que, del análisis de los antecedentes del expediente, se advierte la concurrencia de una circunstancia eximente de responsabilidad administrativa, toda vez que [DESCRIPCIÓN_EXIMENTE: el funcionario actuó en cumplimiento de una orden superior / existió caso fortuito o fuerza mayor / la conducta se realizó en estado de necesidad].
+
+Que, en virtud de lo expuesto, y no obstante haberse acreditado la materialidad de los hechos investigados, esta Fiscalía estima que no procede aplicar sanción disciplinaria, proponiendo el sobreseimiento definitivo del procedimiento.`
+  },
+
+  /* ═══════════ SANCIÓN ═══════════ */
   {
     id:'p_prop_sancion',
     cat:'sancion',
@@ -29,41 +242,17 @@ Que, para la determinación de la sanción procedente, se han tenido en especial
 Que, en mérito de lo expuesto, esta Fiscalía propone sancionar a don/doña [NOMBRE_COMPLETO] con la medida disciplinaria de [SANCIÓN], de conformidad con lo establecido en el artículo 121 letra "[LETRA]" del DFL N°29 de 2005.`
   },
   {
-    id:'p_valoracion',
-    cat:'valoracion',
-    label:'Valoración de la prueba',
-    text:`Que, en cuanto a la prueba rendida en autos, esta Fiscalía la valora conforme a la sana crítica, esto es, mediante la aplicación de los principios de la lógica, las máximas de la experiencia y los conocimientos científicamente afianzados.
+    id:'p_prop_sancion_destitucion',
+    cat:'sancion',
+    label:'Propuesta de destitución',
+    text:`Que, atendida la extrema gravedad de los hechos acreditados, que configuran una infracción gravísima a los deberes funcionarios, esta Fiscalía estima que la única sanción proporcionada a la entidad de la falta cometida es la destitución del funcionario.
 
-Que, del examen de la prueba rendida, se aprecia que los testimonios de los testigos [NOMBRES_TESTIGOS] son concordantes entre sí y con los antecedentes documentales del expediente, lo que otorga plena credibilidad a sus declaraciones.
+Que, la conducta de don/doña [NOMBRE_COMPLETO] constituye una vulneración al principio de probidad administrativa, contemplado en el artículo 61 letra g) del D.F.L. N°29 de 2005, en relación con el artículo 84 del mismo cuerpo legal, lo que se encuentra sancionado con destitución conforme al artículo 125 del Estatuto Administrativo.
 
-Que, en contraste, los descargos del inculpado/a no han sido respaldados por elementos probatorios suficientes que permitan desvirtuar los hechos acreditados por la investigación, no siendo suficiente la mera negativa del imputado para enervar los cargos formulados en su contra.`
+Que, en mérito de lo expuesto, y sin perjuicio de la facultad de la autoridad de aplicar una medida disciplinaria de menor entidad, se propone la destitución del funcionario conforme al artículo 121 letra d) del D.F.L. N°29 de 2005.`
   },
-  {
-    id:'p_gravedad',
-    cat:'analisis',
-    label:'Gravedad de la infracción',
-    text:`Que, respecto a la gravedad de la infracción imputada, cabe señalar que la conducta acreditada constituye una vulneración [GRAVE/LEVE/GRAVÍSIMA] a los principios de [PROBIDAD/BUENA FE/EFICIENCIA] que deben regir la actuación de los funcionarios públicos.
 
-Que, la gravedad de los hechos se ve agravada por [CIRCUNSTANCIA_AGRAVANTE: la posición jerárquica del funcionario / el carácter reiterado de la conducta / el daño causado a la institución / la posición de confianza ejercida], lo que amerita una sanción proporcional a dicha gravedad.
-
-Que, lo anterior, conforme a la doctrina de la Contraloría General de la República, constituye suficiente mérito para proponer la aplicación de la sanción disciplinaria solicitada (Dictamen CGR N°[NÚMERO]).`
-  },
-  {
-    id:'p_atenuantes',
-    cat:'eximentes',
-    label:'Atenuantes y agravantes (Art. 121 EA)',
-    text:`Que, para determinar la sanción procedente, se han analizado las circunstancias modificatorias de responsabilidad concurrentes en el presente caso.
-
-ATENUANTES:
-- [La conducta funcionaria anterior del inculpado/a ha sido irreprochable, sin registrar anotaciones en su hoja de vida]
-- [La ambigüedad normativa existente en el período de los hechos generó incertidumbre razonable en el funcionario]
-- [El funcionario colaboró con la investigación y reconoció los hechos oportunamente]
-
-AGRAVANTES:
-- [La posición jerárquica del funcionario implicaba una mayor responsabilidad institucional]
-- [La conducta tuvo carácter reiterado, lo que denota dolo o negligencia inexcusable]
-- [Se causó perjuicio concreto a la institución o a terceros]`
-  },
+  /* ═══════════ SOBRESEIMIENTO ═══════════ */
   {
     id:'p_prescripcion',
     cat:'sobreseimiento',
@@ -74,6 +263,24 @@ Que, del análisis de los antecedentes del expediente, se advierte que los hecho
 
 Que, en consecuencia, habiendo operado la prescripción de la acción disciplinaria, esta Fiscalía propone el sobreseimiento definitivo del procedimiento, de conformidad con el artículo 157 del Estatuto Administrativo.`
   },
+  {
+    id:'p_sob_inexistencia',
+    cat:'sobreseimiento',
+    label:'Sobreseimiento por inexistencia de hechos',
+    text:`Que, practicadas las diligencias de investigación, esta Fiscalía ha llegado a la convicción de que los hechos denunciados no se han verificado en la forma descrita, toda vez que [FUNDAMENTO].
+
+Que, en consecuencia, no existiendo mérito para formular cargos por inexistencia de los hechos materia de la investigación, esta Fiscalía propone el sobreseimiento definitivo del presente procedimiento disciplinario.`
+  },
+  {
+    id:'p_sob_falta_prueba',
+    cat:'sobreseimiento',
+    label:'Sobreseimiento por falta de prueba',
+    text:`Que, no obstante la materialidad de los hechos investigados, la prueba rendida en autos resulta insuficiente para acreditar la responsabilidad administrativa del inculpado/a, toda vez que [FUNDAMENTO: los testimonios son contradictorios / la prueba es indirecta / no existe prueba documental que corrobore].
+
+Que, conforme al principio de presunción de inocencia que informa el derecho administrativo disciplinario, la insuficiencia probatoria impide formular cargos, por lo que se propone el sobreseimiento definitivo del procedimiento.`
+  },
+
+  /* ═══════════ POR TANTO ═══════════ */
   {
     id:'p_por_tanto_sancion',
     cat:'por_tanto',
@@ -99,6 +306,20 @@ SOBRESEER [DEFINITIVA/TEMPORALMENTE] el presente procedimiento disciplinario [N�
 Remítanse los antecedentes y elévese el expediente al Sr. Rector para su Superior Resolución. Es todo cuanto tengo por informar.`
   },
   {
+    id:'p_por_tanto_art129',
+    cat:'por_tanto',
+    label:'Por Tanto — Elevación Art. 129 inc. 2°',
+    text:`P O R T A N T O, SE RESUELVE O SUGIERE:
+
+Que, habiéndose acreditado en el curso de la investigación que la eventual responsabilidad podría afectar a funcionarios de grado jerárquico superior al del Fiscal infrascrito, y en virtud de lo dispuesto en el artículo 129 inciso 2° del D.F.L. N°29 de 2005, se propone al Sr. Rector, salvo su superior resolución:
+
+Elevar los antecedentes del presente procedimiento disciplinario a la autoridad competente para que disponga la designación de un fiscal de grado igual o superior al del presunto responsable, a fin de dar cumplimiento a lo prevenido en la norma citada.
+
+Remítanse los antecedentes al Sr. Rector para su Superior Resolución.`
+  },
+
+  /* ═══════════ PERSPECTIVA DE GÉNERO ═══════════ */
+  {
     id:'p_genero',
     cat:'genero',
     label:'Perspectiva de género',
@@ -109,6 +330,16 @@ Que, en particular, se ha tenido en consideración: la Ley N°21.369 (acoso sexu
 Que, en la valoración de la prueba, se ha considerado el contexto de asimetría de poder entre las partes, las dinámicas propias de las situaciones de violencia de género, y la dificultad probatoria inherente a este tipo de conductas.
 
 Que, se ha evitado incurrir en estereotipos de género que pudieran afectar la objetividad del análisis.`
+  },
+  {
+    id:'p_genero_ley21369',
+    cat:'genero',
+    label:'Aplicación Ley 21.369 (Acoso en IES)',
+    text:`Que, los hechos investigados se encuentran comprendidos en el ámbito de aplicación de la Ley N°21.369, que establece medidas contra el acoso sexual, la violencia y la discriminación de género en el ámbito de la educación superior, toda vez que [DESCRIPCIÓN_VÍNCULO_CON_LA_LEY].
+
+Que, conforme al artículo [ARTÍCULO] de la referida ley, la Universidad de Magallanes tiene la obligación de [OBLIGACIÓN_INSTITUCIONAL], debiendo garantizar la protección de la víctima y la sanción de las conductas constitutivas de [TIPO_CONDUCTA].
+
+Que, en la tramitación del presente procedimiento se han observado las directrices y protocolos institucionales dictados en cumplimiento de la Ley N°21.369, en particular el Protocolo de Actuación aprobado mediante Decreto N°[NÚMERO_DECRETO].`
   },
 ];
 
@@ -246,19 +477,30 @@ async function generateParrafoIA() {
     const _ctrl=new AbortController();
     const _tout=setTimeout(()=>_ctrl.abort(),30000);
     try{
+      const _token = window.session?.access_token || (await window.sb?.auth.getSession())?.data?.session?.access_token || '';
       const resp = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': _token },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `Eres Fiscalito. Generas párrafos para Vistas Fiscales de procedimientos disciplinarios UMAG. Usa lenguaje formal institucional, citas normativas precisas (DFL N°29, EA, etc.) y estructura "Que," al inicio de cada párrafo. Usa placeholders [MAYÚSCULAS] para datos específicos que el usuario debe completar.`,
-          messages: [{ role: 'user', content: `${ctx ? ctx + '\n\n' : ''}Genera el párrafo: ${query}` }]
+          max_tokens: 2000,
+          system: `Eres Fiscalito, asistente jurídico de la Fiscalía General de la Universidad de Magallanes. Generas párrafos modelo para Vistas Fiscales e Informes de Investigadora en procedimientos disciplinarios (DFL N°29/2005, Ley 19.880, Ley 18.575).
+
+FORMATO OBLIGATORIO:
+- Cada párrafo comienza con "Que," (considerando numerado)
+- Lenguaje formal institucional, impersonal
+- Citas normativas precisas (artículo, ley, decreto)
+- Expresiones: "consta en autos", "obra en el expediente", "rola a fojas", "según da cuenta"
+- Usa placeholders [MAYÚSCULAS] para datos específicos del caso
+- NO uses markdown, emojis ni lenguaje coloquial
+- Genera párrafos completos de 3-5 oraciones mínimo por considerando`,
+          messages: [{ role: 'user', content: `${ctx ? 'CONTEXTO DEL EXPEDIENTE: ' + ctx + '\n\n' : ''}Genera el siguiente párrafo modelo para Vista Fiscal: ${query}` }]
         }),
         signal:_ctrl.signal
       });
+      if(!resp.ok) throw new Error('Error '+resp.status);
       const data = await resp.json();
-      const text = data.content?.[0]?.text || '';
+      const text = (data.content&&data.content[0]?.text) || data.reply || '';
 
       // Add to custom list
       const newParr = {
