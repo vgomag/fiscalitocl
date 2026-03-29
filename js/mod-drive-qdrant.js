@@ -109,16 +109,18 @@ async function dqLoadAll() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return;
 
-    // Cargar en paralelo
+    // Cargar en paralelo con manejo de errores individual
     const [filesRes, collRes] = await Promise.all([
       sb.from('drive_processed_files')
         .select('*')
         .eq('user_id', user.id)
         .order('processed_at', { ascending: false })
-        .limit(100),
+        .limit(100)
+        .catch(e=>({data:null,error:e})),
       sb.from('custom_qdrant_collections')
         .select('*')
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: true })
+        .catch(e=>({data:null,error:e})),
     ]);
 
     dq.processedFiles    = filesRes.data  || [];

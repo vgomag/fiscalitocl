@@ -44,8 +44,9 @@ async function uploadSesDoc(file,category,description,docDate){
       /* Para PDF, Word — enviar a Claude para extracción */
       const reader=new FileReader();
       const base64=await new Promise((res,rej)=>{
-        reader.onload=()=>res(reader.result.split(',')[1]);
-        reader.onerror=rej;
+        const timeout=setTimeout(()=>{rej(new Error('FileReader timeout after 30s'));},30000);
+        reader.onload=()=>{clearTimeout(timeout);res(reader.result.split(',')[1]);};
+        reader.onerror=()=>{clearTimeout(timeout);rej(reader.error);};
         reader.readAsDataURL(file);
       });
 

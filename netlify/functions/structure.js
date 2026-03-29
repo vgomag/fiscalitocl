@@ -19,7 +19,8 @@ function callAnthropic(apiKey, system, userMsg, maxTokens) {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
-      }
+      },
+      timeout: 25000
     }, (res) => {
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => {
@@ -28,6 +29,10 @@ function callAnthropic(apiKey, system, userMsg, maxTokens) {
       });
     });
     req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timeout (25s)'));
+    });
     req.write(body);
     req.end();
   });
@@ -100,7 +105,13 @@ exports.handler = async (event) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
 
-    const { rawText, mode, caseContext, baseDocText } = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch (parseErr) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+    }
+    const { rawText, mode, caseContext, baseDocText } = body;
     if (!rawText) return { statusCode: 400, headers, body: JSON.stringify({ error: 'rawText requerido' }) };
 
     const systemPrompt = PROMPTS[mode] || PROMPTS.directa;

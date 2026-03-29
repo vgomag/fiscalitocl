@@ -118,7 +118,12 @@ export default async (req) => {
   if (req.method === 'OPTIONS') return new Response('', { headers });
 
   try {
-    const body = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseErr) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }), { status: 400, headers });
+    }
     const { action } = body;
     const qdrantUrl = Netlify.env.get('QDRANT_URL');
     const qdrantKey = Netlify.env.get('QDRANT_API_KEY');
@@ -150,7 +155,14 @@ export default async (req) => {
 
     /* ── search ── */
     if (action === 'search') {
-      const sa = JSON.parse(Netlify.env.get('GOOGLE_SERVICE_ACCOUNT_KEY'));
+      const saJson = Netlify.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
+      if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
+      let sa;
+      try {
+        sa = JSON.parse(saJson);
+      } catch (parseErr) {
+        throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is malformed JSON: ' + parseErr.message);
+      }
       const at = await getGoogleAccessToken(sa);
       const vector = await getEmbedding(body.query, at);
       if (!vector) throw new Error('Failed to generate query embedding');
@@ -166,7 +178,14 @@ export default async (req) => {
       if (!collection || !documents?.length) throw new Error('collection and documents required');
 
       await ensureCollection(qdrantUrl, qdrantKey, collection, 768);
-      const sa = JSON.parse(Netlify.env.get('GOOGLE_SERVICE_ACCOUNT_KEY'));
+      const saJson = Netlify.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
+      if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
+      let sa;
+      try {
+        sa = JSON.parse(saJson);
+      } catch (parseErr) {
+        throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is malformed JSON: ' + parseErr.message);
+      }
       const accessToken = await getGoogleAccessToken(sa);
 
       let totalPoints = 0;

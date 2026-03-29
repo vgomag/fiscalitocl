@@ -46,6 +46,8 @@ function driveGet(path, token) {
   });
 }
 
+/* Download text file as string (for text content only).
+   For binary files (PDF, images), use driveDownloadBinary() instead. */
 function driveDownload(path, token) {
   return new Promise((resolve, reject) => {
     https.get('https://www.googleapis.com' + path, {
@@ -131,9 +133,21 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   try {
-    const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+    const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
+    let sa;
+    try {
+      sa = JSON.parse(saJson);
+    } catch (parseErr) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY is malformed JSON' }) };
+    }
     const token = await getAccessToken(sa);
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch (parseErr) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+    }
     const { action } = body;
 
     if (action === 'list') {

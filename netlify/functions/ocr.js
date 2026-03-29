@@ -71,7 +71,12 @@ exports.handler = async (event) => {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
-    const p = JSON.parse(event.body || '{}');
+    let p;
+    try {
+      p = JSON.parse(event.body || '{}');
+    } catch (parseErr) {
+      return { statusCode: 400, headers: H, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+    }
     const action = p.action || 'extract';
 
     /* ═══════════════════════════════════════════════════════
@@ -127,7 +132,14 @@ RESPONDE SOLO JSON puro (sin backticks ni markdown). Array de objetos:
     /* ═══════════════════════════════════════════════════════
        STAGE 1: EXTRACT — Download from Drive + OCR
        ═══════════════════════════════════════════════════════ */
-    const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+    const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
+    let sa;
+    try {
+      sa = JSON.parse(saJson);
+    } catch (parseErr) {
+      throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is malformed JSON: ' + parseErr.message);
+    }
     const token = await getAccessToken(sa);
     const { fileId, fileName, diligenciaType } = p;
     if (!fileId) return { statusCode: 400, headers: H, body: JSON.stringify({ error: 'fileId requerido' }) };

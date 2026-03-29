@@ -12,12 +12,15 @@ const JSPDF_CDN="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.mi
 const PDFLIB_CDN="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const FILESAVER_CDN="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
 
-/* ── Lazy loader ── */
+/* ── Lazy loader with 15s timeout ── */
 function loadScript(url){
   return new Promise((resolve,reject)=>{
     if(document.querySelector(`script[src="${url}"]`)){resolve();return;}
     const s=document.createElement("script");
-    s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error("Failed to load: "+url));
+    s.src=url;
+    const timeout=setTimeout(()=>{s.onerror(new Error('CDN timeout after 15s'));},15000);
+    s.onload=()=>{clearTimeout(timeout);resolve();};
+    s.onerror=()=>{clearTimeout(timeout);reject(new Error("Failed to load: "+url));};
     document.head.appendChild(s);
   });
 }

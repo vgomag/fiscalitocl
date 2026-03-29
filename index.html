@@ -1373,6 +1373,7 @@ Considera siempre: perspectiva de género, posición de poder entre las partes, 
 let session=null,currentCase=null,allCases=[],activeFn='F0',activeCatTab='genero';
 let sortField=null,sortDir='asc';
 let _juriSelectedSources=new Set(['cgr','pjud','qdrant']);
+let _chatLoadedForCase=null;
 const LOGO_SRC=()=>document.getElementById('sidebarLogoImg')?.src||'https://i.imgur.com/0.png';
 
 /* ── Auth init ── */
@@ -2442,6 +2443,7 @@ detectFormatInstruction = function(text) {
 };
 
 async function sendMessage(){
+  if(document.getElementById('sendBtn')?.disabled) return;
   const inputBox=document.getElementById('inputBox');
   const text=inputBox?.value.trim();
 
@@ -2493,13 +2495,13 @@ async function sendMessage(){
         let _dilQ=sb.from('diligencias').select(_dilSelect).eq('case_id',cid).order('fecha_diligencia',{ascending:false});
         if(!_isVista)_dilQ=_dilQ.limit(activeFn==='F5'?25:40);
         const [rParts,rRes,rChk,rDil,rCron,rAcc,rNotes]=await Promise.all([
-          sb.from('case_participants').select('role,name,estamento,carrera,dependencia').eq('case_id',cid).order('role'),
-          sb.from('resoluciones').select('resolution_type,resolution_number,resolution_date,authority,fiscal_designado,facts_description').eq('case_id',cid).order('created_at',{ascending:false}),
-          sb.from('case_checklist_items').select('phase,item_text,is_completed').eq('case_id',cid).order('phase').order('item_order'),
-          _dilQ,
-          sb.from('cronologia').select('event_date,event_type,description').eq('case_id',cid).order('event_date'),
-          sb.from('acciones_pendientes').select('title,description,due_date,status').eq('case_id',cid).order('due_date'),
-          sb.from('case_notes').select('title,content,created_at,source').eq('case_id',cid).order('created_at',{ascending:false}).limit(20)
+          sb.from('case_participants').select('role,name,estamento,carrera,dependencia').eq('case_id',cid).order('role').catch(e=>({data:null,error:e})),
+          sb.from('resoluciones').select('resolution_type,resolution_number,resolution_date,authority,fiscal_designado,facts_description').eq('case_id',cid).order('created_at',{ascending:false}).catch(e=>({data:null,error:e})),
+          sb.from('case_checklist_items').select('phase,item_text,is_completed').eq('case_id',cid).order('phase').order('item_order').catch(e=>({data:null,error:e})),
+          _dilQ.catch(e=>({data:null,error:e})),
+          sb.from('cronologia').select('event_date,event_type,description').eq('case_id',cid).order('event_date').catch(e=>({data:null,error:e})),
+          sb.from('acciones_pendientes').select('title,description,due_date,status').eq('case_id',cid).order('due_date').catch(e=>({data:null,error:e})),
+          sb.from('case_notes').select('title,content,created_at,source').eq('case_id',cid).order('created_at',{ascending:false}).limit(20).catch(e=>({data:null,error:e}))
         ]);
         /* Participantes */
         if(rParts.data?.length){

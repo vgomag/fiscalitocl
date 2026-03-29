@@ -159,68 +159,82 @@ async function loadData(){
 
 // ── CRUD Operations ─────────────────────────────────────────────────────────
 async function addItem(area,requirement,description,responsible,dueDate){
-  const user=await getUser(); if(!user)return;
-  const{error}=await sb.from("ley21369_items").insert({
-    user_id:user.id, area, requirement:requirement.trim(),
-    description:description?.trim()||null, responsible:responsible?.trim()||null,
-    due_date:dueDate||null, status:"pendiente",
-    sort_order:items.filter(i=>i.area===area).length
-  });
-  if(error){showToast("Error al agregar requisito","error");return}
-  showToast("Requisito agregado","success");
-  loadData();
+  try{
+    const user=await getUser(); if(!user)return;
+    const{error}=await sb.from("ley21369_items").insert({
+      user_id:user.id, area, requirement:requirement.trim(),
+      description:description?.trim()||null, responsible:responsible?.trim()||null,
+      due_date:dueDate||null, status:"pendiente",
+      sort_order:items.filter(i=>i.area===area).length
+    });
+    if(error){showToast("Error al agregar requisito","error");return}
+    showToast("Requisito agregado","success");
+    loadData();
+  }catch(e){console.warn("[Ley21369] Error al agregar requisito:",e);showToast("Error al agregar requisito","error");}
 }
 
 async function updateStatus(id,status){
-  const update={status,updated_at:new Date().toISOString()};
-  if(status==="cumplido")update.completed_at=new Date().toISOString();
-  else update.completed_at=null;
-  await sb.from("ley21369_items").update(update).eq("id",id);
-  items=items.map(i=>i.id===id?{...i,...update}:i);
-  render();
+  try{
+    const update={status,updated_at:new Date().toISOString()};
+    if(status==="cumplido")update.completed_at=new Date().toISOString();
+    else update.completed_at=null;
+    await sb.from("ley21369_items").update(update).eq("id",id);
+    items=items.map(i=>i.id===id?{...i,...update}:i);
+    render();
+  }catch(e){console.warn("[Ley21369] Error al actualizar estado:",e);}
 }
 
 async function updateField(id,field,value){
-  await sb.from("ley21369_items").update({[field]:value||null,updated_at:new Date().toISOString()}).eq("id",id);
-  items=items.map(i=>i.id===id?{...i,[field]:value||null}:i);
+  try{
+    await sb.from("ley21369_items").update({[field]:value||null,updated_at:new Date().toISOString()}).eq("id",id);
+    items=items.map(i=>i.id===id?{...i,[field]:value||null}:i);
+  }catch(e){console.warn("[Ley21369] Error al actualizar campo:",e);}
 }
 
 async function deleteItem(id){
   if(!confirm("¿Eliminar este requisito y sus documentos?"))return;
-  await sb.from("ley21369_documentos").delete().eq("item_id",id);
-  await sb.from("ley21369_items").delete().eq("id",id);
-  showToast("Requisito eliminado","success");
-  loadData();
+  try{
+    await sb.from("ley21369_documentos").delete().eq("item_id",id);
+    await sb.from("ley21369_items").delete().eq("id",id);
+    showToast("Requisito eliminado","success");
+    loadData();
+  }catch(e){console.warn("[Ley21369] Error al eliminar requisito:",e);showToast("Error al eliminar requisito","error");}
 }
 
 async function uploadDoc(itemId,file){
-  const user=await getUser(); if(!user)return;
-  const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
-  const path=`${user.id}/ley21369/${Date.now()}_${safe}`;
-  const{error}=await sb.storage.from("case-documents").upload(path,file);
-  if(error){showToast("Error al subir archivo","error");return}
-  await sb.from("ley21369_documentos").insert({
-    user_id:user.id,item_id:itemId,file_name:file.name,file_path:path,
-    file_size:file.size,file_type:file.type,
-    category:itemId?"verificador":"documento_general"
-  });
-  showToast("Documento subido","success");
-  loadData();
+  try{
+    const user=await getUser(); if(!user)return;
+    const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+    const path=`${user.id}/ley21369/${Date.now()}_${safe}`;
+    const{error}=await sb.storage.from("case-documents").upload(path,file);
+    if(error){showToast("Error al subir archivo","error");return}
+    await sb.from("ley21369_documentos").insert({
+      user_id:user.id,item_id:itemId,file_name:file.name,file_path:path,
+      file_size:file.size,file_type:file.type,
+      category:itemId?"verificador":"documento_general"
+    });
+    showToast("Documento subido","success");
+    loadData();
+  }catch(e){console.warn("[Ley21369] Error al subir documento:",e);showToast("Error al subir documento","error");}
 }
 
 async function downloadDoc(idOrObj){
-  const doc=typeof idOrObj==="string"?docs.find(d=>d.id===idOrObj):idOrObj;
-  if(!doc||!doc.file_path)return;
-  const{data}=await sb.storage.from("case-documents").createSignedUrl(doc.file_path,300);
-  if(data?.signedUrl)window.open(data.signedUrl,"_blank");
+  try{
+    const doc=typeof idOrObj==="string"?docs.find(d=>d.id===idOrObj):idOrObj;
+    if(!doc||!doc.file_path)return;
+    const{data}=await sb.storage.from("case-documents").createSignedUrl(doc.file_path,300);
+    if(data?.signedUrl)window.open(data.signedUrl,"_blank");
+  }catch(e){console.warn("[Ley21369] Error al descargar documento:",e);}
 }
 
 async function deleteDoc(id,path){
   if(!confirm("¿Eliminar este documento?"))return;
-  await sb.storage.from("case-documents").remove([path]);
-  await sb.from("ley21369_documentos").delete().eq("id",id);
-  showToast("Documento eliminado","success");
-  loadData();
+  try{
+    await sb.storage.from("case-documents").remove([path]);
+    await sb.from("ley21369_documentos").delete().eq("id",id);
+    showToast("Documento eliminado","success");
+    loadData();
+  }catch(e){console.warn("[Ley21369] Error al eliminar documento:",e);showToast("Error al eliminar documento","error");}
 }
 
 // ── Area Analysis ───────────────────────────────────────────────────────────

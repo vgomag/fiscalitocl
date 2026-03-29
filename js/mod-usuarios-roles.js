@@ -134,7 +134,8 @@ async function refreshAIUsageBadge() {
 
     // Bloquear IA si límite superado
     if (!isAdmin && pct >= 100) {
-      if (typeof juri !== 'undefined') juri.aiBlocked = true;
+      // Set flag to block AI calls when limit reached
+      window.aiBlockedByLimit = true;
     }
   } catch (err) {
     console.warn('[ROLES] refreshAIUsageBadge:', err);

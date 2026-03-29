@@ -364,10 +364,9 @@ async function doOcr(){
     const ab=await s.file.arrayBuffer();
     const bytes=new Uint8Array(ab);
     let binary="";
-    const chunk=32768;
-    for(let i=0;i<bytes.length;i+=chunk){
-      const slice=bytes.slice(i,Math.min(i+chunk,bytes.length));
-      binary+=String.fromCharCode.apply(null,Array.from(slice));
+    const chunkSize=8192;
+    for(let i=0;i<bytes.length;i+=chunkSize){
+      binary+=String.fromCharCode.apply(null,bytes.slice(i,i+chunkSize));
     }
     const base64=btoa(binary);
 

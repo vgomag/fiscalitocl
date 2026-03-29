@@ -310,6 +310,7 @@ async function processDiligenciaOCR(dilId){
     }
 
     const dlData=await dlRes.json();
+    if(!dlData||typeof dlData!=='object'){throw new Error('Invalid response format from download');}
 
     if(dlData.ok&&dlData.base64){
       /* Step 2: Extract text CLIENT-SIDE with pdf.js */
@@ -326,8 +327,10 @@ async function processDiligenciaOCR(dilId){
       const ocrCt=ocrRes.headers.get('content-type')||'';
       if(!ocrCt.includes('json'))throw new Error('Timeout del servidor. Divida el PDF en partes más pequeñas.');
       const ocrData=await ocrRes.json();
-      if(!ocrRes.ok||!ocrData.ok)throw new Error(ocrData.error||'Error OCR');
-      extractedText=ocrData.extractedText||'';
+      if(!ocrData||typeof ocrData!=='object'){throw new Error('Invalid OCR response format');}
+      if(!ocrRes.ok||!ocrData.ok){throw new Error(ocrData.error||'Error OCR');}
+      if(typeof ocrData.extractedText!=='string'){throw new Error('OCR response missing extractedText field');}
+      extractedText=ocrData.extractedText;
     } else {
       throw new Error(dlData.error||'Error descargando archivo');
     }
