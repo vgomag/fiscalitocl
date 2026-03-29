@@ -2505,14 +2505,15 @@ async function sendMessage(){
           'diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,fojas_inicio,fojas_fin';
         let _dilQ=sb.from('diligencias').select(_dilSelect).eq('case_id',cid).order('fecha_diligencia',{ascending:_isVista?true:false});
         if(!_isVista)_dilQ=_dilQ.limit(activeFn==='F5'?25:40);
+        const _safeQ=q=>Promise.resolve(q).catch(e=>({data:null,error:e}));
         const [rParts,rRes,rChk,rDil,rCron,rAcc,rNotes]=await Promise.all([
-          sb.from('case_participants').select('role,name,estamento,carrera,dependencia').eq('case_id',cid).order('role').catch(e=>({data:null,error:e})),
-          sb.from('resoluciones').select('resolution_type,resolution_number,resolution_date,authority,fiscal_designado,facts_description').eq('case_id',cid).order('created_at',{ascending:false}).catch(e=>({data:null,error:e})),
-          sb.from('case_checklist_items').select('phase,item_text,is_completed').eq('case_id',cid).order('phase').order('item_order').catch(e=>({data:null,error:e})),
-          _dilQ.catch(e=>({data:null,error:e})),
-          sb.from('cronologia').select('event_date,event_type,description').eq('case_id',cid).order('event_date').catch(e=>({data:null,error:e})),
-          sb.from('acciones_pendientes').select('title,description,due_date,status').eq('case_id',cid).order('due_date').catch(e=>({data:null,error:e})),
-          sb.from('case_notes').select('title,content,created_at,source').eq('case_id',cid).order('created_at',{ascending:false}).limit(20).catch(e=>({data:null,error:e}))
+          _safeQ(sb.from('case_participants').select('role,name,estamento,carrera,dependencia').eq('case_id',cid).order('role')),
+          _safeQ(sb.from('resoluciones').select('resolution_type,resolution_number,resolution_date,authority,fiscal_designado,facts_description').eq('case_id',cid).order('created_at',{ascending:false})),
+          _safeQ(sb.from('case_checklist_items').select('phase,item_text,is_completed').eq('case_id',cid).order('phase').order('item_order')),
+          _safeQ(_dilQ),
+          _safeQ(sb.from('cronologia').select('event_date,event_type,description').eq('case_id',cid).order('event_date')),
+          _safeQ(sb.from('acciones_pendientes').select('title,description,due_date,status').eq('case_id',cid).order('due_date')),
+          _safeQ(sb.from('case_notes').select('title,content,created_at,source').eq('case_id',cid).order('created_at',{ascending:false}).limit(20))
         ]);
         /* Participantes */
         if(rParts.data?.length){
