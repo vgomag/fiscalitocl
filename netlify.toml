@@ -1,0 +1,33 @@
+[functions]
+  directory = "netlify/functions"
+
+# Netlify Pro: 26 seconds timeout for all functions
+[functions."chat"]
+  external_node_modules = ["@anthropic-ai/sdk"]
+  timeout = 26
+
+[functions."ocr"]
+  external_node_modules = ["@anthropic-ai/sdk"]
+  timeout = 26
+
+[functions."structure"]
+  timeout = 26
+
+[functions."drive"]
+  timeout = 26
+
+[functions."rag"]
+  timeout = 26
+
+[functions."qdrant-ingest"]
+  timeout = 26
+
+[functions."drive-extract"]
+  timeout = 26
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
