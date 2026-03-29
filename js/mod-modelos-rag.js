@@ -496,20 +496,27 @@ ${modelContext}
 INSTRUCCIÓN FINAL:
 Genera el documento adaptado al nuevo caso, respetando al máximo la estructura, el estilo y el razonamiento jurídico de los modelos. No inventes nada que no esté en los modelos. Usa [COMPLETAR: ...] donde falten datos del nuevo caso.`;
 
-    const resp = await fetch(ep, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }]
-      })
-    });
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const resp = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }]
+        }),
+        signal:_ctrl.signal
+      });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    rag.result = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '⚠ Sin respuesta';
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      rag.result = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '⚠ Sin respuesta';
+    }finally{
+      clearTimeout(_tout);
+    }
 
   } catch (err) {
     console.error('[RAG] generate error:', err);

@@ -1489,7 +1489,7 @@ function renderCaseHeader(){
   const stColors={active:'var(--green)',terminado:'var(--text-muted)',archived:'#f59e0b'};
   const fmtArr=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
   const calcDur=()=>{const f1=c.fecha_recepcion_fiscalia,f2=c.fecha_vista;if(!f1||!f2)return null;try{const parse=s=>{if(!s)return null;const m=String(s).match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);if(m)return new Date(m[3],m[2]-1,m[1]);const d=new Date(s);return isNaN(d)?null:d;};const d1=parse(f1),d2=parse(f2);if(!d1||!d2)return null;let days=0,cur=new Date(d1);while(cur<=d2){const w=cur.getDay(),mo=cur.getMonth(),dd=cur.getDate();if(w!==0&&w!==6){const isReceso=(mo===1)||(mo===6&&dd>=15&&dd<=21)||(mo===8&&dd>=15&&dd<=21)||(mo===11&&dd>=25&&dd<=31);if(!isReceso)days++;}cur.setDate(cur.getDate()+1);}return days;}catch{return null;}};
-  const dur=c.duracion_dias||calcDur();
+  let dur;try{dur=c.duracion_dias||calcDur();}catch{dur=null;}
   const resColor={'Sanción':'var(--red)','Sobreseimiento':'var(--green)','Absuelto':'var(--blue)'};
   const f=(label,val)=>val?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">${label}</div><div style="font-weight:500">${esc(val)}</div></div>`:'';
   const caseCat=typeof getCaseCat==='function'?getCaseCat(c):(activeCatTab||'genero');
@@ -2369,7 +2369,7 @@ async function loadChatHistory(caseId){
   msgs.innerHTML='';
   try{
     const{data,error}=await sb.from('chat_messages').select('role,content,fn_id,created_at').eq('case_id',caseId).order('created_at',{ascending:true});
-    if(error){console.warn('loadChatHistory:',error);return;}
+    if(error){console.warn('loadChatHistory:',error);showToast('⚠️ Error cargando historial');return;}
     if(data&&data.length>0){
       msgs.style.display='flex';
       document.getElementById('chatMsgCountBtn').style.display='';
@@ -2386,7 +2386,7 @@ async function loadChatHistory(caseId){
       });
       msgs.scrollTop=msgs.scrollHeight;
     }
-  }catch(e){console.warn('loadChatHistory error:',e);}
+  }catch(e){console.warn('loadChatHistory error:',e);showToast('⚠️ Error cargando historial');}
   _chatLoadedForCase=caseId;
 }
 function exportChat(format){
@@ -2625,7 +2625,6 @@ async function sendMessage(){
             body:JSON.stringify(ragBody),
             signal:ragController.signal
           });
-          clearTimeout(ragTimeout);
 
           if(ragRes.ok){
             const ragData=await ragRes.json();
@@ -2640,9 +2639,10 @@ async function sendMessage(){
             }
           }
         }catch(ragErr){
-          clearTimeout(ragTimeout);
           if(ragErr.name==='AbortError')console.warn('RAG timeout (6s) — continuando sin biblioteca');
           else console.warn('RAG fetch error:',ragErr.message);
+        }finally{
+          clearTimeout(ragTimeout);
         }
       }
     }catch(libErr){console.warn('Qdrant library search error:',libErr);}
@@ -3736,7 +3736,10 @@ function md(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,
   .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
   .replace(/---/g,'<hr>')
   .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')
-  .replace(/^(?!<[hH\d]|<ul|<li|<pre|<blockquote|<hr)(.+)$/gm,'<p>$1</p>');}
+  .replace(/^(?!<[hH\d]|<ul|<li|<pre|<blockquote|<hr)(.+)$/gm,'<p>$1</p>')
+  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'')
+  .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi,'')
+  .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'');}
 
 function showToast(msg){
   const c=document.getElementById('toastContainer');

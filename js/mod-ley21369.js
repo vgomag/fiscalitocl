@@ -608,14 +608,21 @@ async function sendChat(){
       ]
     };
 
-    const res=await fetch(CHAT_ENDPOINT,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(body)
-    });
-    const data=await res.json();
-    const reply=data.reply||data.choices?.[0]?.message?.content||"Sin respuesta";
-    chatMessages.push({role:"assistant",content:reply});
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const res=await fetch(CHAT_ENDPOINT,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body),
+        signal:_ctrl.signal
+      });
+      const data=await res.json();
+      const reply=data.reply||data.choices?.[0]?.message?.content||"Sin respuesta";
+      chatMessages.push({role:"assistant",content:reply});
+    }finally{
+      clearTimeout(_tout);
+    }
   }catch(e){
     chatMessages.push({role:"assistant",content:"Error: "+e.message});
   }
@@ -650,14 +657,21 @@ async function generateReport(){
       ]
     };
 
-    const res=await fetch(CHAT_ENDPOINT,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(body)
-    });
-    const data=await res.json();
-    aiReport=data.reply||data.choices?.[0]?.message?.content||"Error al generar";
-    showToast("Informe generado con IA","success");
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const res=await fetch(CHAT_ENDPOINT,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body),
+        signal:_ctrl.signal
+      });
+      const data=await res.json();
+      aiReport=data.reply||data.choices?.[0]?.message?.content||"Error al generar";
+      showToast("Informe generado con IA","success");
+    }finally{
+      clearTimeout(_tout);
+    }
   }catch(e){
     showToast("Error: "+e.message,"error");
   }

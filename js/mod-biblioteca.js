@@ -1213,29 +1213,36 @@ async function sendBibChat() {
   ).join('\n\n---\n\n');
 
   try {
-    const resp = await fetch(CHAT_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        system: `Eres Fiscalito, asistente jurídico de la Biblioteca de Referencia. Tienes acceso a los documentos de la biblioteca y a normativa de procedimientos disciplinarios. Responde con precisión, cita normas específicas y usa lenguaje institucional formal.
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const resp = await fetch(CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          system: `Eres Fiscalito, asistente jurídico de la Biblioteca de Referencia. Tienes acceso a los documentos de la biblioteca y a normativa de procedimientos disciplinarios. Responde con precisión, cita normas específicas y usa lenguaje institucional formal.
 
 DOCUMENTOS DE LA BIBLIOTECA (primeros ${biblioteca.books.length} docs):
 ${[normasCtx, normativaInternaCtx, booksCtx].filter(Boolean).join('\n\n---\n\n') || 'Sin documentos cargados aún.'}`,
-        messages: biblioteca.chatMessages.slice(-12)
-      })
-    });
+          messages: biblioteca.chatMessages.slice(-12)
+        }),
+        signal:_ctrl.signal
+      });
 
-    const data = await resp.json();
-    const reply = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || 'Sin respuesta.';
-    biblioteca.chatMessages.push({ role: 'assistant', content: reply });
+        const data = await resp.json();
+      const reply = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || 'Sin respuesta.';
+      biblioteca.chatMessages.push({ role: 'assistant', content: reply });
 
-    const typing = document.getElementById('bibChatTyping');
-    if (typing) {
-      typing.innerHTML = `<div class="ley-chat-msg-body"><div class="ley-chat-msg-bub">${md(reply)}</div></div>`;
+      const typing = document.getElementById('bibChatTyping');
+      if (typing) {
+        typing.innerHTML = `<div class="ley-chat-msg-body"><div class="ley-chat-msg-bub">${md(reply)}</div></div>`;
+      }
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    }finally{
+      clearTimeout(_tout);
     }
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
   } catch (err) {
     const typing = document.getElementById('bibChatTyping');
     if (typing) typing.innerHTML = `<div class="ley-chat-msg-body"><div class="ley-chat-msg-bub" style="color:var(--red)">⚠️ Error: ${err.message}</div></div>`;

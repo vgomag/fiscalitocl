@@ -166,40 +166,46 @@ REQUISITOS:
 - Cita artículos del Código del Trabajo, Código de Procedimiento Civil u otras normas pertinentes`;
 
   try {
-    const resp = await fetch(CHAT_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        system: `Eres Fiscalito, asistente jurídico especializado en escritos judiciales chilenos. Generas documentos formales completos con estructura procesal correcta, citas normativas precisas y lenguaje institucional formal. Tus escritos son listos para revisión del abogado.`,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const resp = await fetch(CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          system: `Eres Fiscalito, asistente jurídico especializado en escritos judiciales chilenos. Generas documentos formales completos con estructura procesal correcta, citas normativas precisas y lenguaje institucional formal. Tus escritos son listos para revisión del abogado.`,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        signal:_ctrl.signal
+      });
 
-    if (!resp.ok) {
-      const err = await resp.json();
-      showToast('⚠ Error: ' + (err.error || 'Error al generar'));
-      escritos.isGenerating = false;
-      renderEscritosView();
-      return;
+      if (!resp.ok) {
+        const err = await resp.json();
+        showToast('⚠ Error: ' + (err.error || 'Error al generar'));
+        escritos.isGenerating = false;
+        renderEscritosView();
+        return;
+      }
+
+      const data = await resp.json();
+      const content = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '';
+
+      const newDraft = {
+        id: crypto.randomUUID(),
+        template: escritos.selectedTemplate,
+        title: `${tpl?.label} — ${new Date().toLocaleDateString('es-CL')}`,
+        content,
+        createdAt: new Date().toISOString()
+      };
+      escritos.drafts.unshift(newDraft);
+      escritos.activeDraftId = newDraft.id;
+      escritos.streamingContent = '';
+      showToast('✓ Escrito generado exitosamente');
+    }finally{
+      clearTimeout(_tout);
     }
-
-    const data = await resp.json();
-    const content = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '';
-
-    const newDraft = {
-      id: crypto.randomUUID(),
-      template: escritos.selectedTemplate,
-      title: `${tpl?.label} — ${new Date().toLocaleDateString('es-CL')}`,
-      content,
-      createdAt: new Date().toISOString()
-    };
-    escritos.drafts.unshift(newDraft);
-    escritos.activeDraftId = newDraft.id;
-    escritos.streamingContent = '';
-    showToast('✓ Escrito generado exitosamente');
-
   } catch (err) {
     showToast('⚠ Error: ' + err.message);
   } finally {

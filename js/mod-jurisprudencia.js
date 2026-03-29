@@ -503,13 +503,16 @@ async function juriSkillSummarize() {
       `### ${i+1}. ${r.title} [${r.source?.toUpperCase()}]\n${r.snippet || r.content || '(sin contenido)'}`
     ).join('\n\n---\n\n');
 
-    const resp = await fetch(ep, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        system: `Eres Fiscalito, asistente jurídico. Genera un resumen ejecutivo de la jurisprudencia seleccionada${folder}.
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const resp = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          system: `Eres Fiscalito, asistente jurídico. Genera un resumen ejecutivo de la jurisprudencia seleccionada${folder}.
 Estructura el resumen con:
 1. Criterios jurisprudenciales principales
 2. Tendencias doctrinales detectadas
@@ -517,24 +520,28 @@ Estructura el resumen con:
 4. Aplicación práctica al caso disciplinario
 
 Usa lenguaje formal, preciso y cita las fuentes por nombre.`,
-        messages: [{ role: 'user', content: `Resume esta jurisprudencia para uso en un procedimiento disciplinario:\n\n${docsText}` }]
-      })
-    });
+          messages: [{ role: 'user', content: `Resume esta jurisprudencia para uso en un procedimiento disciplinario:\n\n${docsText}` }]
+        }),
+        signal:_ctrl.signal
+      });
 
-    const data = await resp.json();
-    const reply = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('') || '';
+      const data = await resp.json();
+      const reply = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('') || '';
 
-    box.innerHTML = `
-      <div class="skill-summary-wrap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="font-size:11px;font-weight:600;color:var(--gold)">📊 Resumen ejecutivo de ${selected.length} fuente(s)</div>
-          <div style="display:flex;gap:5px">
-            <button class="btn-sm" style="font-size:10px" onclick="navigator.clipboard.writeText(this.closest('.skill-summary-wrap').querySelector('.skill-summary-content').textContent);showToast('✓ Copiado')">📋 Copiar</button>
-            <button class="btn-del" onclick="document.getElementById('skillSummaryBox').style.display='none'">✕</button>
+      box.innerHTML = `
+        <div class="skill-summary-wrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:600;color:var(--gold)">📊 Resumen ejecutivo de ${selected.length} fuente(s)</div>
+            <div style="display:flex;gap:5px">
+              <button class="btn-sm" style="font-size:10px" onclick="navigator.clipboard.writeText(this.closest('.skill-summary-wrap').querySelector('.skill-summary-content').textContent);showToast('✓ Copiado')">📋 Copiar</button>
+              <button class="btn-del" onclick="document.getElementById('skillSummaryBox').style.display='none'">✕</button>
+            </div>
           </div>
-        </div>
-        <div class="skill-summary-content">${md(reply)}</div>
-      </div>`;
+          <div class="skill-summary-content">${md(reply)}</div>
+        </div>`;
+    }finally{
+      clearTimeout(_tout);
+    }
   } catch (err) {
     box.innerHTML = `<div style="color:var(--red);font-size:11.5px">⚠ Error: ${err.message}</div>`;
   }

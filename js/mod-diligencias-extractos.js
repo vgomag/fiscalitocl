@@ -219,61 +219,67 @@ async function importDriveAsDiligencias(){
     if(!m)throw new Error('No se pudo obtener el ID de la carpeta.');
     const folderId=m[1];
 
-    const res=await fetch('/.netlify/functions/drive',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})
-    });
-    if(!res.ok)throw new Error('Error al listar archivos: HTTP '+res.status);
-    const driveData=await res.json();
-    if(!driveData?.ok)throw new Error(driveData?.error||'Error de Drive');
+    const _ctrl1=new AbortController();
+    const _tout1=setTimeout(()=>_ctrl1.abort(),30000);
+    try{
+      const res=await fetch('/.netlify/functions/drive',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3}),
+        signal:_ctrl1.signal
+      });
+      if(!res.ok)throw new Error('Error al listar archivos: HTTP '+res.status);
+      const driveData=await res.json();
+      if(!driveData?.ok)throw new Error(driveData?.error||'Error de Drive');
 
-    const files=driveData.files||[];
-    if(!files.length){showToast('📂 Carpeta sin archivos.');return;}
+      const files=driveData.files||[];
+      if(!files.length){showToast('📂 Carpeta sin archivos.');return;}
 
-    /* 2. Get existing diligencias to avoid duplicates */
-    const{data:existing}=await sb.from('diligencias').select('drive_file_id,file_name').eq('case_id',currentCase.id);
-    const existingIds=new Set((existing||[]).map(e=>e.drive_file_id).filter(Boolean));
-    const existingNames=new Set((existing||[]).map(e=>e.file_name).filter(Boolean));
+      /* 2. Get existing diligencias to avoid duplicates */
+      const{data:existing}=await sb.from('diligencias').select('drive_file_id,file_name').eq('case_id',currentCase.id);
+      const existingIds=new Set((existing||[]).map(e=>e.drive_file_id).filter(Boolean));
+      const existingNames=new Set((existing||[]).map(e=>e.file_name).filter(Boolean));
 
-    /* 3. Filter new files only */
-    const newFiles=files.filter(f=>{
-      if(f.id&&existingIds.has(f.id))return false;
-      if(existingNames.has(f.name))return false;
-      return true;
-    });
+      /* 3. Filter new files only */
+      const newFiles=files.filter(f=>{
+        if(f.id&&existingIds.has(f.id))return false;
+        if(existingNames.has(f.name))return false;
+        return true;
+      });
 
-    if(!newFiles.length){showToast('✓ Todos los archivos ya están registrados.');return;}
+      if(!newFiles.length){showToast('✓ Todos los archivos ya están registrados.');return;}
 
-    /* 4. Insert new diligencias */
-    const inserts=newFiles.map((f,i)=>{
-      const type=autoClassifyByFilename(f.name);
-      const tInfo=getDilTypeInfo(type);
-      return {
-        id:crypto.randomUUID(),
-        case_id:currentCase.id,
-        user_id:session.user.id,
-        diligencia_type:type,
-        diligencia_label:tInfo.label+': '+f.name.replace(/\.[^.]+$/,''),
-        file_name:f.name,
-        file_path:f._path||f.name,
-        file_size:f.size?parseInt(f.size):null,
-        drive_file_id:f.id||null,
-        drive_web_link:f.webViewLink||null,
-        mime_type:f.mimeType||null,
-        is_processed:false,
-        processing_status:'pending',
-        order_index:(existing?.length||0)+i,
-        fecha_diligencia:f.modifiedTime?f.modifiedTime.split('T')[0]:null,
-      };
-    });
+      /* 4. Insert new diligencias */
+      const inserts=newFiles.map((f,i)=>{
+        const type=autoClassifyByFilename(f.name);
+        const tInfo=getDilTypeInfo(type);
+        return {
+          id:crypto.randomUUID(),
+          case_id:currentCase.id,
+          user_id:session.user.id,
+          diligencia_type:type,
+          diligencia_label:tInfo.label+': '+f.name.replace(/\.[^.]+$/,''),
+          file_name:f.name,
+          file_path:f._path||f.name,
+          file_size:f.size?parseInt(f.size):null,
+          drive_file_id:f.id||null,
+          drive_web_link:f.webViewLink||null,
+          mime_type:f.mimeType||null,
+          is_processed:false,
+          processing_status:'pending',
+          order_index:(existing?.length||0)+i,
+          fecha_diligencia:f.modifiedTime?f.modifiedTime.split('T')[0]:null,
+        };
+      });
 
-    const{error}=await sb.from('diligencias').insert(inserts);
-    if(error)throw new Error(error.message);
+      const{error}=await sb.from('diligencias').insert(inserts);
+      if(error)throw new Error(error.message);
 
-    showToast(`✓ ${newFiles.length} diligencia(s) importada(s)`);
-    await loadDiligenciasTab();
-
+      showToast(`✓ ${newFiles.length} diligencia(s) importada(s)`);
+      await loadDiligenciasTab();
+    }finally{
+      clearTimeout(_tout1);
+    }
   }catch(err){
     showToast('⚠️ '+err.message);
     console.error('importDriveAsDiligencias:',err);
@@ -295,19 +301,23 @@ async function processDiligenciaOCR(dilId){
 
   try{
     /* Step 1: Download PDF as binary from Drive (via server) */
-    const dlRes=await fetch('/.netlify/functions/drive',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'download',fileId:dil.drive_file_id})
-    });
+    const _ctrl2=new AbortController();
+    const _tout2=setTimeout(()=>_ctrl2.abort(),30000);
+    try{
+      const dlRes=await fetch('/.netlify/functions/drive',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'download',fileId:dil.drive_file_id}),
+        signal:_ctrl2.signal
+      });
 
-    let extractedText='';
+      let extractedText='';
 
-    const ct=dlRes.headers.get('content-type')||'';
-    if(!ct.includes('json')){
-      /* Fallback: try server-side OCR for non-PDF files */
-      throw new Error('No se pudo descargar. Intente con archivo más pequeño.');
-    }
+      const ct=dlRes.headers.get('content-type')||'';
+      if(!ct.includes('json')){
+        /* Fallback: try server-side OCR for non-PDF files */
+        throw new Error('No se pudo descargar. Intente con archivo más pequeño.');
+      }
 
     const dlData=await dlRes.json();
     if(!dlData||typeof dlData!=='object'){throw new Error('Invalid response format from download');}
@@ -319,18 +329,25 @@ async function processDiligenciaOCR(dilId){
     } else if(dlData.error&&dlData.error.includes('grande')){
       /* File too large for download endpoint — use server OCR */
       showToast('📥 Archivo grande — usando OCR servidor…');
-      const ocrRes=await fetch('/.netlify/functions/ocr',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name})
-      });
-      const ocrCt=ocrRes.headers.get('content-type')||'';
-      if(!ocrCt.includes('json'))throw new Error('Timeout del servidor. Divida el PDF en partes más pequeñas.');
-      const ocrData=await ocrRes.json();
-      if(!ocrData||typeof ocrData!=='object'){throw new Error('Invalid OCR response format');}
-      if(!ocrRes.ok||!ocrData.ok){throw new Error(ocrData.error||'Error OCR');}
-      if(typeof ocrData.extractedText!=='string'){throw new Error('OCR response missing extractedText field');}
-      extractedText=ocrData.extractedText;
+      const _ctrl3=new AbortController();
+      const _tout3=setTimeout(()=>_ctrl3.abort(),30000);
+      try{
+        const ocrRes=await fetch('/.netlify/functions/ocr',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name}),
+          signal:_ctrl3.signal
+        });
+        const ocrCt=ocrRes.headers.get('content-type')||'';
+        if(!ocrCt.includes('json'))throw new Error('Timeout del servidor. Divida el PDF en partes más pequeñas.');
+        const ocrData=await ocrRes.json();
+        if(!ocrData||typeof ocrData!=='object'){throw new Error('Invalid OCR response format');}
+        if(!ocrRes.ok||!ocrData.ok){throw new Error(ocrData.error||'Error OCR');}
+        if(typeof ocrData.extractedText!=='string'){throw new Error('OCR response missing extractedText field');}
+        extractedText=ocrData.extractedText;
+      }finally{
+        clearTimeout(_tout3);
+      }
     } else {
       throw new Error(dlData.error||'Error descargando archivo');
     }
@@ -342,12 +359,22 @@ async function processDiligenciaOCR(dilId){
     /* Step 3: Generate quick summary with server (Haiku) */
     let aiSummary=null;
     try{
-      const sumRes=await fetch('/.netlify/functions/ocr',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'summarize',text:extractedText.substring(0,4000)})
-      });
-      if(sumRes.ok){const sd=await sumRes.json();aiSummary=sd.summary||null;}
+      const _ctrl4=new AbortController();
+      const _tout4=setTimeout(()=>_ctrl4.abort(),30000);
+      try{
+        const sumRes=await fetch('/.netlify/functions/ocr',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'summarize',text:extractedText.substring(0,4000)}),
+          signal:_ctrl4.signal
+        });
+        if(sumRes.ok){const sd=await sumRes.json();aiSummary=sd.summary||null;}
+      }finally{
+        clearTimeout(_tout4);
+      }
     }catch(e){}
+    }finally{
+      clearTimeout(_tout2);
+    }
 
     /* Step 4: Save to Supabase */
     await sb.from('diligencias').update({
@@ -439,55 +466,62 @@ async function analyzeExpediente(dilId){
       if(!dil.drive_file_id){showToast('⚠️ Sin archivo Drive');return;}
 
       showToast('📥 Etapa 1/2: Descargando PDF…');
-      const dlRes=await fetch('/.netlify/functions/drive',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'download',fileId:dil.drive_file_id})
-      });
-      const ct=dlRes.headers.get('content-type')||'';
-      if(!ct.includes('json'))throw new Error('Archivo muy grande para descarga directa. Divida el PDF.');
-      const dlData=await dlRes.json();
-      if(!dlData.ok||!dlData.base64)throw new Error(dlData.error||'Error descargando');
-
-      showToast('📄 Extrayendo texto página por página…');
-
-      /* Load pdf.js */
-      if(!window.pdfjsLib){
-        await new Promise((resolve,reject)=>{
-          const s=document.createElement('script');
-          s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-          s.onload=()=>{
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            resolve();
-          };
-          s.onerror=reject;
-          document.head.appendChild(s);
+      const _ctrl5=new AbortController();
+      const _tout5=setTimeout(()=>_ctrl5.abort(),30000);
+      try{
+        const dlRes=await fetch('/.netlify/functions/drive',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'download',fileId:dil.drive_file_id}),
+          signal:_ctrl5.signal
         });
+        const ct=dlRes.headers.get('content-type')||'';
+        if(!ct.includes('json'))throw new Error('Archivo muy grande para descarga directa. Divida el PDF.');
+        const dlData=await dlRes.json();
+        if(!dlData.ok||!dlData.base64)throw new Error(dlData.error||'Error descargando');
+
+        showToast('📄 Extrayendo texto página por página…');
+
+        /* Load pdf.js */
+        if(!window.pdfjsLib){
+          await new Promise((resolve,reject)=>{
+            const s=document.createElement('script');
+            s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            s.onload=()=>{
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+              resolve();
+            };
+            s.onerror=reject;
+            document.head.appendChild(s);
+          });
+        }
+
+        const binary=atob(dlData.base64);
+        const bytes=new Uint8Array(binary.length);
+        for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+
+        const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+        const numPages=pdf.numPages;
+
+        for(let i=1;i<=numPages;i++){
+          if(i%10===0)showToast(`📄 Página ${i}/${numPages}…`);
+          const page=await pdf.getPage(i);
+          const tc=await page.getTextContent();
+          pageTexts.push(tc.items.map(item=>item.str).join(' '));
+        }
+
+        fullText=pageTexts.map((t,i)=>`=== PÁGINA ${i+1} ===\n${t}`).join('\n\n');
+
+        /* Save extracted text */
+        await sb.from('diligencias').update({
+          extracted_text:fullText.substring(0,200000),
+          is_processed:true,
+          processing_status:'completed'
+        }).eq('id',dilId);
+
+        showToast(`✅ Texto extraído: ${numPages} páginas, ${fullText.length} caracteres`);
+      }finally{
+        clearTimeout(_tout5);
       }
-
-      const binary=atob(dlData.base64);
-      const bytes=new Uint8Array(binary.length);
-      for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-
-      const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
-      const numPages=pdf.numPages;
-
-      for(let i=1;i<=numPages;i++){
-        if(i%10===0)showToast(`📄 Página ${i}/${numPages}…`);
-        const page=await pdf.getPage(i);
-        const tc=await page.getTextContent();
-        pageTexts.push(tc.items.map(item=>item.str).join(' '));
-      }
-
-      fullText=pageTexts.map((t,i)=>`=== PÁGINA ${i+1} ===\n${t}`).join('\n\n');
-
-      /* Save extracted text */
-      await sb.from('diligencias').update({
-        extracted_text:fullText.substring(0,200000),
-        is_processed:true,
-        processing_status:'completed'
-      }).eq('id',dilId);
-
-      showToast(`✅ Texto extraído: ${numPages} páginas, ${fullText.length} caracteres`);
     } else {
       /* Parse existing text to get page texts */
       const pageSections=fullText.split(/=== PÁGINA \d+ ===/);
@@ -512,18 +546,25 @@ async function analyzeExpediente(dilId){
       const batchText=buildBatchText(pageTexts,batch.start,batch.end);
 
       try{
-        const res=await fetch('/.netlify/functions/ocr',{
-          method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            action:'analyze',
-            extractedText:batchText,
-            fileName:dil.file_name+` (lote ${i+1}/${batches.length}, pp.${batch.start}-${batch.end})`
-          })
-        });
-        const ct=res.headers.get('content-type')||'';
-        if(ct.includes('json')){
-          const data=await res.json();
-          if(data.ok&&data.diligencias)allDiligencias.push(...data.diligencias);
+        const _ctrl6=new AbortController();
+        const _tout6=setTimeout(()=>_ctrl6.abort(),30000);
+        try{
+          const res=await fetch('/.netlify/functions/ocr',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              action:'analyze',
+              extractedText:batchText,
+              fileName:dil.file_name+` (lote ${i+1}/${batches.length}, pp.${batch.start}-${batch.end})`
+            }),
+            signal:_ctrl6.signal
+          });
+          const ct=res.headers.get('content-type')||'';
+          if(ct.includes('json')){
+            const data=await res.json();
+            if(data.ok&&data.diligencias)allDiligencias.push(...data.diligencias);
+          }
+        }finally{
+          clearTimeout(_tout6);
         }
       }catch(e){
         console.warn(`Lote ${i+1} error:`,e.message);

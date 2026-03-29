@@ -241,30 +241,37 @@ async function generateParrafoIA() {
 
   try {
     const ctx = currentCase ? `Expediente: ${currentCase.name}${currentCase.description ? ' · ' + currentCase.description.substring(0, 200) : ''}` : '';
-    const resp = await fetch(CHAT_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: `Eres Fiscalito. Generas párrafos para Vistas Fiscales de procedimientos disciplinarios UMAG. Usa lenguaje formal institucional, citas normativas precisas (DFL N°29, EA, etc.) y estructura "Que," al inicio de cada párrafo. Usa placeholders [MAYÚSCULAS] para datos específicos que el usuario debe completar.`,
-        messages: [{ role: 'user', content: `${ctx ? ctx + '\n\n' : ''}Genera el párrafo: ${query}` }]
-      })
-    });
-    const data = await resp.json();
-    const text = data.content?.[0]?.text || '';
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const resp = await fetch(CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `Eres Fiscalito. Generas párrafos para Vistas Fiscales de procedimientos disciplinarios UMAG. Usa lenguaje formal institucional, citas normativas precisas (DFL N°29, EA, etc.) y estructura "Que," al inicio de cada párrafo. Usa placeholders [MAYÚSCULAS] para datos específicos que el usuario debe completar.`,
+          messages: [{ role: 'user', content: `${ctx ? ctx + '\n\n' : ''}Genera el párrafo: ${query}` }]
+        }),
+        signal:_ctrl.signal
+      });
+      const data = await resp.json();
+      const text = data.content?.[0]?.text || '';
 
-    // Add to custom list
-    const newParr = {
-      id: 'custom_' + Date.now(),
-      cat: 'analisis',
-      label: query.substring(0, 60),
-      text,
-    };
-    PARRAFOS_DB.push(newParr);
-    parrafos.selected.push(newParr.id);
-    showToast('✓ Párrafo generado y agregado');
-    if (input) input.value = '';
+      // Add to custom list
+      const newParr = {
+        id: 'custom_' + Date.now(),
+        cat: 'analisis',
+        label: query.substring(0, 60),
+        text,
+      };
+      PARRAFOS_DB.push(newParr);
+      parrafos.selected.push(newParr.id);
+      showToast('✓ Párrafo generado y agregado');
+      if (input) input.value = '';
+    }finally{
+      clearTimeout(_tout);
+    }
   } catch (err) {
     showToast('⚠ Error: ' + err.message);
   } finally {

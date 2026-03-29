@@ -8,11 +8,12 @@
   async function _ceSearchLibrary(query) {
     if (!sb || !session) return '';
     try {
-      const { data } = await sb.rpc('search_library', {
+      const { data, error } = await sb.rpc('search_library', {
         search_query: (query || '').substring(0, 200),
         max_results: 3,
         max_chars_per_result: 1200
       });
+      if (error) { console.warn('CE-patch library RPC error:', error); return ''; }
       if (!data || !data.length) return '';
       let ctx = '\n\n## BIBLIOTECA DE REFERENCIA (Libros y Normativa Interna)\n';
       data.forEach(r => {
