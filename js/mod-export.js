@@ -375,7 +375,7 @@ async function exportJsPDF(text, filename, options={}){
 
 /* Last resort: open print dialog */
 function exportPrintPDF(text, filename, options={}){
-  const titulo=options.title||filename.replace(/\.pdf$/,"").replace(/_/g," ");
+  const titulo=options.title||getTitleFromFilename(filename,"pdf");
   const w=window.open("","_blank","width=800,height=600");
   if(!w){showToast("⚠ Permite ventanas emergentes para exportar PDF");return;}
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titulo}</title>
