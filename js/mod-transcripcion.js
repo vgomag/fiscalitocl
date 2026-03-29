@@ -47,6 +47,8 @@ const transcripcion = {
   selectedMode:null, linkedCase:null,
   transcribeProvider:null,
   progress:{ current:0, total:0, pct:0, stepLabel:'', startTime:0, retryCount:0 },
+  /* Metadata del acta */
+  meta:{ tipoDeclarante:'testigo', nombreDeclarante:'', fecha:'', lugar:'Punta Arenas' },
 };
 
 /* ── MONKEY-PATCH ── */
@@ -158,6 +160,41 @@ function buildF11HTML(){
     ${transcripcion.audioUrl?`<audio controls src="${transcripcion.audioUrl}" style="width:100%;margin-top:8px;height:32px"></audio>`:''}
   </div>`;
 
+  /* ── Metadata del acta ── */
+  const m=transcripcion.meta;
+  const todayISO=new Date().toISOString().split('T')[0];
+  const metaSection=`<div class="f11-section">
+    <div class="f11-row" style="margin-bottom:8px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+      <span class="f11-section-title">Datos del Acta</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="f11-form-field">
+        <label>Tipo de acta</label>
+        <select id="f11TipoDeclarante" onchange="transcripcion.meta.tipoDeclarante=this.value" class="f11-input">
+          <option value="testigo" ${m.tipoDeclarante==='testigo'?'selected':''}>Declaración de testigo</option>
+          <option value="denunciante" ${m.tipoDeclarante==='denunciante'?'selected':''}>Ratificación de denuncia</option>
+          <option value="denunciado" ${m.tipoDeclarante==='denunciado'?'selected':''}>Declaración persona denunciada</option>
+          <option value="otro" ${m.tipoDeclarante==='otro'?'selected':''}>Otra diligencia</option>
+        </select>
+      </div>
+      <div class="f11-form-field">
+        <label>Nombre del declarante</label>
+        <input id="f11NombreDeclarante" value="${esc(m.nombreDeclarante)}" placeholder="Nombre completo" onchange="transcripcion.meta.nombreDeclarante=this.value" class="f11-input"/>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <div class="f11-form-field">
+        <label>Fecha de la diligencia</label>
+        <input id="f11Fecha" type="date" value="${m.fecha||todayISO}" onchange="transcripcion.meta.fecha=this.value" class="f11-input"/>
+      </div>
+      <div class="f11-form-field">
+        <label>Lugar</label>
+        <input id="f11Lugar" value="${esc(m.lugar)}" placeholder="Ej: Punta Arenas" onchange="transcripcion.meta.lugar=this.value" class="f11-input"/>
+      </div>
+    </div>
+  </div>`;
+
   /* ── Case section ── */
   const caseSection=`<div class="f11-section f11-case-section" onclick="toggleF11CaseDropdown()">
     <div class="f11-row" style="justify-content:space-between">
@@ -183,7 +220,7 @@ function buildF11HTML(){
   if(transcripcion.step==='result'&&(transcripcion.structuredText||transcripcion.rawText)){
     const text=transcripcion.structuredText||transcripcion.rawText;
     return`<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:12px;gap:8px">
-      ${docsSection}${caseSection}
+      ${docsSection}${metaSection}${caseSection}
       <div class="f11-result-actions">
         <button class="btn-save" onclick="saveTranscripcionToCase()" style="font-size:11.5px">💾 Guardar al expediente</button>
         <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar</button>
@@ -206,7 +243,7 @@ function buildF11HTML(){
     const retryBadge=p.retryCount>0?`<span id="f11RetryBadge" style="display:inline;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:#d97706;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">Reintento ${p.retryCount}/${T_MAX_RETRIES}</span>`:`<span id="f11RetryBadge" style="display:none"></span>`;
 
     return`<div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:8px">
-      ${docsSection}${caseSection}
+      ${docsSection}${metaSection}${caseSection}
       <div class="f11-progress-card">
         <div class="f11-progress-header">
           <div class="typing" style="justify-content:flex-start;gap:3px"><div class="da"></div><div class="da"></div><div class="da"></div></div>
@@ -233,7 +270,7 @@ function buildF11HTML(){
   /* ── After transcription ── */
   if(transcripcion.step==='structure'&&transcripcion.rawText){
     return`<div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:8px">
-      ${docsSection}${caseSection}
+      ${docsSection}${metaSection}${caseSection}
       <div class="f11-section">
         <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Transcripción obtenida</div>
         <div class="trans-raw-box">${esc(transcripcion.rawText.substring(0,600))}${transcripcion.rawText.length>600?'…':''}</div>
@@ -258,7 +295,7 @@ function buildF11HTML(){
   /* ── Default: upload ── */
   const hasAudio = !!transcripcion.audioFile;
   return`<div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:8px">
-    ${docsSection}${caseSection}
+    ${docsSection}${metaSection}${caseSection}
     ${hasAudio ? `<button class="f11-transcribe-btn" onclick="transcribeAudio()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       Transcribir audio
@@ -481,64 +518,98 @@ async function transcribeAudio(){
 }
 
 /* ── Prompts de estructuración ── */
-const T_PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes.
+const T_PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
 
-Instrucción de trabajo para incorporación de declaración transcrita al acta:
-Elabora un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración en audio, integrándolo al acta que se adjunta. El documento final debe presentarse en formato pregunta-respuesta, respetando la estructura del acta.
+CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes. Actúo como Fiscal Investigadora.
 
-La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes, en el cual actúo como Fiscal Investigadora.
+REGLAS DE EDICIÓN:
+- Conservar la redacción en primera persona y el estilo expresivo del declarante
+- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea") y repeticiones innecesarias
+- NO agregar información nueva ni interpretar intenciones
+- Mantener palabras originales del declarante salvo errores gramaticales
+- Unir frases fragmentadas para fluidez sin cambiar sentido
+- Conservar comillas, fechas, cifras y nombres propios exactamente como están
+- Tono formal, claro y preciso, coherente con documento legal
+- Respetar terminología jurídica y secuencia cronológica
 
-La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas. Es importante que se conserve, en lo posible, la redacción en primera persona y el estilo expresivo del declarante, realizando únicamente correcciones gramaticales menores, tales como concordancia, puntuación y eliminación de repeticiones innecesarias que no alteren el sentido ni el tono del testimonio.
+ENTREGA: Solo la versión final, sin comentarios ni marcas de edición.`;
 
-Una vez integradas todas las partes, el documento debe presentar una redacción fluida, coherente y ordenada, que facilite su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
+const T_PROMPT_QA = T_PROMPT_BASE + `
 
-Objetivo:
-- Mejorar la gramática, claridad y coherencia del texto
-- Eliminar muletillas ("eh", "mmm") y repeticiones innecesarias
-- Conservar la estructura lógica de los párrafos y la secuencia cronológica de los hechos
-- Respetar la terminología jurídica y los nombres propios tal como aparecen en la transcripción
-
-Instrucciones específicas:
-- No agregar información nueva ni interpretar intenciones; solo reescribir lo existente
-- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical
-- Unir frases fragmentadas cuando sea necesario para fluidez, sin cambiar el sentido
-- Conservar comillas, fechas y cifras exactamente como están
-- Usar un tono formal, claro y preciso, coherente con un documento legal
-
-Formato de entrega:
-- Texto corregido en formato pregunta-respuesta con párrafos separados
-- Sin comentarios ni marcadores de edición; solo la versión final`;
-
-const T_PROMPT_QA = T_PROMPT_BASE;
+FORMATO: Pregunta-Respuesta
+- Estructura el texto como diálogo formal entre Fiscal y declarante
+- Cada pregunta precedida de "PREGUNTA:" o "FISCAL:"
+- Cada respuesta precedida de "RESPUESTA:" o "DECLARANTE:"
+- Párrafos separados, numerados si es posible`;
 
 const T_PROMPT_DIRECTA = T_PROMPT_BASE + `
 
-FORMATO ADICIONAL: Estructura como ACTA FORMAL de declaración rendida en procedimiento disciplinario.
-Incluir encabezado institucional, cuerpo de declaración en párrafos y cierre con "Leída que le fue su declaración, se ratifica y firma" más espacios para firmas.`;
+FORMATO: ACTA FORMAL UMAG — Declaración en procedimiento disciplinario.
 
-const T_PROMPT_EXPEDIENTE = T_PROMPT_BASE + `
+Genera el documento completo con esta estructura EXACTA:
 
-FORMATO ADICIONAL: Estructura como ACTA FORMAL institucional COMPLETA.
-1. ENCABEZADO FORMAL:
-   - Título: "ACTA DE DECLARACIÓN" (o "ACTA DE DECLARACIÓN DE TESTIGO" según corresponda)
-   - Nombre del expediente y ROL
-   - Fecha de la declaración
-   - Nombre del/la fiscal o investigador/a
-   - Nombre del/la declarante con su calidad procesal (denunciante, denunciado/a, testigo)
-   - Tipo de procedimiento y materia investigada
+═══ ENCABEZADO ═══
+UNIVERSIDAD DE MAGALLANES
+DIRECCIÓN DE PERSONAL / [UNIDAD QUE CORRESPONDA]
 
-2. CUERPO: Declaración en formato pregunta-respuesta con las correcciones gramaticales.
+**ACTA DE DECLARACIÓN DE [TESTIGO/DENUNCIANTE/PERSONA DENUNCIADA]**
 
-3. CIERRE FORMAL:
-   - "Leída que le fue su declaración, se ratifica y firma"
-   - Espacios para firmas del/la declarante, fiscal y actuario/a
-   - Si falta algún dato del expediente, marcar como [COMPLETAR]`;
+En [LUGAR], a [FECHA EN PALABRAS], siendo las [HORA] horas, ante la Fiscal Investigadora [NOMBRE FISCAL], en el marco del procedimiento [TIPO] Rol N° [ROL], por presuntas infracciones a [MATERIA], comparece:
+
+**[NOMBRE COMPLETO DEL DECLARANTE]**, quien previamente advertido/a de:
+- Su obligación de decir verdad conforme al artículo 17 de la Ley N° 19.880
+- Las penas del falso testimonio según los artículos 206 y siguientes del Código Penal
+- Su derecho a no declarar contra sí mismo/a (si es persona denunciada)
+- Las causales de inhabilidad
+
+Declara no tener inhabilidad para declarar en este procedimiento y expone lo siguiente:
+
+═══ CUERPO ═══
+Declaración en formato pregunta-respuesta, con correcciones gramaticales aplicadas.
+
+═══ CIERRE ═══
+No habiendo más que agregar, y leída que le fue su declaración, se ratifica en ella y firma para constancia.
+
+[Espacio firma]
+_________________________________
+[NOMBRE DECLARANTE]
+[CALIDAD: Testigo / Denunciante / Persona denunciada]
+
+[Espacio firma]
+_________________________________
+[NOMBRE FISCAL]
+Fiscal Investigadora
+
+Si falta algún dato, usar [COMPLETAR].`;
+
+const T_PROMPT_EXPEDIENTE = T_PROMPT_DIRECTA + `
+
+INSTRUCCIÓN ADICIONAL — MODO CON EXPEDIENTE:
+Los datos del expediente se proporcionan abajo. Úsalos para completar TODOS los campos del encabezado (ROL, nombre fiscal, tipo procedimiento, materia, participantes).
+NO dejes campos como [COMPLETAR] si el dato está disponible en el contexto del expediente.`;
+
+const T_PROMPT_FILL_ACTA = T_PROMPT_BASE + `
+
+INSTRUCCIÓN ESPECIAL — MODO LLENAR ACTA EXISTENTE:
+Se adjunta un DOCUMENTO BASE que es la plantilla/acta original con las preguntas del cuestionario.
+Tu tarea es LLENAR esa plantilla con las respuestas extraídas del audio transcrito.
+
+REGLAS:
+1. PRESERVA la estructura exacta del documento base (encabezado, numeración, preguntas)
+2. Después de cada pregunta del documento base, inserta la respuesta correspondiente del audio
+3. Si una pregunta del documento base NO tiene respuesta en el audio, escribe: "[Sin respuesta en el audio]"
+4. Si el audio contiene información adicional no cubierta por las preguntas, agrégala al final como "DECLARACIÓN COMPLEMENTARIA"
+5. Mantén el formato formal del documento base
+6. Completa los campos del encabezado con los datos del expediente si están disponibles
+7. Agrega el cierre formal: "Leída que le fue su declaración, se ratifica y firma" con espacios para firmas`;
 
 /* ════════════════════════════════════════════════════════
    CARGAR DATOS COMPLETOS DEL EXPEDIENTE PARA ACTA
    ════════════════════════════════════════════════════════ */
 async function loadFullCaseContext(caseObj){
   if(!caseObj||!caseObj.id)return'';
+  const mt=transcripcion.meta;
+  const tipoLabel={testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[mt.tipoDeclarante]||'declarante';
   return `\n\nDATOS DEL EXPEDIENTE:
 - Expediente: ${caseObj.name||'[EXPEDIENTE]'}
 - ROL: ${caseObj.rol||'[ROL]'}
@@ -547,7 +618,9 @@ async function loadFullCaseContext(caseObj){
 - Protocolo: ${caseObj.protocolo||'[PROTOCOLO]'}
 - Resolución: ${caseObj.nueva_resolucion||'[RESOLUCIÓN]'}
 - Denunciante(s): ${_fmtArr(caseObj.denunciantes)||'[DENUNCIANTE]'}
-- Denunciado/a(s): ${_fmtArr(caseObj.denunciados)||'[DENUNCIADO/A]'}`;
+- Denunciado/a(s): ${_fmtArr(caseObj.denunciados)||'[DENUNCIADO/A]'}
+- Declarante: ${mt.nombreDeclarante||'[COMPLETAR]'} (${tipoLabel})
+- Lugar diligencia: ${mt.lugar||'[COMPLETAR]'}`;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -568,20 +641,32 @@ async function structureTranscripcion(){
     try{
       transcripcion.progress.retryCount=attempt;
       const lnk=transcripcion.linkedCase||(typeof currentCase!=='undefined'?currentCase:null);
-      const fecha=new Date().toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      const mt=transcripcion.meta;
+      /* Sync metadata fields from DOM if present */
+      const _f11tipo=document.getElementById('f11TipoDeclarante');
+      const _f11nombre=document.getElementById('f11NombreDeclarante');
+      const _f11fecha=document.getElementById('f11Fecha');
+      const _f11lugar=document.getElementById('f11Lugar');
+      if(_f11tipo)mt.tipoDeclarante=_f11tipo.value;
+      if(_f11nombre)mt.nombreDeclarante=_f11nombre.value;
+      if(_f11fecha)mt.fecha=_f11fecha.value;
+      if(_f11lugar)mt.lugar=_f11lugar.value;
+
+      const fechaStr=mt.fecha?new Date(mt.fecha+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):new Date().toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      const tipoLabel={testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[mt.tipoDeclarante]||'declarante';
+      const tipoActaLabel={testigo:'DECLARACIÓN DE TESTIGO',denunciante:'RATIFICACIÓN DE DENUNCIA',denunciado:'DECLARACIÓN DE PERSONA DENUNCIADA',otro:'DILIGENCIA'}[mt.tipoDeclarante]||'DECLARACIÓN';
 
       setProgress(15,'Preparando contexto…');
 
-      /* Build lightweight case context (no DB queries — use in-memory data only) */
-      let caseCtx='';
+      /* Build case + metadata context */
+      let caseCtx=`\nMETADATOS DEL ACTA:\n- Tipo: ${tipoActaLabel}\n- Declarante: ${mt.nombreDeclarante||'[COMPLETAR NOMBRE]'}\n- Calidad procesal: ${tipoLabel}\n- Fecha: ${fechaStr}\n- Lugar: ${mt.lugar||'[COMPLETAR]'}`;
       if(lnk){
-        caseCtx=`\nDATOS DEL EXPEDIENTE: ${lnk.name||'[EXP]'} | ROL: ${lnk.rol||'[ROL]'} | Tipo: ${lnk.tipo_procedimiento||'[TIPO]'} | Materia: ${lnk.materia||'[MATERIA]'} | Denunciante(s): ${_fmtArr(lnk.denunciantes)||'[DENUNCIANTE]'} | Denunciado/a(s): ${_fmtArr(lnk.denunciados)||'[DENUNCIADO/A]'} | Fecha declaración: ${fecha}`;
-      } else {
-        caseCtx='\nFecha: '+fecha;
+        caseCtx+=`\n\nDATOS DEL EXPEDIENTE:\n- Expediente: ${lnk.name||'[EXPEDIENTE]'}\n- ROL: ${lnk.rol||'[ROL]'}\n- Tipo: ${lnk.tipo_procedimiento||'[TIPO]'}\n- Materia: ${lnk.materia||'[MATERIA]'}\n- Denunciante(s): ${_fmtArr(lnk.denunciantes)||'[DENUNCIANTE]'}\n- Denunciado/a(s): ${_fmtArr(lnk.denunciados)||'[DENUNCIADO/A]'}`;
       }
 
       const raw=transcripcion.rawText;
-      const mode=transcripcion.selectedMode||'directa';
+      const hasBaseDoc=!!transcripcion.baseDocText?.trim();
+      const mode=hasBaseDoc?'fill_acta':(transcripcion.selectedMode||'directa');
 
       /* SHORT TEXT (≤4000 chars): single fast call */
       if(raw.length<=4000){
@@ -695,8 +780,10 @@ async function saveTranscripcionToCase(){
 
   try{
     const audioName=transcripcion.audioFile?.name||'audio';
-    const fecha=new Date().toLocaleDateString('es-CL',{year:'numeric',month:'long',day:'numeric'});
-    const title='Transcripción: '+audioName+' ('+fecha+')';
+    const mt=transcripcion.meta;
+    const tipoLabel={testigo:'Declaración testigo',denunciante:'Ratificación denuncia',denunciado:'Declaración denunciado/a',otro:'Diligencia'}[mt.tipoDeclarante]||'Transcripción';
+    const fecha=mt.fecha?new Date(mt.fecha+'T12:00:00').toLocaleDateString('es-CL',{year:'numeric',month:'long',day:'numeric'}):new Date().toLocaleDateString('es-CL',{year:'numeric',month:'long',day:'numeric'});
+    const title=tipoLabel+(mt.nombreDeclarante?' — '+mt.nombreDeclarante:'')+' ('+fecha+')';
 
     const{error:noteErr}=await sb.from('case_notes').insert({
       case_id:caseRef.id,user_id:session.user.id,
@@ -733,7 +820,7 @@ function downloadTransWord(){
 function resetTranscripcion(){
   stopProgressTimer();
   if(transcripcion.audioUrl)URL.revokeObjectURL(transcripcion.audioUrl);
-  Object.assign(transcripcion,{isRecording:false,audioChunks:[],audioFile:null,audioUrl:null,baseDocText:'',baseDocName:'',rawText:'',structuredText:'',summary:'',segments:[],step:'upload',isProcessing:false,isGeneratingSummary:false,selectedMode:null,transcribeProvider:null,progress:{current:0,total:0,pct:0,stepLabel:'',startTime:0,retryCount:0}});
+  Object.assign(transcripcion,{isRecording:false,audioChunks:[],audioFile:null,audioUrl:null,baseDocText:'',baseDocName:'',rawText:'',structuredText:'',summary:'',segments:[],step:'upload',isProcessing:false,isGeneratingSummary:false,selectedMode:null,transcribeProvider:null,progress:{current:0,total:0,pct:0,stepLabel:'',startTime:0,retryCount:0},meta:{tipoDeclarante:'testigo',nombreDeclarante:'',fecha:'',lugar:'Punta Arenas'}});
   renderF11Panel();buildF11Chips();
 }
 
@@ -787,6 +874,10 @@ function resetTranscripcion(){
 .f11-pstep{font-size:10.5px;padding:4px 10px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);transition:all .2s}
 .f11-pstep.active{background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600;box-shadow:0 0 8px rgba(79,70,229,.15)}
 .f11-pstep.done{background:rgba(5,150,105,.08);border-color:rgba(5,150,105,.25);color:var(--green)}
+.f11-form-field{display:flex;flex-direction:column;gap:3px}
+.f11-form-field label{font-size:10.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
+.f11-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:12px;width:100%;box-sizing:border-box;font-family:var(--font-body)}
+.f11-input:focus{border-color:var(--gold-dim);outline:none}
 `;
   document.head.appendChild(s);
 })();
