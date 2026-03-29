@@ -2724,6 +2724,20 @@ async function sendMessage(){
     }catch(normaErr){console.warn('Normas BCN load error:',normaErr);}
     }
 
+    /* ── F7: Cargar párrafos modelo desde case_metadata ── */
+    if((activeFn==='F7'||activeFn==='F8')&&currentCase){
+      try{
+        const{data:pmData}=await sb.from('case_metadata')
+          .select('value')
+          .eq('case_id',currentCase.id)
+          .eq('key','parrafos_modelo_extractos')
+          .maybeSingle();
+        if(pmData?.value&&pmData.value.length>100){
+          caseContext+='\n\n## PÁRRAFOS MODELO GENERADOS DESDE LAS DILIGENCIAS\nEstos párrafos fueron generados por IA a partir de los extractos de cada diligencia. DEBES usarlos como BASE para los considerandos de la relación de diligencias. Adapta, complementa y refina según el caso, pero mantén su contenido y nivel de detalle.\n\n'+pmData.value.substring(0,40000)+'\n\n--- FIN PÁRRAFOS MODELO ---\n';
+        }
+      }catch(e){console.warn('Párrafos modelo load:',e);}
+    }
+
     /* ── F7: Cargar vistas fiscales de referencia de casos terminados ── */
     if((activeFn==='F7'||activeFn==='F8')&&currentCase){
       try{

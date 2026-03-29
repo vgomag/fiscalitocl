@@ -134,7 +134,10 @@ async function loadDiligenciasTab(){
           ${d.file_name?esc(d.file_name):''} ${driveLink}
         </div>
       </td>
-      <td style="padding:8px 10px;white-space:nowrap;font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${d.fecha_diligencia||'—'}</td>
+      <td style="padding:8px 10px;white-space:nowrap;font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">
+        ${d.fecha_diligencia||'—'}
+        ${d.fojas_inicio?`<div style="font-size:9.5px;color:var(--gold);margin-top:2px">f.${d.fojas_inicio}${d.fojas_fin&&d.fojas_fin!==d.fojas_inicio?'-'+d.fojas_fin:''}</div>`:''}
+      </td>
       <td style="padding:8px 10px;font-size:11px;color:var(--text-dim);max-width:300px">
         <div style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4">${esc(summaryPreview)}</div>
       </td>
@@ -760,6 +763,16 @@ async function editDiligenciaModal(dilId){
         <label style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Fecha diligencia</label>
         <input id="dilEditFecha" type="date" value="${dil.fecha_diligencia||''}" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;color:var(--text)"/>
       </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Foja inicio</label>
+          <input id="dilEditFojasInicio" type="number" min="1" value="${dil.fojas_inicio||''}" placeholder="Ej: 1" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;color:var(--text)"/>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Foja fin</label>
+          <input id="dilEditFojasFin" type="number" min="1" value="${dil.fojas_fin||''}" placeholder="Ej: 15" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;color:var(--text)"/>
+        </div>
+      </div>
       <div>
         <label style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Notas</label>
         <textarea id="dilEditNotes" rows="2" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;color:var(--text);resize:vertical">${esc(dil.notes||'')}</textarea>
@@ -778,11 +791,15 @@ async function saveDiligenciaEdit(dilId){
   const type=document.getElementById('dilEditType')?.value;
   const label=document.getElementById('dilEditLabel')?.value.trim();
   const fecha=document.getElementById('dilEditFecha')?.value||null;
+  const fojasInicio=document.getElementById('dilEditFojasInicio')?.value?parseInt(document.getElementById('dilEditFojasInicio').value):null;
+  const fojasFin=document.getElementById('dilEditFojasFin')?.value?parseInt(document.getElementById('dilEditFojasFin').value):null;
   const notes=document.getElementById('dilEditNotes')?.value.trim()||null;
   const{error}=await sb.from('diligencias').update({
     diligencia_type:type,
     diligencia_label:label,
     fecha_diligencia:fecha,
+    fojas_inicio:fojasInicio,
+    fojas_fin:fojasFin,
     notes:notes
   }).eq('id',dilId);
   if(error){showToast('⚠️ '+error.message);return;}
@@ -842,13 +859,7 @@ async function loadParrafosModeloExisting(){
 
   if(data?.value){
     renderParrafosModelo(data.value);
-    if(btns){
-      btns.innerHTML=`
-        <button class="btn-sm" onclick="copyParrafosModelo()" title="Copiar al portapapeles" style="font-size:10.5px">📋 Copiar</button>
-        <button class="btn-sm" onclick="editParrafosModelo()" title="Editar manualmente" style="font-size:10.5px">✎ Editar</button>
-        <button class="btn-save" onclick="generateParrafosModelo()" id="btnGenParrafos" style="font-size:11px;padding:5px 12px">↻ Regenerar</button>
-      `;
-    }
+    _updateParrafosBtns();
   }
 }
 
@@ -981,14 +992,18 @@ GENERA UN PÁRRAFO FORMAL POR CADA DILIGENCIA, numerados. Respeta el NIVEL DE DE
     for(let b=0;b<batches.length;b++){
       if(batches.length>1)showToast(`⏳ Generando lote ${b+1}/${batches.length}…`);
 
+      const startNum=b*DILS_PER_BATCH+1;
       const batchPrompt=`Genera párrafos modelo para la Vista Fiscal:
 - Expediente: ${currentCase.name} — ROL: ${currentCase.rol||'—'} — ${currentCase.tipo_procedimiento||''}
+- Carátula: ${currentCase.caratula||'—'}
+- Materia: ${currentCase.materia||'—'}
+${b>0?`\nCONTINUACIÓN: Continúa numerando desde el párrafo anterior. Este es el lote ${b+1} de ${batches.length}.\n`:''}
+## DILIGENCIAS (lote ${b+1}/${batches.length}, diligencias ${startNum} a ${Math.min(startNum+DILS_PER_BATCH-1,dils.length)})
 
-## DILIGENCIAS (lote ${b+1}/${batches.length})
+${batches[b].substring(0,12000)}
+${referenceStyle?'\n'+referenceStyle.substring(0,4000):''}
 
-${batches[b].substring(0,6000)}
-
-GENERA UN PÁRRAFO POR CADA DILIGENCIA. Respeta el NIVEL indicado. Texto plano sin markdown.`;
+GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL DE DETALLE indicado para cada una. NUNCA omitas diligencias. Texto plano sin markdown.`;
 
       try{
         const r=await authFetch(CHAT_ENDPOINT,{
@@ -996,8 +1011,8 @@ GENERA UN PÁRRAFO POR CADA DILIGENCIA. Respeta el NIVEL indicado. Texto plano s
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             model:'claude-sonnet-4-20250514',
-            max_tokens:2500,
-            system:systemPrompt.substring(0,1500),
+            max_tokens:4096,
+            system:systemPrompt,
             messages:[{role:'user',content:batchPrompt}]
           })
         });
@@ -1036,14 +1051,7 @@ GENERA UN PÁRRAFO POR CADA DILIGENCIA. Respeta el NIVEL indicado. Texto plano s
     showToast(`✅ ${dils.length} párrafos modelo generados`);
 
     /* Update buttons */
-    const btns=document.getElementById('parrafosBtns');
-    if(btns){
-      btns.innerHTML=`
-        <button class="btn-sm" onclick="copyParrafosModelo()" title="Copiar al portapapeles" style="font-size:10.5px">📋 Copiar</button>
-        <button class="btn-sm" onclick="editParrafosModelo()" title="Editar manualmente" style="font-size:10.5px">✎ Editar</button>
-        <button class="btn-save" onclick="generateParrafosModelo()" id="btnGenParrafos" style="font-size:11px;padding:5px 12px">↻ Regenerar</button>
-      `;
-    }
+    _updateParrafosBtns();
 
   }catch(err){
     showToast('⚠️ '+err.message);
@@ -1051,6 +1059,58 @@ GENERA UN PÁRRAFO POR CADA DILIGENCIA. Respeta el NIVEL indicado. Texto plano s
   }finally{
     if(btn){btn.disabled=false;btn.textContent='📑 Generar párrafos';}
   }
+}
+
+/* ── Botones del panel de párrafos ── */
+function _updateParrafosBtns(){
+  const btns=document.getElementById('parrafosBtns');
+  if(!btns)return;
+  btns.innerHTML=`
+    <button class="btn-sm" onclick="copyParrafosModelo()" title="Copiar al portapapeles" style="font-size:10.5px">📋 Copiar</button>
+    <button class="btn-sm" onclick="editParrafosModelo()" title="Editar manualmente" style="font-size:10.5px">✎ Editar</button>
+    <button class="btn-sm" onclick="saveParrafosModeloAsNota()" title="Guardar como nota del caso" style="font-size:10.5px;background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold)">📝 Guardar Nota</button>
+    <button class="btn-sm" onclick="insertParrafosModeloInF7()" title="Insertar en chat F7" style="font-size:10.5px;background:rgba(79,70,229,.08);border-color:rgba(79,70,229,.2);color:#7c3aed">→ F7</button>
+    <button class="btn-save" onclick="generateParrafosModelo()" id="btnGenParrafos" style="font-size:11px;padding:5px 12px">↻ Regenerar</button>
+  `;
+}
+
+/* ── Guardar párrafos modelo como nota del caso ── */
+async function saveParrafosModeloAsNota(){
+  if(!currentCase||!window.sb||!window.session)return showToast('⚠️ Selecciona un caso primero');
+
+  const content=document.getElementById('parrafosModeloContent');
+  if(!content)return;
+  const text=content.innerText?.trim();
+  if(!text||text.length<50)return showToast('⚠️ No hay párrafos generados');
+
+  try{
+    const{error}=await sb.from('case_notes').insert({
+      case_id:currentCase.id,
+      user_id:session.user.id,
+      title:'Párrafos Modelo Vista Fiscal — '+new Date().toLocaleDateString('es-CL'),
+      content:text,
+      source:'vista_fiscal'
+    });
+    if(error)throw error;
+    showToast('✅ Párrafos guardados como nota (Vista Fiscal) — se usará en IRAC y F7');
+    if(typeof loadNotas==='function')loadNotas();
+  }catch(e){showToast('❌ '+e.message);}
+}
+
+/* ── Insertar párrafos modelo en chat F7 ── */
+async function insertParrafosModeloInF7(){
+  const content=document.getElementById('parrafosModeloContent');
+  if(!content)return;
+  const text=content.innerText?.trim();
+  if(!text||text.length<50)return showToast('⚠️ No hay párrafos generados');
+
+  const inputBox=document.getElementById('inputBox');
+  if(inputBox){
+    inputBox.value=`Usa los siguientes PÁRRAFOS MODELO como base obligatoria para redactar la Vista Fiscal completa del expediente. Integra estos párrafos en la estructura VISTOS / CONSIDERANDO / POR TANTO, completando los placeholders [MAYÚSCULAS] con los datos reales del caso. Mantén el estilo y nivel de detalle de cada párrafo:\n\n${text}`;
+  }
+  if(typeof pickFn==='function'&&activeFn!=='F7')pickFn('F7');
+  if(typeof showTab==='function')showTab('tabChat');
+  showToast('✓ Párrafos insertados en F7 — envía el mensaje para generar la Vista');
 }
 
 /* ── Copiar párrafos al portapapeles ── */
