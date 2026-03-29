@@ -281,6 +281,8 @@ function renderTabs(){
   el.querySelectorAll(".ley-tab").forEach(tab=>{
     tab.onclick=()=>{activeTab=tab.dataset.tab;renderTabs();renderBody()};
   });
+  /* Re-inject SES tab after render (mod-ses-directrices.js adds it dynamically) */
+  if(typeof injectSesTab==="function")try{injectSesTab();}catch(e){}
 }
 
 function renderHeaderActions(){

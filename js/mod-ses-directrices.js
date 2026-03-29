@@ -375,6 +375,7 @@ window.sendSesChat=sendSesChat;
 window.renderSesPanel=renderSesPanel;
 window.renderSesDirectivas=renderSesDirectivas;
 window.renderSesChatUI=renderSesChatUI;
+window.injectSesTab=injectSesTab;
 window._sesState=_sesState;
 
 console.log('%c🏛️ Módulo SES Directrices cargado','color:#4f46e5;font-weight:bold');
