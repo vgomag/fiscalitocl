@@ -140,7 +140,8 @@ function buildParrafosPanel(caseContext) {
            </div>` : '';
          }).join('')}
        </div>
-       <button class="btn-save" style="width:100%;margin-bottom:14px" onclick="parrafosInsertAll()">✍️ Insertar todos en F7 →</button>`
+       <button class="btn-save" style="width:100%;margin-bottom:8px" onclick="parrafosInsertAll()">✍️ Insertar todos en F7 →</button>
+       <button class="btn-sm" style="width:100%;margin-bottom:8px;background:var(--surface2)" onclick="parrafosSaveAsNota()">📝 Guardar selección como Nota del caso</button>`
     : '';
 
   return `<div style="width:100%;max-width:700px">
@@ -170,6 +171,7 @@ function buildParrafosPanel(caseContext) {
               <div style="display:flex;gap:5px">
                 <button class="btn-sm" onclick="event.stopPropagation();parrafosUseInChat('${p.id}')" title="Insertar en chat">→ Chat</button>
                 <button class="btn-sm" onclick="event.stopPropagation();copyParrafo('${p.id}')" title="Copiar">📋</button>
+                <button class="btn-sm" onclick="event.stopPropagation();parrafoSaveOneAsNota('${p.id}')" title="Guardar como nota">📝</button>
               </div>
             </div>
             <div class="parr-item-preview">${esc(p.text.substring(0, 180))}…</div>
@@ -279,6 +281,48 @@ async function generateParrafoIA() {
     const panel2 = document.getElementById('parrafosPanel');
     if (panel2) panel2.innerHTML = buildParrafosPanel(currentCase);
   }
+}
+
+function parrafosSaveAsNota() {
+  if (!currentCase || !window.sb || !window.session) return showToast('⚠️ Selecciona un caso primero');
+  if (!parrafos.selected.length) return showToast('⚠️ Selecciona al menos un párrafo');
+
+  const texts = parrafos.selected.map(id => {
+    const p = PARRAFOS_DB.find(x => x.id === id);
+    return p ? `## ${p.label}\n\n${p.text}` : '';
+  }).filter(Boolean).join('\n\n---\n\n');
+
+  const title = 'Párrafos Modelo — ' + parrafos.selected.length + ' párrafos';
+
+  sb.from('case_notes').insert({
+    case_id: currentCase.id,
+    user_id: session.user.id,
+    title: title,
+    content: texts,
+    source: 'parrafo_modelo'
+  }).then(({error}) => {
+    if (error) return showToast('❌ Error: ' + error.message);
+    showToast('✓ Párrafos guardados como nota del caso');
+    if (typeof loadNotas === 'function') loadNotas();
+  });
+}
+
+function parrafoSaveOneAsNota(id) {
+  if (!currentCase || !window.sb || !window.session) return showToast('⚠️ Selecciona un caso primero');
+  const p = PARRAFOS_DB.find(x => x.id === id);
+  if (!p) return;
+
+  sb.from('case_notes').insert({
+    case_id: currentCase.id,
+    user_id: session.user.id,
+    title: 'Párrafo: ' + p.label,
+    content: p.text,
+    source: 'parrafo_modelo'
+  }).then(({error}) => {
+    if (error) return showToast('❌ Error: ' + error.message);
+    showToast('✓ Párrafo guardado como nota');
+    if (typeof loadNotas === 'function') loadNotas();
+  });
 }
 
 /* ── INYECCIÓN EN openBiblioteca('parrafos') ── */

@@ -86,8 +86,8 @@ function splitIntoChunks(text, chunkSize = 1000, overlap = 200) {
   for (const s of sentences) {
     if (current.length + s.length > chunkSize && current.length > 0) {
       chunks.push(current.trim());
-      const words = current.split(/\s+/);
-      overlapBuf = words.slice(-Math.floor(overlap / 5)).join(' ');
+      /* Tomar últimos ~overlap caracteres como buffer de solapamiento */
+      overlapBuf = current.slice(-overlap);
       current = overlapBuf + ' ' + s;
     } else { current += (current ? ' ' : '') + s; }
   }
