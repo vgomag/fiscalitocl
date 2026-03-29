@@ -152,21 +152,27 @@ async function exportActaToWord() {
     const { Document, Packer, Paragraph, TextRun, AlignmentType, Footer, PageNumber } = d;
 
     const caseRef = transcripcion.linkedCase || (typeof currentCase !== 'undefined' ? currentCase : null);
-    const fecha = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const mt = transcripcion.meta || {};
+    const fechaStr = mt.fecha ? new Date(mt.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const tipoActa = { testigo: 'DECLARACIÓN DE TESTIGO', denunciante: 'RATIFICACIÓN DE DENUNCIA', denunciado: 'DECLARACIÓN DE PERSONA DENUNCIADA', otro: 'DILIGENCIA' }[mt.tipoDeclarante] || 'DECLARACIÓN';
     const audioName = transcripcion.audioFile?.name || 'audio';
 
     /* Build document content */
     const children = [];
 
     /* Encabezado institucional */
-    children.push(makeHeading('ACTA DE DECLARACIÓN', d, 1));
+    children.push(makePara('UNIVERSIDAD DE MAGALLANES', d, { center: true, bold: true }));
+    children.push(makeHeading('ACTA DE ' + tipoActa, d, 1));
 
     if (caseRef) {
       children.push(makePara(`Expediente: ${caseRef.name || '[EXPEDIENTE]'}  —  ROL: ${caseRef.rol || '[ROL]'}`, d, { center: true }));
       children.push(makePara(`Procedimiento: ${caseRef.tipo_procedimiento || '[TIPO]'}  —  Materia: ${caseRef.materia || '[MATERIA]'}`, d, { center: true }));
     }
+    if (mt.nombreDeclarante) {
+      children.push(makePara(`Declarante: ${mt.nombreDeclarante}`, d, { center: true }));
+    }
 
-    children.push(makePara(`Fecha: ${fecha}`, d, { center: true, after: 240 }));
+    children.push(makePara(`${mt.lugar || 'Punta Arenas'}, ${fechaStr}`, d, { center: true, after: 240 }));
     children.push(makePara('', d)); // Línea vacía
 
     /* Cuerpo de la declaración */
@@ -244,7 +250,8 @@ async function exportActaToWord() {
 
     /* Generate and download */
     const buffer = await Packer.toBlob(doc);
-    const filename = `Acta_${caseRef?.name || 'declaracion'}_${new Date().toISOString().split('T')[0]}.docx`;
+    const declName = (mt.nombreDeclarante || '').replace(/\s+/g, '_') || 'declarante';
+    const filename = `Acta_${tipoActa.replace(/\s+/g, '_')}_${declName}_${mt.fecha || new Date().toISOString().split('T')[0]}.docx`;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(buffer);
     a.download = filename;

@@ -1065,7 +1065,7 @@ const FN_PANELS={
   F8:{icon:`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h1.5 0 0 0 12.5z"/><line x1="5.5" y1="2" x2="5.5" y2="14"/></svg>`,desc:'Produce un informe en derecho con sustento doctrinario y jurisprudencial de la CGR, integrando antecedentes normativos con precedentes administrativos relevantes.',fmt:'Ejemplo:\n"Elabora informe en derecho sobre [materia]"\n"Incluir dictámenes CGR sobre prescripción administrativa."',note:'El informe cita fuentes específicas disponibles. Verificar número de dictámenes antes de usar en documentos formales.',noteIcon:'📚',chips:['Informe en derecho completo','Solo dictámenes CGR','Doctrina administrativa','Jurisprudencia reciente','Normas y reglamentos aplicables'],noteIcon:'📚'},
   F9:{icon:`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="8,2 9.8,6.5 14.5,6.8 11,10 12.2,14.5 8,12 3.8,14.5 5,10 1.5,6.8 6.2,6.5"/></svg>`,desc:'Genera plantillas de documentos institucionales: resoluciones de inicio y término, actas, oficios, formularios y otros documentos tipo adaptados al procedimiento.',fmt:'Ejemplo:\n"Genera resolución de inicio para este caso"\n"Redacta resolución de término con sobreseimiento"\n"Resolución de término aplicando sanción de censura"',note:'Incluye modelos de Resolución de Inicio (apertura) y Resolución de Término (sanción o sobreseimiento) adaptados a IS, SA y protocolos.',chips:['Resolución de inicio','Resolución de término','Acta de declaración','Oficio comunicación','Formulación de cargos','Resolución sobreseimiento','Cierre sumario'],noteIcon:'🧩'},
   F10:{icon:`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/></svg>`,desc:'Busca y analiza dictámenes de la Contraloría General de la República, jurisprudencia de tribunales y doctrina administrativa relacionada con la materia del caso.',fmt:'Ejemplo:\n"Busca dictámenes CGR sobre acoso laboral en educación superior"\n"Jurisprudencia sobre prescripción de la acción disciplinaria"',note:'Fiscalito buscará en las fuentes habilitadas: CGR Contraloría, PJUD Sentencias y Biblioteca Qdrant.',chips:['Dictamenes CGR probidad','Licencias médicas sumario','Proporcionalidad sanciones','Prescripción disciplinaria','Acoso laboral Ley Karin'],noteIcon:'🔍'},
-  F11:{icon:`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1" width="5" height="7" rx="2.5"/><line x1="8" y1="13.5" x2="8" y2="15"/><path d="M3 8.5a5 5 0 0 0 10 0"/></svg>`,desc:'Transcribe declaraciones desde audio o video. Soporta grabación desde micrófono y carga de archivos (MP3, M4A, WAV, MP4, MOV). Genera acta formal con diarización de hablantes.',fmt:'Ejemplo:\n"Transcribir la declaración del testigo"\n"Crear acta formal a partir del audio de la diligencia"',note:'Requiere audio claro. Para mejores resultados usa micrófono de buena calidad o grabaciones sin ruido de fondo.',chips:['Grabar declaración','Cargar audio MP3','Estructurar como acta','Resumen ejecutivo','Diarización hablantes'],noteIcon:'🎙'},
+  F11:{icon:`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1" width="5" height="7" rx="2.5"/><line x1="8" y1="13.5" x2="8" y2="15"/><path d="M3 8.5a5 5 0 0 0 10 0"/></svg>`,desc:'Transcribe declaraciones desde audio/video y genera acta formal UMAG lista para firma. Suba el audio + acta base opcional → obtiene acta completa con encabezado, advertencias legales, Q&A y cierre.',fmt:'Flujo:\n1. Llenar datos del acta (tipo, nombre, fecha, lugar)\n2. Subir audio de la declaración\n3. Opcionalmente subir acta/cuestionario base\n4. Transcribir → Acta lista para firma',note:'Complete los datos del acta antes de transcribir para obtener el encabezado completo.',chips:['Acta formal testigo','Acta formal denunciado/a','Llenar acta existente','Resumen ejecutivo','Exportar a Word'],noteIcon:'🎙'},
 };
 
 // FN_INSTRUCTIONS (system prompts per function — condensed)
@@ -1331,37 +1331,38 @@ Distribución:
 
   F10:`## F10 — ANÁLISIS JURISPRUDENCIAL\n\nREGLA ABSOLUTA ANTI-ALUCINACIÓN: JAMÁS inventes, fabriques ni supongas dictámenes, sentencias, roles, fechas o números que no estés SEGURO que existen. La fabricación de jurisprudencia es una falta ética gravísima para un profesional jurídico.\n\nINSTRUCCIONES:\n1. Solo cita dictámenes CGR, sentencias judiciales o normas que ESTÉS SEGURO que existen.\n2. Si NO estás seguro de que un dictamen existe, NO LO CITES. Escribe [VERIFICAR: no se encontró referencia exacta].\n3. Para cada fuente citada, incluye un ENLACE DE VERIFICACIÓN:\n   - CGR: https://www.contraloria.cl/appinf/lgd/buscador/dictamenes\n   - PJUD: https://oficinajudicialvirtual.pjud.cl/consultaUnificadaDeCausas.php\n   - Leyes: https://www.bcn.cl/leychile/navegar?idNorma=XXXXX\n4. IDs de normas frecuentes en Ley Chile: DFL 29 (236392), Ley 19.880 (210676), Ley 18.575 (191865), Ley 21.369 (1165023), Ley 21.643 (1200096), Ley 20.005 (229098), Ley 20.607 (1042709), Ley 21.094 (1119253).\n5. Marca el nivel de confianza: [CERTEZA ALTA] si estás seguro, [VERIFICAR] si no estás 100% seguro.\n6. Es preferible entregar MENOS resultados REALES que muchos inventados.\n7. Estructura el análisis con: Fuente, Número, Fecha, Materia, Extracto relevante y Enlace.`,
 
-  F11:`## F11 — TRANSCRIPCIÓN DE ACTAS
+  F11:`## F11 — TRANSCRIPCIÓN Y ACTAS DE DECLARACIÓN
 
-Tienes dos modos de trabajo en esta función:
+Eres el asistente de transcripción de actas de la Universidad de Magallanes (UMAG).
 
-### MODO A — AUDIO CARGADO
-Cuando el usuario ha cargado un archivo de audio, la transcripción se procesa automáticamente. Tú recibes el texto ya transcrito para estructurarlo según las instrucciones de Modo B.
+### FLUJO DE TRABAJO
+1. El usuario sube un AUDIO de la declaración (y opcionalmente un ACTA BASE con las preguntas)
+2. El sistema transcribe el audio automáticamente
+3. El sistema estructura la transcripción como ACTA FORMAL lista para firma
 
-### MODO B — TEXTO PEGADO O TRANSCRITO
-Elabora un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración en audio, integrándolo al acta que se adjunta si existe. El documento final debe presentarse en formato pregunta-respuesta, respetando la estructura del acta.
+### MODOS DE OPERACIÓN
+- **Acta formal**: Genera acta completa con encabezado UMAG, advertencias legales (art. 17 Ley 19.880, falso testimonio), Q&A y cierre con firmas
+- **Llenar acta existente**: Si hay documento base cargado, PRESERVA su estructura y LLENA las respuestas con el audio transcrito
+- **Solo Q&A**: Formato pregunta-respuesta sin encabezado formal
+- **Con expediente**: Acta formal completando todos los campos con datos del caso vinculado
 
-La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes.
+### DATOS DEL ACTA
+El usuario puede especificar: tipo de declarante (testigo/denunciante/denunciado), nombre, fecha y lugar de la diligencia. Usa estos datos para completar el encabezado.
 
-La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas. Es importante que se conserve, en lo posible, la redacción en primera persona y el estilo expresivo del declarante, realizando únicamente correcciones gramaticales menores, tales como concordancia, puntuación y eliminación de repeticiones innecesarias que no alteren el sentido ni el tono del testimonio.
+### REGLAS DE EDICIÓN
+- Conservar redacción en primera persona y estilo expresivo del declarante
+- Solo correcciones gramaticales menores (concordancia, puntuación, muletillas)
+- NO agregar información nueva ni interpretar intenciones
+- Mantener palabras originales, fechas, cifras y nombres propios
+- Tono formal, claro y preciso
 
-Una vez integradas todas las partes, el documento debe presentar una redacción fluida, coherente y ordenada, que facilite su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
-
-OBJETIVOS:
-- Mejorar la gramática, claridad y coherencia del texto
-- Eliminar muletillas ("eh", "mmm", "o sea") y repeticiones innecesarias
-- Conservar la estructura lógica de los párrafos y la secuencia cronológica de los hechos
-- Respetar la terminología jurídica y los nombres propios tal como aparecen
-
-INSTRUCCIONES:
-- No agregar información nueva ni interpretar intenciones; solo reescribir lo existente
-- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical
-- Unir frases fragmentadas para mejorar fluidez sin cambiar el sentido
-- Conservar comillas, fechas y cifras exactamente como están
-- Usar tono formal, claro y preciso, coherente con un documento legal
-- Incluir datos del expediente activo en el encabezado del acta si están disponibles
-
-FORMATO: Texto en formato pregunta-respuesta, con párrafos separados. Sin comentarios ni marcas de edición; solo la versión final lista para incorporación al expediente y firma inmediata del declarante.`,
+### FORMATO FINAL
+El acta debe quedar LISTA PARA IMPRESIÓN Y FIRMA del declarante:
+- Encabezado institucional UMAG
+- Advertencias legales previas
+- Declaración en Q&A con correcciones
+- Cierre: "Leída que le fue su declaración, se ratifica y firma"
+- Espacios para firma del declarante y fiscal investigadora`,
 
   F_LEY_KARIN:`## MODO LEY KARIN / GÉNERO
 Eres un asistente jurídico especializado en la Ley 21.369 sobre acoso sexual, violencia y discriminación de género en la educación superior, y en la Ley 21.643 (Ley Karin) sobre prevención del acoso laboral y sexual.
