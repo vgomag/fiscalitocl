@@ -291,7 +291,8 @@ function renderHeaderActions(){
   el.innerHTML=`
     <button class="ley-btn" onclick="window._ley21369.showAddModal()">➕ Agregar</button>
     <button class="ley-btn" onclick="window._ley21369.generateReport()" ${items.length===0||generatingReport?"disabled":""}>${generatingReport?"⏳ Generando…":"📝 Informe IA"}</button>
-    <button class="ley-btn" onclick="window._ley21369.exportExcel()" ${items.length===0?"disabled":""}>📊 Excel SES</button>`;
+    <button class="ley-btn" onclick="window._ley21369.exportExcel()" ${items.length===0?"disabled":""}>📊 Excel SES</button>
+    <button class="ley-btn" onclick="if(typeof openShareLeyModal==='function')openShareLeyModal();else showToast('Módulo de compartir no disponible')" style="color:#7c3aed">🔗 Compartir</button>`;
 }
 
 // ── Render Body ─────────────────────────────────────────────────────────────

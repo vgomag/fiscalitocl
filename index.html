@@ -1481,6 +1481,8 @@ async function pickCaseById(id){
   renderCaseList();
   showView('viewCase');
   renderCaseHeader();
+  if(typeof renderCaseCollaborators==='function')renderCaseCollaborators(c.id);
+  if(typeof applyCasePermissions==='function')applyCasePermissions();
   showTab('tabParticipantes');
   loadParticipantes();
 }
@@ -1514,10 +1516,13 @@ function renderCaseHeader(){
           ${c.nueva_resolucion?`<span style="font-size:10.5px;color:var(--text-muted);font-family:var(--font-mono)">${esc(c.nueva_resolucion)}</span>`:''}
         </div>
         ${c.caratula?`<div style="font-size:11.5px;color:var(--text-dim)">${esc(c.caratula)}</div>`:''}
+        <div id="caseCollaborators" style="margin-top:4px"></div>
+        <span id="readOnlyBadge" style="display:none;font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(107,114,128,.1);color:#6b7280;font-weight:500;margin-top:4px">👁️ Solo lectura</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <button class="btn-sm" onclick="goBackToCaseList()" title="Volver a la lista">← Volver</button>
         <button class="btn-sm" onclick="openEditCase()">✎ Editar</button>
+        <button class="btn-sm" onclick="openShareCaseModal()" title="Compartir caso" style="color:#7c3aed">🔗 Compartir</button>
         <button class="btn-sm" style="color:var(--red)" onclick="confirmDeleteCase()">🗑</button>
       </div>
     </div>
@@ -3959,6 +3964,7 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 </script>
 <script src="/js/mod-biblioteca.js"></script>
 <script src="/js/mod-parrafos.js"></script>
+<script src="/js/mod-compartir.js"></script>
 <script src="/js/mod-ley21369.js"></script>
 <script src="/js/mod-ses-directrices.js"></script>
 <script src="/js/mod-casos-externos.js"></script>
