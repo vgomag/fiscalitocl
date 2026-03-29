@@ -303,6 +303,8 @@ async function processDiligenciaOCR(dilId){
     /* Step 1: Download PDF as binary from Drive (via server) */
     const _ctrl2=new AbortController();
     const _tout2=setTimeout(()=>_ctrl2.abort(),30000);
+    let extractedText='';
+    let aiSummary=null;
     try{
       const dlRes=await fetch('/.netlify/functions/drive',{
         method:'POST',
@@ -310,8 +312,6 @@ async function processDiligenciaOCR(dilId){
         body:JSON.stringify({action:'download',fileId:dil.drive_file_id}),
         signal:_ctrl2.signal
       });
-
-      let extractedText='';
 
       const ct=dlRes.headers.get('content-type')||'';
       if(!ct.includes('json')){
@@ -357,7 +357,6 @@ async function processDiligenciaOCR(dilId){
     }
 
     /* Step 3: Generate quick summary with server (Haiku) */
-    let aiSummary=null;
     try{
       const _ctrl4=new AbortController();
       const _tout4=setTimeout(()=>_ctrl4.abort(),30000);
