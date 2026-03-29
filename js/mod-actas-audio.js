@@ -153,6 +153,18 @@ function toggleActaAudioPanel() {
 /* ═══ DOCUMENT UPLOAD ═══ */
 async function handleActaDocUpload(file) {
   if (!file) return;
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+  const ALLOWED_TYPES = ['text/plain', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  const isValidType = file.type && ALLOWED_TYPES.includes(file.type) || /\.(txt|pdf|doc|docx)$/i.test(file.name);
+
+  if (file.size > MAX_FILE_SIZE) {
+    if (typeof showToast === 'function') showToast('⚠ El archivo excede 50 MB');
+    return;
+  }
+  if (!isValidType) {
+    if (typeof showToast === 'function') showToast('⚠ Solo se aceptan TXT, PDF o Word (.doc/.docx)');
+    return;
+  }
   _actaDocFile = file;
   document.getElementById('actaDocName').textContent = file.name;
   document.getElementById('actaDocClearBtn').style.display = 'inline-block';
@@ -211,6 +223,19 @@ function clearActaDoc() {
 /* ═══ AUDIO UPLOAD ═══ */
 function handleActaAudioUpload(file) {
   if (!file) return;
+  const MAX_AUDIO_SIZE = 500 * 1024 * 1024; // 500 MB
+  const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/x-m4a'];
+  const isValidAudio = file.type && ALLOWED_AUDIO_TYPES.includes(file.type) || /\.(mp3|wav|ogg|webm|m4a|aac)$/i.test(file.name);
+
+  if (file.size > MAX_AUDIO_SIZE) {
+    if (typeof showToast === 'function') showToast('⚠ El audio excede 500 MB');
+    return;
+  }
+  if (!isValidAudio) {
+    if (typeof showToast === 'function') showToast('⚠ Solo se aceptan MP3, WAV, OGG, WebM o M4A');
+    return;
+  }
+
   _actaAudioBlob = file;
   if (_actaAudioUrl) URL.revokeObjectURL(_actaAudioUrl);
   _actaAudioUrl = URL.createObjectURL(file);

@@ -3528,7 +3528,8 @@ async function driveImportData(){
     try{
       const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})});
       if(res.ok){const d=await res.json();filesData=d?.files||[];}
-    }catch(e){console.warn('Drive list:',e);}
+      else{console.warn('Drive list error:',res.status);showToast('⚠️ No se pudieron listar los archivos de Drive');}
+    }catch(e){console.warn('Drive list:',e);showToast('⚠️ Error conectando a Drive');}
 
     /* 2. Read content of readable files (Google Docs, Sheets, text files) */
     let docsContent=[];
