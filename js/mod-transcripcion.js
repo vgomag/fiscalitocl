@@ -821,7 +821,9 @@ async function saveTranscripcionToCase(){
 function copyTranscripcion(){navigator.clipboard.writeText(transcripcion.structuredText||transcripcion.rawText);showToast('✓ Copiado');}
 function downloadTransWord(){
   const b=new Blob([transcripcion.structuredText||transcripcion.rawText],{type:'text/plain;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='acta_'+Date.now()+'.txt';a.click();URL.revokeObjectURL(a.href);
+  const mt=transcripcion.meta;
+  const declName=(mt.nombreDeclarante||'').replace(/\s+/g,'_')||'declarante';
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Acta_'+declName+'_'+(mt.fecha||new Date().toISOString().split('T')[0])+'.txt';a.click();URL.revokeObjectURL(a.href);
 }
 function resetTranscripcion(){
   stopProgressTimer();
