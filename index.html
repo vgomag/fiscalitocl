@@ -2582,8 +2582,30 @@ async function sendMessage(){
         }
         /* Notas del caso */
         if(rNotes.data?.length){
-          caseContext+='\n\n## NOTAS DEL EXPEDIENTE';
-          rNotes.data.forEach(n=>caseContext+=`\n- ${n.title||'Nota'} (${new Date(n.created_at).toLocaleDateString('es-CL')}): ${(n.content||'').substring(0,400)}`);
+          const _isIracOrVista=activeFn==='F5'||activeFn==='F7'||activeFn==='F8';
+          const _relevantSources=['irac','hechos','parrafo_modelo','cargos','vista_fiscal','informe_derecho'];
+
+          if(_isIracOrVista){
+            /* Para IRAC y Vista: priorizar notas relevantes con contenido completo */
+            const relevantNotes=rNotes.data.filter(n=>_relevantSources.includes(n.source));
+            const otherNotes=rNotes.data.filter(n=>!_relevantSources.includes(n.source));
+
+            if(relevantNotes.length){
+              caseContext+='\n\n## NOTAS DE ANÁLISIS DEL EXPEDIENTE (fuentes clave para el dictamen)';
+              relevantNotes.forEach(n=>{
+                const label={'irac':'ANÁLISIS IRAC','hechos':'HECHOS ACREDITADOS','parrafo_modelo':'PÁRRAFO MODELO','cargos':'FORMULACIÓN DE CARGOS','vista_fiscal':'VISTA FISCAL','informe_derecho':'INFORME EN DERECHO'}[n.source]||n.source;
+                caseContext+=`\n\n### [${label}] ${n.title||'Sin título'} (${new Date(n.created_at).toLocaleDateString('es-CL')})\n${(n.content||'').substring(0,3000)}`;
+              });
+            }
+            if(otherNotes.length){
+              caseContext+='\n\n## OTRAS NOTAS DEL EXPEDIENTE';
+              otherNotes.slice(0,10).forEach(n=>caseContext+=`\n- ${n.title||'Nota'} (${new Date(n.created_at).toLocaleDateString('es-CL')}): ${(n.content||'').substring(0,400)}`);
+            }
+          } else {
+            /* Para otras funciones: resumen breve como antes */
+            caseContext+='\n\n## NOTAS DEL EXPEDIENTE';
+            rNotes.data.forEach(n=>caseContext+=`\n- ${n.title||'Nota'} (${new Date(n.created_at).toLocaleDateString('es-CL')}): ${(n.content||'').substring(0,400)}`);
+          }
         }
       }catch(ctxErr){console.warn('Error loading case context:',ctxErr);}
     }
@@ -3350,7 +3372,7 @@ async function loadNotas(){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div>
         ${n.title?`<div style="font-size:12.5px;font-weight:600;margin-bottom:2px">${esc(n.title)}</div>`:''}
-        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${new Date(n.created_at).toLocaleString('es-CL')}${n.source==='chat'?' · 💬 Chat IA':''}</div>
+        <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${new Date(n.created_at).toLocaleString('es-CL')}${n.source?` · ${{'irac':'📊 IRAC','hechos':'📋 Hechos','parrafo_modelo':'📝 Párrafo','cargos':'⚖️ Cargos','vista_fiscal':'📑 Vista','informe_derecho':'📚 Derecho','cuestionario':'❓ Cuestionario','chat':'💬 Chat','manual':'✏️ Manual'}[n.source]||n.source}`:''}</div>
       </div>
       <button class="btn-del" onclick="deleteNota('${n.id}')">✕</button>
     </div>
