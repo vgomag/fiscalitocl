@@ -1167,7 +1167,7 @@ Reglas:
   F6:`## F6 \u2014 FORMULACI\u00d3N DE CARGOS\n\nEres un fiscal experto en procedimientos disciplinarios. Formular cargos claros, precisos y fundados.\n\nREGLA DE PRECISI\u00d3N ABSOLUTA:\n- SOLO citar normas que consten en: expediente, normativa vinculada o Biblioteca de Referencia\n- NUNCA inventar dict\u00e1menes, art\u00edculos ni jurisprudencia\n- Si falta norma: [VERIFICAR: referencia no encontrada]\n\nFORMATO: RESOLUCI\u00d3N DE FORMULACI\u00d3N DE CARGOS (DEF-01-RES)\n\nRESOLUCI\u00d3N EXENTA N\u00b0 [N\u00daMERO] \u2014 FORMULA CARGOS\n[Ciudad], [Fecha]\n\nVISTOS:\n1.- Procedimiento instruido mediante Res. Exenta N\u00b0[NUM], de fecha [FECHA]\n2.- Diligencias de la etapa indagatoria\n3.- Arts. 18, 119, 121, 125, 126, 129, 133 DFL N\u00b029 EA\n\nCONSIDERANDO:\n1.- Antecedentes suficientes para formular cargos contra [NOMBRE], [CARGO], [UNIDAD]\n2.- Hechos acreditados: [CON FOJAS Y DILIGENCIAS]\n3.- Normas infringidas: [ART\u00cdCULOS ESPEC\u00cdFICOS]\n\nRESUELVO:\nCARGO PRIMERO:\n- Hechos: [descripci\u00f3n precisa con fojas]\n- Norma: [art\u00edculo espec\u00edfico verificado]\n- Subsunci\u00f3n: [c\u00f3mo la conducta infringe la norma]\n\nCARGO SEGUNDO: [si aplica]\n\nNOTIF\u00cdQUESE al inculpado (5 d\u00edas h\u00e1biles para descargos).\n\nSi hay IRAC previo (F5), DEBE ser coherente con sus conclusiones. Formato: texto limpio institucional, NO markdown.`,
 
 
-  F7:`## F7 \u2014 VISTA FISCAL / INFORME FINAL\n\nExperto en derecho administrativo disciplinario. Genera Vista Fiscal o Informe de Investigadora.\n\nAuto-detecta formato: Fiscal+Actuaria=Vista Fiscal (Sumario) | Investigador/a=Informe (IS)\n\nESTRUCTURA:\n\nVISTOS: P\u00e1rrafo corrido NO numerado: procedimiento, resoluciones, fojas, normativa.\n\nCONSIDERANDO: Numerados con \"Que,\":\n1-5. Antecedentes procesales (resoluci\u00f3n, designaci\u00f3n fiscal, plazos)\n6-N. RELACI\u00d3N DETALLADA DE DILIGENCIAS: Dedica un considerando \"Que,\" a CADA diligencia del expediente. Incluye: tipo, fecha, personas involucradas, referencia de fojas, y contenido relevante del resumen o extracto. Orden cronol\u00f3gico estricto.\nN+1. Cargos formulados y notificaci\u00f3n\nN+2. Descargos presentados\nN+3. Prueba rendida y medios probatorios\nN+4. An\u00e1lisis de defensas del inculpado\nN+5. Hechos acreditados (con fojas precisas)\nN+6. Valoraci\u00f3n de la prueba (art. 35 Ley 19.880)\nN+7. An\u00e1lisis jur\u00eddico-normativo\nN+8. Gravedad de las infracciones\nN+9. Atenuantes y agravantes (art. 120 DFL 29)\nN+10. Conclusi\u00f3n y propuesta\n\nPOR TANTO:\nSANCI\u00d3N: Art. 121 DFL N\u00b029 (a=Censura b=Multa c=Suspensi\u00f3n d=Destituci\u00f3n)\nSOBRESEIMIENTO: 11 causales definitivo + 4 temporal\nART. 129: Elevaci\u00f3n por inhabilidad jer\u00e1rquica\n\nINSTRUCCIONES ESPECIALES PARA DILIGENCIAS:\n- DETALLA cada diligencia practicada en un considerando individual\n- Para declaraciones: resume lo declarado, indicando fojas\n- Para oficios/informes: indica qu\u00e9 se solicit\u00f3 y qu\u00e9 se obtuvo\n- Para pruebas documentales: describe el contenido y su valor probatorio\n- Si hay muchas diligencias (>15), agrupa las de menor relevancia (notificaciones, actas rutinarias) en un solo considerando\n- Mantén siempre la referencia a fojas: \"a fojas XX\", \"de fojas XX a YY\"\n- Si una diligencia no tiene fojas registradas: \"a fojas [COMPLETAR]\"\n\nESTILO: \"Que,\" al inicio de cada considerando. Fojas: \"de fojas XX a YY\". Expresiones: \"consta en autos\", \"obra en el expediente\", \"seg\u00fan da cuenta\". Redacci\u00f3n impersonal. NO uses markdown. Si falta info: [NO CONSTA EN EL EXPEDIENTE].\n\nREFERENCIA DE ESTILO OBLIGATORIA: Si se incluyen vistas fiscales de referencia de casos terminados en el contexto, DEBES replicar fielmente su formato, tono, estructura de p\u00e1rrafos, forma de citar fojas, encabezados, uso de may\u00fasculas/min\u00fasculas, expresiones jur\u00eddicas habituales y extensi\u00f3n de los considerandos. Estas vistas son el modelo real de c\u00f3mo la Fiscal\u00eda General de la UMAG redacta sus documentos. Adapta el contenido al caso actual pero mant\u00e9n el estilo id\u00e9ntico.
+  F7:`## F7 \u2014 VISTA FISCAL / INFORME FINAL\n\nExperto en derecho administrativo disciplinario. Genera Vista Fiscal o Informe de Investigadora.\n\nAuto-detecta formato: Fiscal+Actuaria=Vista Fiscal (Sumario) | Investigador/a=Informe (IS)\n\nESTRUCTURA COMPLETA OBLIGATORIA:\n\nVISTOS: P\u00e1rrafo corrido NO numerado. Debe contener: procedimiento que se instruye, resoluci\u00f3n que ordena la investigaci\u00f3n (n\u00famero y fecha), fiscal y actuaria/o designados, normativa aplicable (DFL 29, Ley 19.880, Ley 18.575, reglamentos internos seg\u00fan corresponda), y referencia general al expediente.\n\nCONSIDERANDO: Numerados con \"Que,\" al inicio de cada uno:\n\nBLOQUE 1 - ANTECEDENTES PROCESALES (considerandos 1\u00b0 a 5\u00b0 aprox.):\n- Resoluci\u00f3n que instruye el procedimiento, fecha, autoridad\n- Designaci\u00f3n del fiscal y actuaria/o\n- Plazos del procedimiento y pr\u00f3rrogas\n- Hechos materia de la investigaci\u00f3n (descripci\u00f3n inicial)\n- Notificaciones relevantes\n\nBLOQUE 2 - RELACI\u00d3N COMPLETA DE DILIGENCIAS (considerandos 6\u00b0 a N\u00b0):\nREGLA CR\u00cdTICA: DEBES dedicar un considerando \"Que,\" a CADA diligencia del expediente. NUNCA omitas diligencias. Si hay 20 diligencias, debe haber 20 considerandos en este bloque (m\u00ednimo). El expediente completo debe quedar reflejado.\n\nPara CADA diligencia incluye:\n  a) N\u00famero de considerando y \"Que,\"\n  b) Tipo de diligencia (declaraci\u00f3n, oficio, informe, prueba documental, etc.)\n  c) Fecha de realizaci\u00f3n\n  d) Personas involucradas (declarante, informante, etc.)\n  e) Referencia de fojas: \"a fojas XX\" o \"de fojas XX a YY\"\n  f) CONTENIDO SUSTANTIVO: Qu\u00e9 se declar\u00f3, qu\u00e9 se inform\u00f3, qu\u00e9 se acredit\u00f3. Usa el texto completo proporcionado, NO lo resumas en una l\u00ednea. Cada considerando debe tener al menos 3-5 oraciones.\n\nReglas por tipo de diligencia:\n  - Declaraciones: Relata lo declarado con detalle, indicando los puntos principales del testimonio\n  - Oficios/Informes: Qu\u00e9 se solicit\u00f3, a qui\u00e9n, y qu\u00e9 se obtuvo como respuesta\n  - Pruebas documentales: Describe el contenido y su relevancia para la investigaci\u00f3n\n  - Notificaciones: Pueden agruparse si son rutinarias (>15 de tr\u00e1mite)\n\nBLOQUE 3 - AN\u00c1LISIS JUR\u00cdDICO (considerandos N+1 a N+10 aprox.):\nN+1. Cargos formulados y su notificaci\u00f3n al inculpado\nN+2. Descargos presentados por el inculpado\nN+3. Prueba rendida y medios probatorios\nN+4. An\u00e1lisis de las defensas del inculpado\nN+5. Hechos acreditados (con fojas precisas)\nN+6. Valoraci\u00f3n de la prueba (art. 35 Ley 19.880, sana cr\u00edtica)\nN+7. An\u00e1lisis jur\u00eddico-normativo: subsunci\u00f3n de hechos en normas\nN+8. Gravedad de las infracciones y bien jur\u00eddico afectado\nN+9. Atenuantes y agravantes (art. 120 DFL 29)\nN+10. Conclusi\u00f3n y propuesta fundada\n\nPOR TANTO:\nSANCI\u00d3N: Art. 121 DFL N\u00b029 (a=Censura b=Multa c=Suspensi\u00f3n d=Destituci\u00f3n)\nSOBRESEIMIENTO: 11 causales definitivo + 4 temporal\nART. 129: Elevaci\u00f3n por inhabilidad jer\u00e1rquica\n\nESTILO OBLIGATORIO:\n- \"Que,\" al inicio de cada considerando\n- Fojas: \"a fojas XX\", \"de fojas XX a YY\", \"rola a fojas\"\n- Expresiones: \"consta en autos\", \"obra en el expediente\", \"seg\u00fan da cuenta\"\n- Redacci\u00f3n impersonal, formal. NO uses markdown\n- Si falta info: [NO CONSTA EN EL EXPEDIENTE]\n- Si una diligencia no tiene fojas: \"a fojas [COMPLETAR]\"\n\nEXTENSI\u00d3N: La vista fiscal debe ser COMPLETA y EXHAUSTIVA. Es preferible un documento largo que cubra todas las diligencias a uno breve que las omita. No te preocupes por la extensi\u00f3n.\n\nREFERENCIA DE ESTILO: Si se incluyen vistas fiscales de referencia, DEBES replicar fielmente su formato, tono, estructura, forma de citar fojas, y extensi\u00f3n de considerandos. Son el modelo real de la Fiscal\u00eda General UMAG.
 
 NOTAS DE AN\u00c1LISIS: Si el expediente contiene notas etiquetadas (IRAC, HECHOS, P\u00c1RRAFOS MODELO, CARGOS), DEBES incorporar su contenido como insumo prioritario. Estas notas representan el trabajo acumulado del fiscal durante la investigaci\u00f3n y deben reflejarse en la vista fiscal.`,
 
@@ -2498,7 +2498,7 @@ async function sendMessage(){
         const _dilSelect=_isVista?
           'diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,extracted_text,fojas_inicio,fojas_fin':
           'diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,fojas_inicio,fojas_fin';
-        let _dilQ=sb.from('diligencias').select(_dilSelect).eq('case_id',cid).order('fecha_diligencia',{ascending:false});
+        let _dilQ=sb.from('diligencias').select(_dilSelect).eq('case_id',cid).order('fecha_diligencia',{ascending:_isVista?true:false});
         if(!_isVista)_dilQ=_dilQ.limit(activeFn==='F5'?25:40);
         const [rParts,rRes,rChk,rDil,rCron,rAcc,rNotes]=await Promise.all([
           sb.from('case_participants').select('role,name,estamento,carrera,dependencia').eq('case_id',cid).order('role').catch(e=>({data:null,error:e})),
@@ -2531,8 +2531,8 @@ async function sendMessage(){
           const isVistaOrInforme=activeFn==='F7'||activeFn==='F8';
           const isIRAC=activeFn==='F5';
           const isAnalisis=activeFn==='F6';
-          const MAX_CHARS=isVistaOrInforme?120000:isIRAC?6000:isAnalisis?15000:8000;
-          const MAX_PER_DIL=isVistaOrInforme?4000:isIRAC?300:isAnalisis?800:300;
+          const MAX_CHARS=isVistaOrInforme?150000:isIRAC?6000:isAnalisis?15000:8000;
+          const MAX_PER_DIL=isVistaOrInforme?5000:isIRAC?300:isAnalisis?800:300;
           const MAX_DILS=200;
           let usedChars=0;
 
@@ -2556,18 +2556,25 @@ async function sendMessage(){
           caseContext+=`\n\n## DILIGENCIAS PRACTICADAS (${rDil.data.length} total${dils.length<rDil.data.length?', mostrando '+dils.length+' más relevantes':''})`;
 
           if(isVistaOrInforme){
-            caseContext+='\nINSTRUCCIÓN: Cada diligencia debe ser detallada en los CONSIDERANDO con referencia de fojas. Usa los resúmenes y extractos como base para la relación de hechos. Integra declaraciones y pruebas en el análisis jurídico. Mantén orden cronológico.\n';
+            caseContext+='\n⚠️ INSTRUCCIÓN CRÍTICA PARA VISTA FISCAL / INFORME:\n- TODAS las diligencias listadas a continuación DEBEN aparecer en los CONSIDERANDO. No omitas ninguna.\n- Cada diligencia = un considerando "Que," individual (o agrupadas si son >15 rutinarias).\n- Usa el TEXTO COMPLETO proporcionado (no solo el resumen) como base para redactar cada considerando.\n- Incluye SIEMPRE: tipo de diligencia, fecha, personas involucradas, referencia de fojas, y contenido sustantivo.\n- Orden CRONOLÓGICO estricto (las diligencias ya están ordenadas cronológicamente).\n- Las diligencias están ordenadas de la más antigua a la más reciente.\n';
           }
 
           dils.forEach((d,i)=>{
             if(usedChars>=MAX_CHARS)return;
             const fojasRef=d.fojas_inicio?(d.fojas_fin?`fojas ${d.fojas_inicio} a ${d.fojas_fin}`:`foja ${d.fojas_inicio}`):'';
-            const content=d.ai_summary||d.extracted_text||'';
+            /* Para F7/F8: preferir extracted_text (texto completo) sobre ai_summary (resumen) */
+            const content=isVistaOrInforme?(d.extracted_text||d.ai_summary||''):(d.ai_summary||d.extracted_text||'');
             const truncContent=content.substring(0,MAX_PER_DIL);
-            usedChars+=truncContent.length;
+            /* Si hay tanto extracto como resumen en F7, incluir ambos */
+            let extraSummary='';
+            if(isVistaOrInforme&&d.ai_summary&&d.extracted_text&&d.extracted_text.length>100){
+              extraSummary='\n[Resumen IA]: '+d.ai_summary.substring(0,500);
+            }
+            usedChars+=truncContent.length+extraSummary.length;
 
-            caseContext+=`\n${i+1}. **${d.diligencia_label||d.diligencia_type||'Diligencia'}** (${d.diligencia_type||'otro'})${d.fecha_diligencia?' — '+d.fecha_diligencia:''}${fojasRef?' ['+fojasRef+']':''}`;
+            caseContext+=`\n${i+1}. ${d.diligencia_label||d.diligencia_type||'Diligencia'} (${d.diligencia_type||'otro'})${d.fecha_diligencia?' — '+d.fecha_diligencia:''}${fojasRef?' ['+fojasRef+']':''}`;
             if(truncContent)caseContext+=`\n${truncContent}${content.length>MAX_PER_DIL?'...[truncado]':''}`;
+            if(extraSummary)caseContext+=extraSummary;
           });
         }
         /* Cronología */
@@ -2777,7 +2784,7 @@ async function sendMessage(){
 
     const body={
       model:'claude-sonnet-4-20250514',
-      max_tokens:activeFn==='F7'||activeFn==='F8'?16000:activeFn==='F5'?4096:4000,
+      max_tokens:activeFn==='F7'?24000:activeFn==='F8'?16000:activeFn==='F5'?4096:4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
       messages:[...historyMsgs,{role:'user',content:text}],
       stream:true
