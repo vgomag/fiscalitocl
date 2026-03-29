@@ -38,7 +38,7 @@ async function exportToWord(text, filename, options={}){
     if(typeof saveAs==="undefined")await loadScript(FILESAVER_CDN);
   }catch(e){
     // Fallback: use Blob with HTML if libraries fail
-    console.warn("docx CDN failed, using HTML fallback:",e);
+    if(typeof showToast==='function')showToast('⚠ Librería Word no disponible, usando formato compatible');
     return exportWordFallback(text, filename, options);
   }
 
@@ -194,14 +194,14 @@ async function exportToPDF(text, filename, options={}){
     if(typeof PDFLib!=="undefined"){
       return exportPdfLib(text, filename, options);
     }
-  }catch(e){console.warn("pdf-lib CDN failed:",e);}
+  }catch(e){if(typeof showToast==='function')showToast('⚠ PDF-lib no disponible, intentando alternativa');}
 
   // Fallback: jsPDF
   try{
     await loadScript(JSPDF_CDN);
     return exportJsPDF(text, filename, options);
   }catch(e){
-    console.warn("jsPDF CDN failed:",e);
+    if(typeof showToast==='function')showToast('⚠ Usando diálogo de impresión para PDF');
     // Last resort: print dialog
     return exportPrintPDF(text, filename, options);
   }
