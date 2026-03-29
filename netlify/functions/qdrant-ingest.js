@@ -33,22 +33,42 @@ async function getGoogleAccessToken(sa) {
   return data.access_token;
 }
 
-/* ── Google Embeddings ── */
-async function getEmbedding(text, accessToken) {
-  try {
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-      body: JSON.stringify({
-        content: { parts: [{ text: text.substring(0, 4096) }] },
-        taskType: 'RETRIEVAL_DOCUMENT',
-        outputDimensionality: 768
-      })
-    });
-    if (!r.ok) { console.error('Embedding error:', r.status); return null; }
-    const data = await r.json();
-    return data?.embedding?.values || null;
-  } catch (e) { console.error('Embedding exception:', e); return null; }
+/* ── Google Embeddings (with retry + backoff) ── */
+async function getEmbedding(text, accessToken, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          content: { parts: [{ text: text.substring(0, 4096) }] },
+          taskType: 'RETRIEVAL_DOCUMENT',
+          outputDimensionality: 768
+        })
+      });
+      if (r.ok) {
+        const data = await r.json();
+        return data?.embedding?.values || null;
+      }
+      /* Rate limit (429) or server error (5xx) → retry */
+      if ((r.status === 429 || r.status >= 500) && attempt < maxRetries) {
+        const wait = (attempt + 1) * 1500; // 1.5s, 3s
+        console.warn(`Embedding ${r.status}, retry ${attempt+1}/${maxRetries} in ${wait}ms`);
+        await new Promise(ok => setTimeout(ok, wait));
+        continue;
+      }
+      console.error('Embedding error:', r.status, await r.text().catch(() => ''));
+      return null;
+    } catch (e) {
+      if (attempt < maxRetries) {
+        await new Promise(ok => setTimeout(ok, (attempt + 1) * 1500));
+        continue;
+      }
+      console.error('Embedding exception:', e);
+      return null;
+    }
+  }
+  return null;
 }
 
 /* ── Qdrant helpers ── */
@@ -125,9 +145,11 @@ export default async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }), { status: 400, headers });
     }
     const { action } = body;
-    const qdrantUrl = Netlify.env.get('QDRANT_URL');
+    let qdrantUrl = Netlify.env.get('QDRANT_URL');
     const qdrantKey = Netlify.env.get('QDRANT_API_KEY');
     if (!qdrantUrl) throw new Error('QDRANT_URL not configured');
+    /* Strip trailing slash to prevent double-slash in paths */
+    qdrantUrl = qdrantUrl.replace(/\/+$/, '');
 
     /* ── list-collections ── */
     if (action === 'list-collections') {

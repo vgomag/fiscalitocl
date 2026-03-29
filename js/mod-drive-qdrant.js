@@ -734,7 +734,7 @@ async function dqProcessFile(sb, file, folder) {
       const { data } = await sb.functions.invoke('ingest-to-qdrant', {
         body: {
           collection:   folder.collection,
-          sanitizePii:  folder.sanitizePii || false,
+          sanitize:     folder.sanitizePii || false,
           documents: [{
             id:   partId,
             text: parts[pi],
@@ -752,7 +752,7 @@ async function dqProcessFile(sb, file, folder) {
           }]
         }
       });
-      totalChunks += data?.results?.stored || 0;
+      totalChunks += data?.totalPoints || data?.results?.stored || 0;
     } catch (e) {
       console.error(`ingest part ${pi+1} of ${file.name}:`, e);
     }
