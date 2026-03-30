@@ -2406,7 +2406,8 @@ async function loadChatHistory(caseId){
   const msgs=document.getElementById('msgs');
   msgs.innerHTML='';
   try{
-    const{data,error}=await sb.from('chat_messages').select('role,content,fn_id,created_at').eq('case_id',caseId).order('created_at',{ascending:true});
+    const{data:allData,error}=await sb.from('chat_messages').select('role,content,fn_id,created_at').eq('case_id',caseId).order('created_at',{ascending:false}).limit(60);
+    const data=allData?allData.reverse():null;
     if(error){console.warn('loadChatHistory:',error);showToast('⚠️ Error cargando historial');return;}
     if(data&&data.length>0){
       msgs.style.display='flex';
@@ -2519,6 +2520,7 @@ async function sendMessage(){
       }
     }
     const ctxInput=document.getElementById('fnCtxInput')?.value.trim()||'';
+    const _withTimeout=(p,ms=8000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
     let caseContext='';
     if(currentCase){
       const fmtArrCtx=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
@@ -2532,7 +2534,7 @@ async function sendMessage(){
           'id,diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,fojas_inicio,fojas_fin,drive_file_id,mime_type,extracted_text';
         let _dilQ=sb.from('diligencias').select(_dilSelect).eq('case_id',cid).order('fecha_diligencia',{ascending:_isVista?true:false});
         if(!_isVista)_dilQ=_dilQ.limit(activeFn==='F5'?25:40);
-        const _safeQ=q=>Promise.resolve(q).catch(e=>({data:null,error:e}));
+        const _safeQ=q=>_withTimeout(Promise.resolve(q)).catch(e=>({data:null,error:e}));
         const [rParts,rRes,rChk,rDil,rCron,rAcc,rNotes]=await Promise.all([
           _safeQ(sb.from('case_participants').select('role,name,estamento,carrera,dependencia').eq('case_id',cid).order('role')),
           _safeQ(sb.from('resoluciones').select('resolution_type,resolution_number,resolution_date,authority,fiscal_designado,facts_description').eq('case_id',cid).order('created_at',{ascending:false})),
@@ -2712,9 +2714,9 @@ async function sendMessage(){
           RAG_CONFIG.maxCharsPerResult=2000;
           RAG_CONFIG.maxTotalChars=12000;
         }
-        const ragCtx=await getRAGContext(text,currentCase.id,currentCase);
+        const ragCtx=await Promise.race([getRAGContext(text,currentCase.id,currentCase),new Promise(r=>setTimeout(()=>r(null),8000))]);
         if(ragCtx)caseContext+=ragCtx;
-      }catch(e){console.warn('RAG error:',e);}
+      }catch(e){console.warn('RAG error (timeout or fetch):',e);}
     }
 
     /* ── QDRANT: Buscar en biblioteca de libros, normas y jurisprudencia ── */
@@ -2764,11 +2766,11 @@ async function sendMessage(){
     if(activeFn!=='F5'){
     try{
       const libKeywords=text.substring(0,200);
-      const{data:libResults}=await sb.rpc('search_library',{
+      const{data:libResults}=await _withTimeout(sb.rpc('search_library',{
         search_query:libKeywords,
         max_results:activeFn==='F7'||activeFn==='F8'?5:3,
         max_chars_per_result:activeFn==='F7'||activeFn==='F8'?3000:1000
-      });
+      }));
       if(libResults&&libResults.length>0){
         caseContext+='\n\n## LIBROS Y NORMAS DE REFERENCIA (Biblioteca UMAG)\nFragmentos relevantes encontrados en la biblioteca de libros, manuales y normativa interna. Usa esta información como fundamento doctrinario y normativo.\n';
         libResults.forEach((r,i)=>{
@@ -2921,6 +2923,22 @@ async function sendMessage(){
     let sseBuffer='';
     let streamError=false;
 
+    /* ── Throttled render: solo re-renderizar markdown cada 80ms ── */
+    let _renderPending=false;
+    let _scrollPending=false;
+    function scheduleRender(){
+      if(_renderPending)return;
+      _renderPending=true;
+      requestAnimationFrame(()=>{
+        bubEl.innerHTML=md(fullText);
+        _renderPending=false;
+        if(!_scrollPending){
+          _scrollPending=true;
+          requestAnimationFrame(()=>{msgsC.scrollTop=msgsC.scrollHeight;_scrollPending=false;});
+        }
+      });
+    }
+
     try{
       while(true){
         const{done,value}=await reader.read();
@@ -2936,8 +2954,7 @@ async function sendMessage(){
             const evt=JSON.parse(payload);
             if(evt.type==='content_block_delta'&&evt.delta?.type==='text_delta'){
               fullText+=evt.delta.text;
-              bubEl.innerHTML=md(fullText);
-              msgsC.scrollTop=msgsC.scrollHeight;
+              scheduleRender();
             }
             if(evt.type==='error'){
               streamError=true;
@@ -2956,7 +2973,7 @@ async function sendMessage(){
       bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:6px;font-size:11px;color:#b45309">⚠️ La respuesta fue interrumpida (posible timeout del servidor). El texto parcial se conservó. Puedes escribir "continúa" para que siga desde donde quedó.</div>`;
     }
     actionsPlaceholder.outerHTML=actions;
-    msgsC.scrollTop=msgsC.scrollHeight;
+    msgsC.scrollTop=msgsC.scrollHeight;trimDomMessages();
     /* Persist to Supabase */
     if(currentCase&&session){
       sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
@@ -2980,6 +2997,18 @@ function toggleFormatChip(btn, format) {
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
 
+/* ── Limitar nodos en el DOM para evitar congelamiento ── */
+const MAX_DOM_MESSAGES=40;
+function trimDomMessages(){
+  const c=document.getElementById('msgs');
+  if(!c)return;
+  const msgs=c.querySelectorAll('.msg');
+  if(msgs.length>MAX_DOM_MESSAGES){
+    const excess=msgs.length-MAX_DOM_MESSAGES;
+    for(let i=0;i<excess;i++) msgs[i].remove();
+  }
+}
+
 function appendMsg(role,text){
   const c=document.getElementById('msgs');
   const fn=FNS.find(f=>f.code===activeFn);
@@ -2993,7 +3022,7 @@ function appendMsg(role,text){
   </div>`:''
   const div=document.createElement('div');div.className=`msg ${role}`;
   div.innerHTML=`${av}<div class="msg-body">${tag}<div class="msg-bub">${role==='assistant'?md(text):esc(text)}</div>${actions}</div>`;
-  c.appendChild(div);c.scrollTop=c.scrollHeight;
+  c.appendChild(div);c.scrollTop=c.scrollHeight;trimDomMessages();
   /* Persist to Supabase */
   if(currentCase&&session){
     sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:role,content:text,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó el mensaje en el historial');}});
@@ -3984,218 +4013,4 @@ async function runJuriSearch(){
   const sources=[..._juriSelectedSources];
   const caseCtx=currentCase?`Expediente: ${currentCase.name}. Materia: ${currentCase.materia||'—'}. Protocolo: ${currentCase.protocolo||'—'}.`:'';
   try{
-    const r=await authFetch(CHAT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,system:`Eres Fiscalito, experto en jurisprudencia administrativa chilena.\n\nREGLA ABSOLUTA: JAMÁS inventes dictámenes, sentencias, roles, fechas o números. La fabricación de jurisprudencia es una falta ética gravísima.\n\nSOLO cita fuentes que ESTÉS SEGURO que existen. Si no estás seguro, escribe [VERIFICAR]. Es preferible decir \"no encontré dictámenes específicos\" a inventar uno.\n\nPara CADA fuente citada, incluye un ENLACE DE VERIFICACIÓN real:\n- CGR: https://www.contraloria.cl/appinf/lgd/buscador/dictamenes\n- PJUD: https://oficinajudicialvirtual.pjud.cl/consultaUnificadaDeCausas.php\n- Leyes: https://www.bcn.cl/leychile/navegar?idNorma=XXXXX\n\nIDs Ley Chile: DFL 29=236392, Ley 19.880=210676, Ley 18.575=191865, Ley 21.369=1165023, Ley 21.643=1200096, Ley 20.005=229098, Ley 20.607=1042709, Ley 21.094=1119253\n\nMarca confianza: [CERTEZA ALTA] o [VERIFICAR]. Fuentes habilitadas: ${sources.join(', ')}. ${caseCtx}`,messages:[{role:'user',content:`Busca ${limit} dictámenes/sentencias relevantes sobre: ${q}\n\nPara CADA resultado incluye obligatoriamente:\n1. Fuente (CGR/PJUD/Ley Chile)\n2. Número exacto (o [VERIFICAR] si no estás seguro)\n3. Fecha\n4. Materia\n5. Extracto relevante (en tus palabras, NO inventes texto literal)\n6. ENLACE de verificación (URL real de CGR, PJUD o bcn.cl/leychile)\n7. Nivel de confianza: [CERTEZA ALTA] o [VERIFICAR]\n\nRecuerda: es preferible entregar MENOS resultados REALES que inventar alguno.`}]})});
-    const data=await r.json();
-    const reply=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin resultados.';
-    res.innerHTML=`<div class="juri-analisis"><div class="juri-analisis-title"><span>📋</span> Resultados para: "${esc(q)}"</div><div class="juri-analisis-body">${md(reply)}</div></div>`;
-  }catch(err){res.innerHTML=`<div style="color:var(--red);font-size:12px">⚠️ Error: ${esc(err.message)}</div>`;}
-  if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/></svg> Buscar';}
-}
-
-function toggleJuriSource(el){
-  const src=el.dataset.src;
-  if(_juriSelectedSources.has(src))_juriSelectedSources.delete(src);
-  else _juriSelectedSources.add(src);
-  el.classList.toggle('active',_juriSelectedSources.has(src));
-}
-function setJuriQuery(text){const el=document.getElementById('juriQuery');if(el){el.value=text;runJuriSearch();}}
-
-/* ── Helpers ── */
-function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function md(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-  .replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
-  .replace(/`([^`]+)`/g,'<code>$1</code>')
-  .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
-  .replace(/\*\*([^\*]+)\*\*/g,'<strong>$1</strong>')
-  .replace(/\*([^\*]+)\*/g,'<em>$1</em>')
-  .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/((?:<li>.*<\/li>\n?)+)/g,'<ul>$1</ul>')
-  .replace(/^\d+\. (.+)$/gm,'<li>$1</li>')
-  .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
-  .replace(/---/g,'<hr>')
-  .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')
-  .replace(/^(?!<[hH\d]|<ul|<li|<pre|<blockquote|<hr)(.+)$/gm,'<p>$1</p>')
-  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'')
-  .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi,'')
-  .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'');}
-
-function showToast(msg){
-  const c=document.getElementById('toastContainer');
-  const t=document.createElement('div');t.className='toast';t.textContent=msg;
-  c.appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));
-  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},2400);
-}
-
-/* ── SYSTEM PROMPT ── */
-const SYSTEM_PROMPT=`Eres Fiscalito, asistente jurídico-administrativo especializado en procedimientos disciplinarios de la Administración Pública chilena (Investigación Sumaria y Sumario Administrativo).
-
-## FUNDAMENTO NORMATIVO
-Tu actuación se basa estrictamente en:
-- Estatuto Administrativo (DFL N.º 29 / Ley N.º 18.834)
-- Ley N.º 19.880 (Bases de Procedimientos Administrativos)
-- Ley N.º 18.575 (Bases Generales de la Administración del Estado)
-- Ley N.º 21.369 (Acoso Sexual, Violencia y Discriminación de Género en IES)
-- Ley N.º 21.643 (Ley Karin — Prevención del Acoso Laboral)
-- Ley N.º 20.005 (Acoso Sexual)
-- Ley N.º 20.607 (Acoso Laboral)
-- Ley N.º 21.094 (Universidades Estatales)
-- Jurisprudencia y dictámenes de la Contraloría General de la República (CGR)
-- Guía de Procedimientos Disciplinarios institucionales (fuente metodológica principal)
-- Normativa interna institucional según protocolo aplicable
-- Biblioteca de Normas y Libros cargada en el sistema (fuente de referencia permanente)
-
-## DIRECTIVA ANTI-ALUCINACION (OBLIGATORIA EN TODA RESPUESTA)
-
-### HECHOS DEL CASO
-1. SOLO afirma hechos que consten EXPLICITAMENTE en los datos del expediente activo (participantes, diligencias, resoluciones, cronologia, notas, extractos)
-2. NUNCA inventes nombres, fechas, fojas, numeros de resolucion ni antecedentes que no esten en el contexto proporcionado
-3. Si un dato falta o no consta en el expediente, ESCRIBE: [NO CONSTA EN EL EXPEDIENTE]
-4. NUNCA supongas, extrapoles ni infieras hechos no acreditados en las piezas del caso
-5. Distingue SIEMPRE entre: hechos acreditados (con fuente), alegaciones de parte y opiniones del fiscal
-
-### NORMATIVA Y CITAS LEGALES
-6. SOLO cita articulos, leyes, decretos y dictamenes que EXISTAN en la normativa chilena real
-7. Para articulos del EA (DFL 29): verifica que el articulo citado exista y corresponda al tema
-8. Para dictamenes CGR: SOLO citalos si tienes CERTEZA de su existencia. Si no estas seguro: [VERIFICAR: dictamen CGR no confirmado]
-9. NUNCA inventes numeros de dictamen, fechas de dictamen ni contenido de dictamen
-10. Prioriza citar normativa desde la Biblioteca de Normas del sistema cuando este disponible
-11. IDs Ley Chile para verificacion: DFL 29=236392, Ley 19.880=210676, Ley 18.575=191865, Ley 21.369=1165023, Ley 21.643=1200096, Ley 20.005=229098, Ley 20.607=1042709, Ley 21.094=1119253
-12. IMPORTANTE: Cuando el contexto incluya la seccion "NORMAS CON ENLACES LEY CHILE", SIEMPRE usa los enlaces BCN ahi indicados al citar cualquiera de esas leyes. Formato: (Art. X, [Nombre Ley](URL_BCN))
-
-### FUENTES Y TRAZABILIDAD
-12. Cita la fuente de cada afirmacion: (Fuente: [documento], [seccion/foja]) o (Art. X, Ley Y)
-13. Si la informacion proviene de un extracto de diligencia, indica: (Diligencia: [nombre], fojas [X])
-14. Si la informacion proviene de una declaracion, indica: (Declaracion de [rol], fojas [X])
-15. Cuando no puedas verificar una fuente: [FUENTE NO VERIFICADA — confirmar antes de usar]
-
-### NIVEL DE CONFIANZA
-16. Marca EXPLICITAMENTE el nivel de confianza en afirmaciones normativas:
-    - [CERTEZA ALTA]: articulo/norma verificada
-    - [VERIFICAR]: referencia probable pero no confirmada al 100%
-    - [NO ENCONTRADA]: norma o dictamen no localizado en las fuentes disponibles
-
-## REGLAS DE ACTUACION
-1. Responde SIEMPRE en espanol institucional, formal y preciso
-2. Usa el contexto del expediente y las instrucciones de la funcion activa automaticamente
-3. Tienes acceso completo al expediente activo: datos generales, participantes, resoluciones, checklist, diligencias, cronologia, acciones pendientes y carpeta Drive. Usa toda esta informacion para responder con precision
-4. Cita normativa especifica: articulos, numeros de ley, decretos y dictamenes CGR
-5. Protege datos personales: usa "el/la denunciante", "el/la denunciado/a" en ejemplos genericos
-6. Estructura con **titulos en negrita** y listas cuando mejore la claridad
-7. Para F3/F4, SIEMPRE usa la estructura de bloques definida y numera preguntas
-8. Si el usuario pega texto para F2, corrigelo directamente sin preambulos
-9. Aplica perspectiva de genero en casos con materia de violencia, acoso o discriminacion
-10. Cuando el usuario pregunte por el estado del caso, usa los datos del checklist, acciones pendientes y cronologia para dar una respuesta precisa
-11. Si hay diligencias con resumenes o extractos, usalos como fuente de hechos acreditados
-12. PREFIERE DECIR "no cuento con esa informacion" A INVENTAR cualquier dato`;
-
-/* ── CASE PROMPT — Instrucciones específicas al operar dentro de un caso ── */
-const CASE_PROMPT=`## INSTRUCCIONES PARA EXPEDIENTE ACTIVO
-
-Eres un asistente jurídico–administrativo especializado en procedimientos disciplinarios de la Administración Pública chilena (Investigación Sumaria y Sumario Administrativo). Tu actuación se basa estrictamente en la normativa aplicable —Estatuto Administrativo (DFL N.º 29), Ley N.º 19.880, jurisprudencia de la Contraloría General de la República y principios de debido proceso, legalidad y objetividad— y en los documentos previamente cargados en la carpeta Drive disponible a través del sistema RAG, los cuales constituyen tu única fuente de información.
-
-Tu labor consiste en revisar, analizar y sistematizar información jurídica, elaborar documentos administrativos claros y precisos, generar cuestionarios indagatorios, evaluar hechos y responsabilidad administrativa, y emitir propuestas fundadas, todo ello dentro del marco del debido proceso, la perspectiva de género, la legalidad y la objetividad institucional.
-
-### FUNCIÓN MAESTRA: GUÍA DE PROCEDIMIENTOS DISCIPLINARIOS UMAG
-Actúas bajo una función maestra obligatoria que establece la aplicación permanente de la Guía de Procedimientos Disciplinarios UMAG como fundamento metodológico y jurídico de todas las tareas.
-Enlace de referencia: https://docs.google.com/document/d/14rhAqg-DY3bCOW3qwbMdWDWslC_2X5Td/edit
-
-Esto implica:
-- Respeto de los principios rectores: dignidad, probidad, derechos humanos, enfoque de género, imparcialidad, no revictimización y proporcionalidad.
-- Observancia de las fases del procedimiento disciplinario: iniciación, instrucción (indagatoria + discusión y defensa) y finalización.
-- Determinación del régimen normativo según estamento (funcionario, estudiante u honorarios), incluyendo la normativa UMAG y la legislación aplicable.
-- Incorporación de medidas de resguardo y protección cuando corresponda.
-- Respeto de plazos, reserva, debido proceso y uso de lenguaje administrativo neutral.
-- Prohibición de usar normativa externa no contenida en los documentos del caso o en la Guía.
-
-### REPOSITORIO DOCUMENTAL INSTITUCIONAL
-Utilizas como fuente documental permanente las siguientes carpetas de trabajo:
-- Carpeta raíz "Fiscalito" – ID: 1tTUYEvlgJSs18NeWQeYnR_7aCZsz02a9
-- caso_estudio – ID: 1lhp5y2wc0RYhUlL4EIk-DNreUS7TpjFZ (todos los casos en investigación)
-- dictamenes – ID: 1TvLs0J94gKAZKEe8ZF9o77oLJmVNAx2C (dictámenes CGR)
-- doctrina_administrativo – ID: 11Vz73Te97ZHPc9f2E-_6cHLSi7LLLZ0g
-- jurisprudencia_relevante – ID: 1Gng03HxH7G_JyGfBiYDkEkcgBpTcrTpX
-- libros_administrativo – ID: 1cqDHOAZX-jul7vpyzpJLW4BEYrkzvS9u
-- modelos – ID: 1RZ-K4s5ncCl8o_aYbao_QmcZsYG9dQ-w
-- normativa_vigente – ID: 1iBT8QA8-OZ7QWP4XctbQykoiEg4rYiSU
-- tematicas_especificas – ID: 1SDBYlUQoEah7sBVBnGmqymW1S-hR-k1B
-
-Toda la información actual y futura está o estará disponible en estas carpetas. No consultes fuentes externas que no estén en los documentos del caso o en el repositorio institucional.
-
-### REGLAS DE INTEGRIDAD DEL CASO (CUMPLIMIENTO ESTRICTO)
-
-1. FIDELIDAD ABSOLUTA: Toda referencia a hechos, personas, fechas, resoluciones o fojas DEBE corresponder EXACTAMENTE a lo que consta en los datos del expediente proporcionados en el contexto. NO parafrasees libremente datos que estan escritos textualmente.
-
-2. NOMBRES Y ROLES: Usa los nombres y roles EXACTOS que aparecen en participantes y diligencias. NUNCA inventes nombres, NUNCA cambies roles, NUNCA asumas parentescos o relaciones no indicadas.
-
-3. FECHAS Y RESOLUCIONES: Solo cita las fechas y resoluciones que esten en los datos del caso. Si necesitas una fecha y no consta: [FECHA: no consta en expediente].
-
-4. FOJAS: Solo indica fojas cuando la diligencia tenga fojas_inicio/fojas_fin registradas. Si no las tiene: "a fojas [COMPLETAR]".
-
-5. EXTRACTOS Y RESUMENES: Cuando cites contenido de diligencias, usa EXCLUSIVAMENTE lo que dice el extracto/resumen. No amplies, no interpretes, no agregues detalles inventados.
-
-6. NORMATIVA: La normativa aplicable depende del estamento y protocolo del caso:
-   - Funcionario: DFL 29 (EA), Ley 19.880, Ley 18.575
-   - Estudiante: Reglamento Disciplinario Estudiantil, normativa UMAG
-   - Honorario: Ley 21.643 (Karin), normativa contractual
-   - Genero: Ley 21.369, Ley 21.643, protocolo institucional
-   VERIFICA que la norma citada sea la correcta para el regimen del caso.
-
-7. DICTAMENES CGR: Solo cita dictamenes que conozcas con certeza o que esten en la Biblioteca. Ante duda: [VERIFICAR]. JAMAS inventes un numero de dictamen.
-
-8. COHERENCIA INTER-FUNCIONAL: Si el usuario ha usado previamente otra funcion (ej: IRAC en F5), manten coherencia con sus conclusiones. No contradigas analisis previos sin fundamento.`;
-</script>
-
-<script src="/drive-client.js"></script>
-
-<!-- ══════════════════ MÓDULOS ══════════════════ -->
-<script src="/js/mod-export.js"></script>
-<script src="/js/mod-escritos.js"></script>
-<script src="/js/mod-transcripcion.js"></script>
-<script>
-// Transcripción module moved to mod-transcripcion.js
-</script>
-<script src="/js/mod-biblioteca.js"></script>
-<script src="/js/mod-parrafos.js"></script>
-<script src="/js/mod-compartir.js"></script>
-<script src="/js/mod-ley21369.js"></script>
-<script src="/js/mod-ses-directrices.js"></script>
-<script src="/js/mod-casos-externos.js"></script>
-<script src="/js/mod-casos-externos-patch.js"></script>
-<script src="/js/mod-drive-qdrant.js"></script>
-<script src="/js/mod-drive-qdrant-patch.js"></script>
-<script src="/js/mod-seguridad.js"></script>
-<script src="/js/mod-usuarios-roles.js"></script>
-<script src="/js/mod-jurisprudencia.js"></script>
-<script src="/js/mod-modelos-rag.js"></script>
-<script src="/js/mod-pendientes.js"></script>
-<script src="/js/mod-razonamiento.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="/js/mod-pdf-tools.js"></script>
-<script src="/js/mod-pdf-tools-patch.js"></script>
-<script src="/js/mod-cuestionarios.js"></script>
-<script src="/js/mod-actas-audio.js"></script>
-<script src="/js/mod-resoluciones-patch.js"></script>
-<script src="/js/mod-diligencias-extractos.js"></script>
-<script src="/js/mod-drive-rag.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script src="/js/mod-manual-operativo.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx@9.1.0/build/index.umd.min.js"></script>
-<script>window.docx=window.docx||docx;</script>
-<script src="/js/mod-export-word.js"></script>
-<script src="/js/mod-estadisticas.js"></script>
-<script src="/js/mod-auto-subdivision.js"></script>
-<script src="/js/mod-etapas-procesales.js"></script>
-<script src="/js/mod-alertas-casos.js"></script>
-<script src="/js/mod-modo-guiado.js"></script>
-<script src="/js/mod-plantillas-custom.js"></script>
-<script src="/js/mod-inteligencia.js"></script>
-<script src="/js/mod-estadisticas-avanzadas.js"></script>
-<script src="/js/mod-biblioteca-procedimientos.js"></script>
-<script src="/js/mod-branding.js"></script>
-<script src="/js/mod-sync-monitor.js"></script>
-<script src="/js/mod-timeline-caso.js"></script>
-<script src="/js/mod-completitud-caso.js"></script>
-<script src="/js/mod-validacion-consistencia.js"></script>
-<script src="/js/mod-importador-masivo.js"></script>
-
-</body>
-</html>
+    const r=await authFetch(CHAT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,system:`Eres Fiscalito, experto en jurisprudencia administrativa chilena.\n\nREGLA ABSOLUTA: JAMÁS inventes dictámenes, sentencias, roles, fechas o números. La fabricación de jurisprudencia es una falta ética gravísima.\n\nSOLO cita fuentes que ESTÉS SEGURO que existen. Si no estás seguro, escribe [VERIFICAR]. Es preferible decir \"no encontré dictámenes específicos\" a inventar uno.\n\nPara CADA fuente citada, incluye un ENLACE DE VERIFICACIÓN real:\n- CGR: https://www.contraloria.cl/appinf/lgd/buscador/dictamenes\n- PJUD: https://oficinajudicialvirtual.pjud.cl/consultaUnificadaDeCausas.php\n- Leyes: https://www.bcn.cl/leychile/navegar?idNorma=XXXXX\n\nIDs Ley Chile: DFL 29=236392, Ley 19.880=210676, Ley 18.575=191865, Ley 21.369=1165023, Ley 21.643=1200096, Ley 20.005=229098, Ley 20.607=1042709, Ley 21.094=1119253\n\nMarca confianza: [CERTEZA ALTA] o [VERIFICAR]. Fuentes habilitadas: ${sources.join(', ')}. ${caseCtx}`,messages:[{role:'user',content:`Busca ${limit} dictámenes/sent
