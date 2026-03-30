@@ -716,14 +716,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
     <div class="view" id="viewCase" style="flex-direction:column">
       <div class="case-header" id="caseHeader"></div>
       <div class="tabs" id="caseTabs">
-        <div class="tab active" onclick="showTab('tabParticipantes')">👥 Participantes</div>
-        <div class="tab" onclick="showTab('tabChecklist')">✅ Checklist</div>
-        <div class="tab" onclick="showTab('tabAcciones')">⚡ Pendientes</div>
-        <div class="tab" onclick="showTab('tabNotas')">📝 Notas</div>
-        <div class="tab" onclick="showTab('tabModelos')">🧩 Modelos</div>
-        <div class="tab" onclick="showTab('tabDrive')">📁 Drive</div>
-        <div class="tab" onclick="showTab('tabDiligencias')">📋 Diligencias</div>
-        <div class="tab" onclick="showTab('tabChat')">💬 Chat IA</div>
+        <div class="tab active" data-tab="tabParticipantes" onclick="showTab('tabParticipantes')">👥 Participantes</div>
+        <div class="tab" data-tab="tabChecklist" onclick="showTab('tabChecklist')">✅ Checklist</div>
+        <div class="tab" data-tab="tabAcciones" onclick="showTab('tabAcciones')">⚡ Pendientes</div>
+        <div class="tab" data-tab="tabNotas" onclick="showTab('tabNotas')">📝 Notas</div>
+        <div class="tab" data-tab="tabModelos" onclick="showTab('tabModelos')">🧩 Modelos</div>
+        <div class="tab" data-tab="tabDrive" onclick="showTab('tabDrive')">📁 Drive</div>
+        <div class="tab" data-tab="tabDiligencias" onclick="showTab('tabDiligencias')">📋 Diligencias</div>
+        <div class="tab" data-tab="tabChat" onclick="showTab('tabChat')">💬 Chat IA</div>
       </div>
       <!-- Tab contents -->
       <div class="tab-content active" id="tabParticipantes"><div id="participantesList"><div class="loading">Cargando participantes…</div></div></div>
@@ -1558,9 +1558,8 @@ function goBackToCaseList(){
 
 /* ── Tabs ── */
 function showTab(tabId){
-  document.querySelectorAll('#caseTabs .tab').forEach((t,i)=>{
-    const tabs=['tabParticipantes','tabChecklist','tabAcciones','tabNotas','tabModelos','tabDrive','tabDiligencias','tabChat'];
-    t.classList.toggle('active',tabs[i]===tabId);
+  document.querySelectorAll('#caseTabs .tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.tab===tabId);
   });
   document.querySelectorAll('.tab-content').forEach(tc=>{
     tc.style.display=tc.id===tabId?'':'none';
@@ -1743,7 +1742,8 @@ function openTabla(){showView('viewTabla');renderTabla();}
 
 const CAT_LABELS={genero:'Género',no_genero:'No Género',cargos:'Cargos',finalizacion:'Finalización',terminado:'Terminado'};
 const VALID_CATS=new Set(['genero','no_genero','cargos','finalizacion','terminado']);
-const getCaseCat=c=>{
+/* getCaseCat asignada a window para permitir override por mod-auto-subdivision */
+window.getCaseCat=function(c){
   // 1) Campo categoria guardado en BD — fuente de verdad principal
   if(c.categoria && VALID_CATS.has(c.categoria)) return c.categoria;
   // 2) status terminado como fallback

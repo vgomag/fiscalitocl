@@ -330,9 +330,9 @@ async function renderEtapasPanel(caseId){
   container.innerHTML = stepperHtml + detailHtml + (historyHtml ? '<div class="etapa-history-section"><div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:8px">Etapas completadas</div>' + historyHtml + '</div>' : '');
 }
 
-/* ── Helpers para escapar ── */
-function escAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
-function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* ── Helpers para escapar (usa global esc() si disponible) ── */
+function escAttr(s){ return typeof esc==='function' ? esc(s) : String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s){ return typeof esc==='function' ? esc(s) : String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* ── Funciones globales ── */
 window.initCaseEtapas = async function(caseId){
@@ -382,27 +382,29 @@ function injectEtapasTab(){
     tabBtn.setAttribute('data-tab', 'tabEtapas');
     tabBtn.textContent = '⚖️ Etapas';
     tabBtn.onclick = () => showTab('tabEtapas');
-    // Insertar como segundo tab (después de Participantes)
-    const firstTab = caseTabs.children[0];
-    if(firstTab && firstTab.nextSibling){
-      caseTabs.insertBefore(tabBtn, firstTab.nextSibling);
+    // Insertar como segundo tab (después de Participantes usando data-tab)
+    const participantesTab = caseTabs.querySelector('[data-tab="tabParticipantes"]');
+    if(participantesTab && participantesTab.nextSibling){
+      caseTabs.insertBefore(tabBtn, participantesTab.nextSibling);
     } else {
       caseTabs.appendChild(tabBtn);
     }
   }
 
   // Añadir tab content container
-  const viewCase = document.getElementById('viewCase');
-  if(viewCase && !document.getElementById('tabEtapas')){
+  if(!document.getElementById('tabEtapas')){
     const tabContent = document.createElement('div');
     tabContent.id = 'tabEtapas';
     tabContent.className = 'tab-content';
     tabContent.style.display = 'none';
     tabContent.innerHTML = '<div id="etapasPanel" style="padding:16px;overflow-y:auto;flex:1"></div>';
-    // Insertar después de los otros tab-content
-    const lastContent = viewCase.querySelector('.tab-content:last-of-type');
-    if(lastContent) lastContent.after(tabContent);
-    else viewCase.appendChild(tabContent);
+    // Insertar después de tabParticipantes content
+    const partContent = document.getElementById('tabParticipantes');
+    if(partContent) partContent.after(tabContent);
+    else {
+      const viewCase = document.getElementById('viewCase');
+      if(viewCase) viewCase.appendChild(tabContent);
+    }
   }
 }
 

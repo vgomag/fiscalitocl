@@ -242,28 +242,27 @@ window.renderTabla = function(searchOverride){
 
   // Delegar al render original si existe
   if(_origRenderTabla){
-    // Temporalmente reemplazar allCases para que el render original use nuestro filtro
+    // Guardar referencias ANTES de cualquier modificación
     const _backup = window.allCases;
     const _backupCat = window.activeCatTab;
+    const _enhancedGetCat = window.getCaseCat; // Guardar la versión enhanced
 
-    // Hack: ponemos los cases filtrados en allCases y forzamos la categoría
-    // Para que el renderTabla original no re-filtre
+    // Temporalmente: poner los cases ya filtrados en allCases con flag
     window.allCases = cases.map(c => {
       const clone = Object.assign({}, c);
       clone._forceCategory = activeCatTab;
       return clone;
     });
 
-    // Temporalmente hacer que getCaseCat devuelva activeCatTab para estos
-    const _getCat = window.getCaseCat;
-    window.getCaseCat = c => c._forceCategory || _getCat(c);
+    // Hacer que getCaseCat devuelva activeCatTab para los clones
+    window.getCaseCat = c => c._forceCategory || _enhancedGetCat(c);
 
     _origRenderTabla.call(window, searchOverride);
 
-    // Restaurar
+    // Restaurar TODO correctamente
     window.allCases = _backup;
     window.activeCatTab = _backupCat;
-    window.getCaseCat = _getCat;
+    window.getCaseCat = _enhancedGetCat; // Restaurar la versión enhanced, no la temp
   }
 
   // Actualizar contador
@@ -353,14 +352,15 @@ function enableDragDrop(){
   if(tbody) observer.observe(tbody, { childList: true });
 }
 
-/* ── Patchear loadCases para cargar datos auxiliares ── */
+/* ── Patchear loadCases para cargar datos auxiliares EN PARALELO ── */
 const _origLoadCases = typeof loadCases === 'function' ? loadCases : null;
 window.loadCases = async function(){
-  // Cargar datos de subdivisión primero
-  await loadSubdivisionData();
-  // Luego cargar los casos normalmente
-  if(_origLoadCases) await _origLoadCases.call(window);
-  // Actualizar contadores con la nueva lógica
+  // Cargar datos de subdivisión en paralelo con los casos
+  await Promise.all([
+    loadSubdivisionData(),
+    _origLoadCases ? _origLoadCases.call(window) : Promise.resolve()
+  ]);
+  // Actualizar contadores con la nueva lógica (después de que ambos terminan)
   updateCatCounts();
 };
 
