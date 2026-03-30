@@ -129,6 +129,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 /* Case detail */
 .case-header{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;max-height:45vh;overflow-y:auto;}
 .informe-body.collapsed{max-height:0 !important;overflow:hidden !important;padding:0 8px !important;border-color:transparent !important;margin-top:0 !important;}
+.case-details-grid.collapsed{display:none !important;}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 14px;flex-shrink:0;overflow-x:auto;}
 .tab{padding:8px 12px;font-size:11px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;font-family:var(--font-body);background:none;border-top:none;border-left:none;border-right:none;}
 .tab:hover{color:var(--text);}
@@ -1527,31 +1528,37 @@ function renderCaseHeader(){
         <button class="btn-sm" style="color:var(--red)" onclick="confirmDeleteCase()">🗑</button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);font-size:12px;line-height:1.6">
-      ${c.denunciantes?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Denunciante(s)</div><div style="font-weight:500">${esc(fmtArr(c.denunciantes))}</div><div style="color:var(--text-dim);font-size:11px">Est: ${esc(fmtArr(c.estamentos_denunciante))}${c.carrera_denunciante?' · 🎓 '+esc(c.carrera_denunciante):''}</div></div>`:''}
-      ${c.denunciados?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Denunciado/a(s)</div><div style="font-weight:500">${esc(fmtArr(c.denunciados))}</div><div style="color:var(--text-dim);font-size:11px">Est: ${esc(fmtArr(c.estamentos_denunciado))}${c.carrera_denunciado?' · 🎓 '+esc(c.carrera_denunciado):''}</div></div>`:''}
-      ${f('Materia',c.materia)}
-      ${f('Procedimiento',c.tipo_procedimiento)}
-      ${f('Protocolo',c.protocolo)}
-      ${f('Resolución',c.nueva_resolucion)}
-      ${f('Fecha resolución',c.fecha_resolucion)}
-      ${f('Fecha denuncia',c.fecha_denuncia)}
-      ${f('Recepción fiscalía',c.fecha_recepcion_fiscalia)}
-      ${f('Vista fiscal',c.fecha_vista)}
-      ${c.resultado?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Resultado</div><div style="font-weight:600;color:${resColor[c.resultado]||'var(--text)'}">${esc(c.resultado)}</div></div>`:''}
-      ${dur?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Duración</div><div style="font-weight:600;color:var(--gold)">${dur} días háb.</div></div>`:''}
-      ${f('Res. Término',c.resolucion_termino)}
-      ${f('Fecha Res. Término',c.fecha_resolucion_termino)}
-      ${c.medida_cautelar?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Medida cautelar</div><div style="font-weight:500;color:var(--green)">Sí${c.medida_cautelar_detalle?' — '+esc(c.medida_cautelar_detalle):''}</div></div>`:''}
-      ${c.observaciones?`<div style="grid-column:1/-1"><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Observaciones</div><div style="font-size:11.5px;color:var(--text-dim)">${esc(c.observaciones)}</div></div>`:''}
-      ${c.informe_final?`<div style="grid-column:1/-1">
-        <div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="this.parentElement.querySelector('.informe-body').classList.toggle('collapsed');this.querySelector('.informe-arrow').textContent=this.parentElement.querySelector('.informe-body').classList.contains('collapsed')?'▶':'▼'">
-          <span class="informe-arrow" style="font-size:10px;color:var(--text-muted);transition:transform .2s">▼</span>
-          <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">📝 Informe de Investigadora / Vista Fiscal</div>
-          <span style="font-size:9px;color:var(--text-muted);margin-left:4px">(clic para colapsar/expandir)</span>
-        </div>
-        <div class="informe-body" style="font-size:11.5px;color:var(--text-dim);white-space:pre-wrap;max-height:150px;overflow-y:auto;margin-top:4px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);transition:max-height .3s ease">${esc(c.informe_final)}</div>
-      </div>`:''}
+    <div style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0;margin-bottom:2px;user-select:none" onclick="const d=document.getElementById('caseDetailsGrid');const a=this.querySelector('.details-arrow');if(d.classList.toggle('collapsed')){a.textContent='▶';this.closest('.case-header').style.maxHeight='none';}else{a.textContent='▼';this.closest('.case-header').style.maxHeight='45vh';}">
+      <span class="details-arrow" style="font-size:10px;color:var(--text-muted)">▼</span>
+      <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">Detalles del expediente</span>
+      <span style="font-size:9px;color:var(--text-muted)">(clic para colapsar/expandir)</span>
+    </div>
+    <div id="caseDetailsGrid" class="case-details-grid">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);font-size:12px;line-height:1.6">
+        ${c.denunciantes?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Denunciante(s)</div><div style="font-weight:500">${esc(fmtArr(c.denunciantes))}</div><div style="color:var(--text-dim);font-size:11px">Est: ${esc(fmtArr(c.estamentos_denunciante))}${c.carrera_denunciante?' · 🎓 '+esc(c.carrera_denunciante):''}</div></div>`:''}
+        ${c.denunciados?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Denunciado/a(s)</div><div style="font-weight:500">${esc(fmtArr(c.denunciados))}</div><div style="color:var(--text-dim);font-size:11px">Est: ${esc(fmtArr(c.estamentos_denunciado))}${c.carrera_denunciado?' · 🎓 '+esc(c.carrera_denunciado):''}</div></div>`:''}
+        ${f('Materia',c.materia)}
+        ${f('Procedimiento',c.tipo_procedimiento)}
+        ${f('Protocolo',c.protocolo)}
+        ${f('Resolución',c.nueva_resolucion)}
+        ${f('Fecha resolución',c.fecha_resolucion)}
+        ${f('Fecha denuncia',c.fecha_denuncia)}
+        ${f('Recepción fiscalía',c.fecha_recepcion_fiscalia)}
+        ${f('Vista fiscal',c.fecha_vista)}
+        ${c.resultado?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Resultado</div><div style="font-weight:600;color:${resColor[c.resultado]||'var(--text)'}">${esc(c.resultado)}</div></div>`:''}
+        ${dur?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Duración</div><div style="font-weight:600;color:var(--gold)">${dur} días háb.</div></div>`:''}
+        ${f('Res. Término',c.resolucion_termino)}
+        ${f('Fecha Res. Término',c.fecha_resolucion_termino)}
+        ${c.medida_cautelar?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Medida cautelar</div><div style="font-weight:500;color:var(--green)">Sí${c.medida_cautelar_detalle?' — '+esc(c.medida_cautelar_detalle):''}</div></div>`:''}
+        ${c.observaciones?`<div style="grid-column:1/-1"><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Observaciones</div><div style="font-size:11.5px;color:var(--text-dim)">${esc(c.observaciones)}</div></div>`:''}
+        ${c.informe_final?`<div style="grid-column:1/-1">
+          <div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="event.stopPropagation();this.parentElement.querySelector('.informe-body').classList.toggle('collapsed');this.querySelector('.informe-arrow').textContent=this.parentElement.querySelector('.informe-body').classList.contains('collapsed')?'▶':'▼'">
+            <span class="informe-arrow" style="font-size:10px;color:var(--text-muted);transition:transform .2s">▼</span>
+            <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">📝 Informe de Investigadora / Vista Fiscal</div>
+          </div>
+          <div class="informe-body" style="font-size:11.5px;color:var(--text-dim);white-space:pre-wrap;max-height:150px;overflow-y:auto;margin-top:4px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);transition:max-height .3s ease">${esc(c.informe_final)}</div>
+        </div>`:''}
+      </div>
     </div>`;
 }
 
