@@ -2967,7 +2967,7 @@ async function sendMessage(){
 
     const body={
       model:'claude-sonnet-4-20250514',
-      max_tokens:activeFn==='F7'?24000:activeFn==='F8'?16000:activeFn==='F5'?4096:4000,
+      max_tokens:activeFn==='F7'?24000:activeFn==='F8'?16000:activeFn==='F12'?6000:activeFn==='F5'?4096:4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
       messages:[...historyMsgs,{role:'user',content:userContent}],
       stream:true
@@ -2979,12 +2979,19 @@ async function sendMessage(){
     /* ── Streaming: leer SSE progresivamente ── */
     const fn=FNS.find(f=>f.code===activeFn);
     const msgDiv=document.createElement('div');msgDiv.className='msg assistant';
-    const actions=currentCase?`<div style="display:flex;gap:4px;margin-top:6px;padding-top:5px;border-top:1px solid var(--border)">
+    const _isF12=activeFn==='F12';
+    const _f12Actions=_isF12?`<div style="display:flex;gap:4px;margin-top:6px;padding-top:5px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px;background:var(--gold);color:#fff;border-color:var(--gold)" onclick="oficioAssignAndExport(this)" title="Asignar número correlativo y descargar Word">📨 Asignar N° y Word</button>
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="exportOficioToWord(this)" title="Solo descargar como Word (sin asignar número)">📄 Word</button>
+      <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="navigator.clipboard.writeText(this.closest('.msg').querySelector('.msg-bub').innerText);showToast('✓ Copiado')" title="Copiar al portapapeles">📋 Copiar</button>
+      ${currentCase?'<button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsNota(this)" title="Guardar como nota">📝 Nota</button>':''}
+    </div>`:'';
+    const actions=_isF12?_f12Actions:(currentCase?`<div style="display:flex;gap:4px;margin-top:6px;padding-top:5px;border-top:1px solid var(--border)">
       <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsNota(this)" title="Guardar como nota del caso">📝 Nota</button>
       <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsPendiente(this)" title="Crear pendiente desde esta respuesta">⚡ Pendiente</button>
       <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="navigator.clipboard.writeText(this.closest('.msg').querySelector('.msg-bub').innerText);showToast('✓ Copiado')" title="Copiar al portapapeles">📋 Copiar</button>
       <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="exportChatResponseToWord(this)" title="Descargar como Word">📄 Word</button>
-    </div>`:'';
+    </div>`:'');
     msgDiv.innerHTML=`<div class="msg-av-icon">⚖️</div><div class="msg-body"><div class="msg-tag">${activeFn} · ${fn?.name||'Fiscalito'}</div><div class="msg-bub"></div><div class="msg-actions-placeholder"></div></div>`;
     const msgsC=document.getElementById('msgs');
     msgsC.appendChild(msgDiv);
