@@ -555,6 +555,62 @@ window.buildF12Chips = function() {
 };
 
 /* ══════════════════════════════════════════
+   ASIGNAR NÚMERO + EXPORTAR A WORD (COMBINADO)
+   ══════════════════════════════════════════ */
+window.oficioAssignAndExport = async function(buttonEl) {
+  const msgBub = buttonEl?.closest('.msg')?.querySelector('.msg-bub');
+  if (!msgBub) { showToast('⚠ No se encontró el texto'); return; }
+  const text = msgBub.innerText;
+  if (!text || text.length < 30) { showToast('⚠ Texto muy corto'); return; }
+
+  // Detectar tipo de documento
+  let detectedType = 'oficio';
+  if (/memor[aá]nd|MEMO/i.test(text.substring(0, 300))) detectedType = 'memo';
+  else if (/resoluci[oó]n|RESUELVO|CONSIDERANDO/i.test(text.substring(0, 500))) detectedType = 'resolucion';
+
+  // Si el usuario tiene un tipo seleccionado en el formulario, usarlo
+  const formType = document.getElementById('oficioType')?.value;
+  if (formType) detectedType = formType;
+
+  buttonEl.disabled = true;
+  buttonEl.textContent = '⏳ Asignando…';
+
+  try {
+    // 1. Asignar número correlativo
+    const result = await assignDocNumber(
+      detectedType,
+      document.getElementById('oficioAsunto')?.value || text.substring(0, 100).replace(/\n/g, ' '),
+      document.getElementById('oficioDestinatario')?.value || '',
+      text
+    );
+
+    if (result) {
+      // 2. Actualizar el texto del mensaje con el número real (reemplazar placeholder)
+      const numPattern = /(?:OF|MEMO|RES)-\d{3}\/\d{4}/;
+      if (numPattern.test(msgBub.innerText)) {
+        // Ya tiene un número placeholder — no reemplazar para no perder formato
+      }
+      // Mostrar badge con el número asignado
+      const badge = document.createElement('div');
+      badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:var(--gold);color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-top:6px';
+      badge.textContent = '✓ ' + result.formatted;
+      msgBub.appendChild(badge);
+    }
+
+    // 3. Exportar a Word
+    await exportOficioToWord(buttonEl);
+
+    buttonEl.textContent = '✓ Listo';
+    buttonEl.style.background = 'var(--green, #22c55e)';
+  } catch (e) {
+    console.error('oficioAssignAndExport:', e);
+    showToast('⚠️ Error: ' + e.message);
+    buttonEl.textContent = '📨 Asignar N° y Word';
+    buttonEl.disabled = false;
+  }
+};
+
+/* ══════════════════════════════════════════
    EXPONER FUNCIONES
    ══════════════════════════════════════════ */
 window.renderF12Panel = renderF12Panel;
