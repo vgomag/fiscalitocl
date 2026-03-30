@@ -252,13 +252,27 @@ async function loadDocCounters() {
 async function getNextDocNumber(docType) {
   if (!window.session) throw new Error('Sin sesión');
   const year = new Date().getFullYear();
-  const { data, error } = await sb.rpc('next_doc_number', {
-    p_user_id: session.user.id,
+  // Usa la función RPC compartida por organización
+  const { data, error } = await sb.rpc('next_doc_number_shared', {
+    p_org_id: ORG_ID,
     p_doc_type: docType,
     p_year: year,
+    p_user_id: session.user.id,
   });
-  if (error) throw error;
-  if (!data || !data.length) throw new Error('Sin respuesta de next_doc_number');
+  if (error) {
+    // Fallback a la función original si la nueva no existe aún
+    console.warn('next_doc_number_shared failed, trying legacy:', error.message);
+    const { data: d2, error: e2 } = await sb.rpc('next_doc_number', {
+      p_user_id: session.user.id,
+      p_doc_type: docType,
+      p_year: year,
+    });
+    if (e2) throw e2;
+    if (!d2 || !d2.length) throw new Error('Sin respuesta de next_doc_number');
+    if (oficios.counters[docType]) oficios.counters[docType].last_number = d2[0].next_number;
+    return { number: d2[0].next_number, formatted: d2[0].formatted };
+  }
+  if (!data || !data.length) throw new Error('Sin respuesta de next_doc_number_shared');
   // Actualizar estado local
   if (oficios.counters[docType]) {
     oficios.counters[docType].last_number = data[0].next_number;
@@ -288,8 +302,10 @@ async function saveGeneratedDoc(docType, docNumber, sequential, title, destinata
   if (!window.session) return;
   const year = new Date().getFullYear();
   const caseId = window.currentCase?.id || null;
+  const userName = session.user?.user_metadata?.name || session.user?.email?.split('@')[0] || 'Usuario';
   const { error } = await sb.from('generated_documents').insert({
     user_id: session.user.id,
+    org_id: ORG_ID,
     case_id: caseId,
     doc_type: docType,
     doc_number: docNumber,
@@ -299,6 +315,7 @@ async function saveGeneratedDoc(docType, docNumber, sequential, title, destinata
     destinatario: destinatario,
     content: content,
     metadata: metadata,
+    created_by_name: userName,
   });
   if (error) console.warn('saveGeneratedDoc:', error);
 }
@@ -309,13 +326,25 @@ async function saveGeneratedDoc(docType, docNumber, sequential, title, destinata
 async function loadDocHistory() {
   if (!window.session) return [];
   const year = new Date().getFullYear();
+  // Cargar historial COMPARTIDO de toda la organización
   const { data, error } = await sb.from('generated_documents')
-    .select('id,doc_type,doc_number,sequential,title,destinatario,created_at,case_id')
-    .eq('user_id', session.user.id)
+    .select('id,doc_type,doc_number,sequential,title,destinatario,created_at,case_id,created_by_name,user_id')
+    .eq('org_id', ORG_ID)
     .eq('year', year)
     .order('created_at', { ascending: false })
-    .limit(50);
-  if (error) { console.warn('loadDocHistory:', error); return []; }
+    .limit(80);
+  if (error) {
+    // Fallback: si org_id no existe aún, cargar por user_id
+    console.warn('loadDocHistory org fallback:', error);
+    const { data: d2 } = await sb.from('generated_documents')
+      .select('id,doc_type,doc_number,sequential,title,destinatario,created_at,case_id')
+      .eq('user_id', session.user.id)
+      .eq('year', year)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    oficios.history = d2 || [];
+    return oficios.history;
+  }
   oficios.history = data || [];
   return oficios.history;
 }
@@ -341,7 +370,10 @@ async function renderF12Panel() {
         <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--gold),#d97706);display:flex;align-items:center;justify-content:center;font-size:18px">📨</div>
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--text)">Oficios, Memos y Resoluciones</div>
-          <div style="font-size:12px;color:var(--text-dim)">Generación con numeración correlativa automática</div>
+          <div style="font-size:12px;color:var(--text-dim)">Numeración correlativa compartida por el equipo</div>
+        </div>
+        <div style="margin-left:auto;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;padding:3px 10px;font-size:10px;color:#16a34a;font-weight:600;display:flex;align-items:center;gap:4px" title="Los correlativos son compartidos por todos los miembros del equipo UMAG">
+          👥 Equipo UMAG
         </div>
       </div>
 
@@ -614,12 +646,13 @@ window.saveDocFormats = async function() {
     const pfx = document.getElementById('oficioPrefix_' + t)?.value.trim() || oficios.counters[t]?.prefix || '';
     const { error } = await sb.from('document_counters').upsert({
       user_id: session.user.id,
+      org_id: ORG_ID,
       doc_type: t,
       year: year,
       last_number: oficios.counters[t]?.last_number || 0,
       prefix: pfx,
       format_template: tpl,
-    }, { onConflict: 'user_id,doc_type,year' });
+    }, { onConflict: 'org_id,doc_type,year' });
     if (error) { console.warn('saveDocFormats:', error); showToast('⚠️ Error guardando formato'); return; }
     oficios.counters[t] = { ...oficios.counters[t], prefix: pfx, format_template: tpl };
   }
@@ -647,14 +680,19 @@ window.oficioLoadHistory = async function() {
   }
 
   const typeIcons = { oficio: '📨', memo: '📋', resolucion: '📜' };
-  container.innerHTML = history.map(d => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px">
+  const myId = session?.user?.id;
+  container.innerHTML = history.map(d => {
+    const isMine = d.user_id === myId;
+    const author = d.created_by_name || (isMine ? 'Tú' : '');
+    return `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px${isMine?'':';background:var(--surface2,#fafafa)'}">
       <span>${typeIcons[d.doc_type] || '📄'}</span>
       <span style="font-weight:600;color:var(--gold);min-width:90px">${d.doc_number}</span>
       <span style="color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.title || '(sin título)'}</span>
+      ${author ? `<span style="color:var(--text-muted);font-size:10px;white-space:nowrap;background:var(--surface);padding:1px 6px;border-radius:8px;border:1px solid var(--border)">👤 ${author}</span>` : ''}
       <span style="color:var(--text-muted);font-size:10px;white-space:nowrap">${new Date(d.created_at).toLocaleDateString('es-CL')}</span>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 };
 
 /* ══════════════════════════════════════════
