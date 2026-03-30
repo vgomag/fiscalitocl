@@ -3,6 +3,7 @@
  * ──────────────
  * Sistema de generación de Oficios, Memorándums y Resoluciones
  * con numeración correlativa, formato personalizable y export a Word.
+ * Sincroniza con Google Sheet compartido del equipo.
  * Dependencias: supabaseClient (sb), mod-export-word.js (WORD_FORMAT helpers)
  */
 (function(){
@@ -16,28 +17,212 @@ const oficios = {
   history: [],         // Últimos docs generados
   currentType: 'oficio',
   loaded: false,
+  sheetId: null,       // Google Sheet ID (se guarda en Supabase user settings)
+  sheetConnected: false,
+  sheetData: {},       // { oficio: [...rows], memo: [...rows], resolucion: [...rows] }
 };
 window._oficiosState = oficios;
 
 /* ══════════════════════════════════════════
-   CARGAR CONTADORES DESDE SUPABASE
+   CONFIGURACIÓN DE HOJAS DEL GOOGLE SHEET
+   ══════════════════════════════════════════ */
+/* Cada hoja del Sheet tiene estas columnas (basado en los docs del equipo):
+   Oficios:       Fecha | Nº | Destino      | Referencia | Fiscal
+   Memos:         Fecha | Nº | Destino      | Referencia | Fiscal
+   Resoluciones:  Fecha | N° | Destinatario | Tema       | Expediente | Fiscal
+*/
+const SHEET_CONFIG = {
+  oficio:     { sheetName: 'Oficios',       cols: ['Fecha','Nº','Destino','Referencia','Fiscal'] },
+  memo:       { sheetName: 'Memos',         cols: ['Fecha','Nº','Destino','Referencia','Fiscal'] },
+  resolucion: { sheetName: 'Resoluciones',  cols: ['Fecha','N°','Destinatario','Tema','Expediente','Fiscal'] },
+};
+
+/* ══════════════════════════════════════════
+   GOOGLE SHEETS API CALLS (vía Netlify function)
+   ══════════════════════════════════════════ */
+async function callSheets(body) {
+  const res = await fetch('/.netlify/functions/sheets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!data.ok && res.status >= 400) throw new Error(data.error || 'Error en Sheets API');
+  return data;
+}
+
+/* Cargar el Sheet ID desde Supabase settings */
+async function loadSheetConfig() {
+  if (!window.session) return;
+  try {
+    const { data } = await sb.from('user_settings')
+      .select('value')
+      .eq('user_id', session.user.id)
+      .eq('key', 'oficios_sheet_id')
+      .maybeSingle();
+    if (data?.value) {
+      oficios.sheetId = data.value;
+      oficios.sheetConnected = true;
+    }
+  } catch (e) {
+    // Tabla user_settings puede no existir aún — intentar case_metadata como fallback
+    try {
+      const { data } = await sb.from('case_metadata')
+        .select('value')
+        .eq('key', 'oficios_sheet_id')
+        .maybeSingle();
+      if (data?.value) {
+        oficios.sheetId = data.value;
+        oficios.sheetConnected = true;
+      }
+    } catch (e2) { /* ignorar */ }
+  }
+}
+
+/* Guardar el Sheet ID en Supabase */
+async function saveSheetConfig(sheetId) {
+  if (!window.session) return;
+  oficios.sheetId = sheetId;
+  oficios.sheetConnected = !!sheetId;
+  // Intentar guardar en user_settings, fallback a case_metadata
+  try {
+    await sb.from('user_settings').upsert({
+      user_id: session.user.id,
+      key: 'oficios_sheet_id',
+      value: sheetId,
+    }, { onConflict: 'user_id,key' });
+  } catch (e) {
+    try {
+      await sb.from('case_metadata').upsert({
+        key: 'oficios_sheet_id',
+        value: sheetId,
+        case_id: '00000000-0000-0000-0000-000000000000',
+      }, { onConflict: 'case_id,key' });
+    } catch (e2) { console.warn('No se pudo guardar sheetId:', e2); }
+  }
+}
+
+/* Leer datos de una hoja y encontrar el último número usado */
+async function readSheetTab(docType) {
+  if (!oficios.sheetId) return null;
+  const cfg = SHEET_CONFIG[docType];
+  if (!cfg) return null;
+  try {
+    const res = await callSheets({
+      action: 'read',
+      spreadsheetId: oficios.sheetId,
+      sheetName: cfg.sheetName,
+    });
+    if (!res.ok) return null;
+    oficios.sheetData[docType] = res.values || [];
+    return res.values;
+  } catch (e) {
+    console.warn('readSheetTab error:', e);
+    return null;
+  }
+}
+
+/* Obtener el último número correlativo de la hoja */
+function getLastNumberFromSheet(docType) {
+  const rows = oficios.sheetData[docType];
+  if (!rows || rows.length < 2) return 0; // solo header o vacía
+  let maxNum = 0;
+  // Columna del número es siempre la 2da (índice 1)
+  for (let i = 1; i < rows.length; i++) {
+    const val = parseInt(rows[i]?.[1]);
+    if (!isNaN(val) && val > maxNum) {
+      // Solo contar como "usado" si tiene al menos fecha o destino rellenado
+      const hasData = (rows[i][0] && String(rows[i][0]).trim()) || (rows[i][2] && String(rows[i][2]).trim());
+      if (hasData) maxNum = val;
+    }
+  }
+  return maxNum;
+}
+
+/* Encontrar la fila correcta para escribir (busca la fila pre-rellenada con el número, o append) */
+function findRowForNumber(docType, num) {
+  const rows = oficios.sheetData[docType];
+  if (!rows) return null;
+  for (let i = 1; i < rows.length; i++) {
+    const rowNum = parseInt(rows[i]?.[1]);
+    if (rowNum === num) {
+      // Verificar que la fila esté vacía (solo tiene el número)
+      const hasData = (rows[i][0] && String(rows[i][0]).trim()) || (rows[i][2] && String(rows[i][2]).trim());
+      if (!hasData) return i + 1; // +1 porque Sheets es 1-indexed
+    }
+  }
+  return null; // No encontró fila pre-rellenada → append
+}
+
+/* Escribir una nueva fila en el Sheet */
+async function writeToSheet(docType, rowData) {
+  if (!oficios.sheetId) return false;
+  const cfg = SHEET_CONFIG[docType];
+  if (!cfg) return false;
+
+  try {
+    const num = parseInt(rowData[1]);
+    const existingRow = findRowForNumber(docType, num);
+
+    if (existingRow) {
+      // Actualizar fila existente (pre-rellenada con el número)
+      const range = `'${cfg.sheetName}'!A${existingRow}:${String.fromCharCode(65 + cfg.cols.length - 1)}${existingRow}`;
+      await callSheets({
+        action: 'update',
+        spreadsheetId: oficios.sheetId,
+        range: range,
+        values: rowData,
+      });
+    } else {
+      // Append al final
+      await callSheets({
+        action: 'append',
+        spreadsheetId: oficios.sheetId,
+        sheetName: cfg.sheetName,
+        row: rowData,
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn('writeToSheet error:', e);
+    showToast('⚠️ No se pudo escribir en Google Sheet: ' + e.message);
+    return false;
+  }
+}
+
+/* Sincronizar contadores desde el Sheet */
+async function syncCountersFromSheet() {
+  if (!oficios.sheetId) return;
+  for (const docType of ['oficio', 'memo', 'resolucion']) {
+    await readSheetTab(docType);
+    const lastNum = getLastNumberFromSheet(docType);
+    if (oficios.counters[docType]) {
+      oficios.counters[docType].last_number = Math.max(oficios.counters[docType].last_number, lastNum);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════
+   CARGAR CONTADORES (Supabase + Google Sheet)
    ══════════════════════════════════════════ */
 async function loadDocCounters() {
   if (!window.session) return;
   const year = new Date().getFullYear();
+
+  // Defaults
+  oficios.counters = {
+    oficio:     { last_number: 0, prefix: 'OF',   format_template: '{PREFIX}-{NUM}/{YEAR}' },
+    memo:       { last_number: 0, prefix: 'MEMO', format_template: '{PREFIX}-{NUM}/{YEAR}' },
+    resolucion: { last_number: 0, prefix: 'RES',  format_template: '{PREFIX}-{NUM}/{YEAR}' },
+  };
+
+  // 1. Cargar desde Supabase
   try {
     const { data, error } = await sb.from('document_counters')
       .select('doc_type,last_number,prefix,format_template')
       .eq('user_id', session.user.id)
       .eq('year', year);
-    if (error) { console.warn('loadDocCounters:', error); return; }
-    // Defaults
-    oficios.counters = {
-      oficio:     { last_number: 0, prefix: 'OF',   format_template: '{PREFIX}-{NUM}/{YEAR}' },
-      memo:       { last_number: 0, prefix: 'MEMO', format_template: '{PREFIX}-{NUM}/{YEAR}' },
-      resolucion: { last_number: 0, prefix: 'RES',  format_template: '{PREFIX}-{NUM}/{YEAR}' },
-    };
-    if (data) {
+    if (!error && data) {
       data.forEach(d => {
         oficios.counters[d.doc_type] = {
           last_number: d.last_number,
@@ -46,8 +231,17 @@ async function loadDocCounters() {
         };
       });
     }
-    oficios.loaded = true;
-  } catch (e) { console.warn('loadDocCounters error:', e); }
+  } catch (e) { console.warn('loadDocCounters supabase error:', e); }
+
+  // 2. Cargar Sheet ID y sincronizar con Google Sheet (fuente de verdad del equipo)
+  await loadSheetConfig();
+  if (oficios.sheetConnected) {
+    try {
+      await syncCountersFromSheet();
+    } catch (e) { console.warn('Sheet sync error:', e); }
+  }
+
+  oficios.loaded = true;
 }
 
 /* ══════════════════════════════════════════
@@ -202,6 +396,19 @@ async function renderF12Panel() {
         </button>
       </div>
 
+      <!-- Google Sheet vinculado -->
+      <div style="background:${oficios.sheetConnected?'rgba(34,197,94,.06)':'var(--surface2)'};border:1px solid ${oficios.sheetConnected?'rgba(34,197,94,.3)':'var(--border)'};border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:18px">${oficios.sheetConnected?'🟢':'🔗'}</span>
+        <div style="flex:1;min-width:150px">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${oficios.sheetConnected?'Google Sheet conectado':'Vincular Google Sheet del equipo'}</div>
+          <div style="font-size:10px;color:var(--text-dim)">${oficios.sheetConnected?'Los correlativos se sincronizan con el Sheet compartido':'Conecta el Sheet donde el equipo lleva los correlativos'}</div>
+        </div>
+        ${oficios.sheetConnected
+          ?'<button onclick="oficioDisconnectSheet()" style="padding:4px 10px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;font-size:10px;cursor:pointer">Desvincular</button>'
+          :'<button onclick="oficioConnectSheet()" style="padding:5px 12px;background:#4285f4;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">Conectar Sheet</button>'
+        }
+      </div>
+
       <!-- Configuración de formato -->
       <details style="margin-bottom:12px">
         <summary style="font-size:12px;color:var(--text-dim);cursor:pointer;user-select:none">⚙️ Configurar formato de numeración</summary>
@@ -242,6 +449,92 @@ async function renderF12Panel() {
   // Marcar tipo activo
   oficioSelectType(oficios.currentType || 'oficio');
 }
+
+/* ══════════════════════════════════════════
+   CONECTAR / DESVINCULAR GOOGLE SHEET
+   ══════════════════════════════════════════ */
+window.oficioConnectSheet = async function() {
+  const url = prompt(
+    '📊 Pega la URL del Google Sheet donde el equipo lleva los correlativos.\n\n' +
+    'El Sheet debe tener 3 hojas llamadas: "Oficios", "Memos", "Resoluciones"\n' +
+    'con las mismas columnas que usan actualmente.\n\n' +
+    'IMPORTANTE: El Sheet debe estar compartido con la Service Account de Google.'
+  );
+  if (!url) return;
+
+  // Extraer el spreadsheet ID de la URL
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!match) {
+    showToast('⚠️ URL no válida. Debe ser una URL de Google Sheets.');
+    return;
+  }
+  const sheetId = match[1];
+
+  // Verificar acceso
+  showToast('🔍 Verificando acceso al Sheet...');
+  try {
+    const info = await callSheets({ action: 'info', spreadsheetId: sheetId });
+    if (!info.ok) {
+      showToast('⚠️ No se puede acceder al Sheet. ¿Está compartido con la Service Account?');
+      return;
+    }
+
+    // Verificar que tenga las hojas correctas
+    const sheetNames = (info.sheets || []).map(s => s.name.toLowerCase());
+    const required = ['oficios', 'memos', 'resoluciones'];
+    const missing = required.filter(r => !sheetNames.some(s => s.includes(r)));
+
+    if (missing.length > 0) {
+      const proceed = confirm(
+        `El Sheet "${info.title}" no tiene las hojas: ${missing.join(', ')}.\n\n` +
+        `Hojas encontradas: ${(info.sheets || []).map(s => s.name).join(', ')}\n\n` +
+        `¿Quieres vincularlo de todos modos? (puedes crear las hojas después)`
+      );
+      if (!proceed) return;
+
+      // Mapear nombres reales a la configuración
+      if (info.sheets) {
+        info.sheets.forEach(s => {
+          const name = s.name.toLowerCase();
+          if (name.includes('oficio'))      SHEET_CONFIG.oficio.sheetName = s.name;
+          if (name.includes('memo'))        SHEET_CONFIG.memo.sheetName = s.name;
+          if (name.includes('resol'))       SHEET_CONFIG.resolucion.sheetName = s.name;
+        });
+      }
+    } else {
+      // Mapear nombres exactos
+      (info.sheets || []).forEach(s => {
+        const name = s.name.toLowerCase();
+        if (name.includes('oficio'))      SHEET_CONFIG.oficio.sheetName = s.name;
+        if (name.includes('memo'))        SHEET_CONFIG.memo.sheetName = s.name;
+        if (name.includes('resol'))       SHEET_CONFIG.resolucion.sheetName = s.name;
+      });
+    }
+
+    // Guardar
+    await saveSheetConfig(sheetId);
+    showToast(`✓ Sheet "${info.title}" vinculado correctamente`);
+
+    // Sincronizar contadores
+    await syncCountersFromSheet();
+
+    // Re-renderizar panel
+    renderF12Panel();
+
+  } catch (e) {
+    console.error('oficioConnectSheet:', e);
+    showToast('⚠️ Error conectando: ' + e.message);
+  }
+};
+
+window.oficioDisconnectSheet = async function() {
+  if (!confirm('¿Desvincular el Google Sheet? Los correlativos seguirán funcionando desde Supabase.')) return;
+  await saveSheetConfig('');
+  oficios.sheetConnected = false;
+  oficios.sheetId = null;
+  showToast('✓ Sheet desvinculado');
+  renderF12Panel();
+};
 
 /* ══════════════════════════════════════════
    SELECCIONAR TIPO DE DOCUMENTO
@@ -371,11 +664,38 @@ window.assignDocNumber = async function(docType, title, destinatario, content) {
     const { number, formatted } = await getNextDocNumber(docType);
     await saveGeneratedDoc(docType, formatted, number, title, destinatario, content);
 
+    // Escribir en Google Sheet del equipo
+    if (oficios.sheetConnected) {
+      const fecha = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const fiscal = session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || '—';
+      const cfg = SHEET_CONFIG[docType];
+
+      let rowData;
+      if (docType === 'resolucion') {
+        // Resoluciones tienen 6 columnas: Fecha, N°, Destinatario, Tema, Expediente, Fiscal
+        const expediente = window.currentCase?.nueva_resolucion || window.currentCase?.name || '';
+        rowData = [fecha, number, destinatario, title, expediente, fiscal];
+      } else {
+        // Oficios y Memos: Fecha, Nº, Destino, Referencia, Fiscal
+        rowData = [fecha, number, destinatario, title, fiscal];
+      }
+
+      // Re-leer el sheet antes de escribir (por si alguien más agregó filas)
+      await readSheetTab(docType);
+      const written = await writeToSheet(docType, rowData);
+      if (written) {
+        showToast(`✓ ${formatted} registrado en Supabase y Google Sheet`);
+      } else {
+        showToast(`✓ ${formatted} registrado en Supabase (Sheet no disponible)`);
+      }
+    } else {
+      showToast(`✓ Documento ${formatted} registrado`);
+    }
+
     // Actualizar UI
     const el = document.getElementById('oficioNext_' + docType);
     if (el) el.textContent = previewNextNumber(docType);
 
-    showToast(`✓ Documento ${formatted} registrado`);
     return { number, formatted };
   } catch (e) {
     console.warn('assignDocNumber error:', e);
