@@ -25,6 +25,10 @@
 [functions."drive-extract"]
   timeout = 26
 
+[[edge_functions]]
+  function = "chat-stream"
+  path = "/api/chat-stream"
+
 [[headers]]
   for = "/*"
   [headers.values]
