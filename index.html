@@ -127,7 +127,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .chip:hover{border-color:var(--gold-dim);color:var(--gold);background:var(--gold-glow);}
 
 /* Case detail */
-.case-header{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.case-header{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;max-height:45vh;overflow-y:auto;}
+.informe-body.collapsed{max-height:0 !important;overflow:hidden !important;padding:0 8px !important;border-color:transparent !important;margin-top:0 !important;}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 14px;flex-shrink:0;overflow-x:auto;}
 .tab{padding:8px 12px;font-size:11px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;font-family:var(--font-body);background:none;border-top:none;border-left:none;border-right:none;}
 .tab:hover{color:var(--text);}
@@ -1543,7 +1544,14 @@ function renderCaseHeader(){
       ${f('Fecha Res. Término',c.fecha_resolucion_termino)}
       ${c.medida_cautelar?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Medida cautelar</div><div style="font-weight:500;color:var(--green)">Sí${c.medida_cautelar_detalle?' — '+esc(c.medida_cautelar_detalle):''}</div></div>`:''}
       ${c.observaciones?`<div style="grid-column:1/-1"><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Observaciones</div><div style="font-size:11.5px;color:var(--text-dim)">${esc(c.observaciones)}</div></div>`:''}
-      ${c.informe_final?`<div style="grid-column:1/-1"><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">📝 Informe de Investigadora / Vista Fiscal</div><div style="font-size:11.5px;color:var(--text-dim);white-space:pre-wrap">${esc(c.informe_final)}</div></div>`:''}
+      ${c.informe_final?`<div style="grid-column:1/-1">
+        <div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="this.parentElement.querySelector('.informe-body').classList.toggle('collapsed');this.querySelector('.informe-arrow').textContent=this.parentElement.querySelector('.informe-body').classList.contains('collapsed')?'▶':'▼'">
+          <span class="informe-arrow" style="font-size:10px;color:var(--text-muted);transition:transform .2s">▼</span>
+          <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">📝 Informe de Investigadora / Vista Fiscal</div>
+          <span style="font-size:9px;color:var(--text-muted);margin-left:4px">(clic para colapsar/expandir)</span>
+        </div>
+        <div class="informe-body" style="font-size:11.5px;color:var(--text-dim);white-space:pre-wrap;max-height:150px;overflow-y:auto;margin-top:4px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);transition:max-height .3s ease">${esc(c.informe_final)}</div>
+      </div>`:''}
     </div>`;
 }
 
