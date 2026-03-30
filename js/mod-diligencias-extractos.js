@@ -836,9 +836,9 @@ const NIVEL_DETALLE={
   cargos:2,
   vista_fiscal:2,
   prueba_documental:2,
-  /* NIVEL 1 — Breve (3-5 oraciones) */
+  oficio:2,
+  /* NIVEL 1 — Detalle medio (5-8 oraciones) */
   resolucion_inicio:1,
-  oficio:1,
   acta:1,
   notificacion:1,
   otro:1,
@@ -883,11 +883,11 @@ async function generateParrafosModelo(){
     const{data:dils}=await sb.from('diligencias')
       .select('diligencia_type,diligencia_label,file_name,fojas_inicio,fojas_fin,fecha_diligencia,ai_summary,extracted_text')
       .eq('case_id',currentCase.id)
-      .not('ai_summary','is',null)
+      .or('ai_summary.not.is.null,extracted_text.not.is.null')
       .order('order_index',{ascending:true})
       .order('fecha_diligencia',{ascending:true});
 
-    if(!dils?.length){showToast('⚠️ No hay diligencias con resumen IA');return;}
+    if(!dils?.length){showToast('⚠️ No hay diligencias con contenido procesado');return;}
 
     /* 2. Cross-case learning: párrafos de otros casos terminados */
     let referenceStyle='';
@@ -910,15 +910,15 @@ async function generateParrafosModelo(){
     /* 3. Construir contexto de diligencias con niveles de detalle */
     const dilContext=dils.map((d,i)=>{
       const nivel=NIVEL_DETALLE[d.diligencia_type]||1;
-      const nivelLabel=nivel===3?'NIVEL 3 — MÁXIMO DETALLE (10-20 oraciones: relato completo, percepción, impacto, coherencia)':
-                       nivel===2?'NIVEL 2 — DETALLE MEDIO (5-8 oraciones: contexto, contenido, fundamentos)':
-                       'NIVEL 1 — BREVE (3-5 oraciones: tipo, fecha, emisor, contenido esencial)';
+      const nivelLabel=nivel===3?'NIVEL 3 — MÁXIMO DETALLE (15-30 oraciones: relato completo cronológico, percepción, impacto, coherencia con otras declaraciones, citas textuales)':
+                       nivel===2?'NIVEL 2 — DETALLE ALTO (8-15 oraciones: contexto, contenido detallado, fundamentos, conclusiones, datos específicos)':
+                       'NIVEL 1 — DETALLE MEDIO (5-8 oraciones: tipo, número, fecha, emisor, contenido esencial, personas y acciones)';
       const fojas=d.fojas_inicio?
         (d.fojas_fin?`fojas ${d.fojas_inicio} a ${d.fojas_fin}`:`fojas ${d.fojas_inicio}`):
         `fojas [COMPLETAR]`;
-      const texto=nivel===3?(d.extracted_text||d.ai_summary||'').substring(0,3000):
-                  nivel===2?(d.ai_summary||'').substring(0,1500):
-                  (d.ai_summary||'').substring(0,600);
+      const texto=nivel===3?(d.extracted_text||d.ai_summary||'').substring(0,8000):
+                  nivel===2?(d.extracted_text||d.ai_summary||'').substring(0,5000):
+                  (d.extracted_text||d.ai_summary||'').substring(0,3000);
       return `### DILIGENCIA ${i+1}: ${d.diligencia_label||d.file_name||'Documento'}\n- Tipo: ${d.diligencia_type}\n- ${nivelLabel}\n- Fojas: ${fojas}\n- Fecha: ${d.fecha_diligencia||'sin fecha'}\n- Contenido/Extracto:\n${texto}`;
     }).join('\n\n');
 
@@ -940,9 +940,9 @@ async function generateParrafosModelo(){
 
 ## NIVELES DE DETALLE
 
-- NIVEL 1 (doc administrativo): 3-5 oraciones. Tipo, número, fecha, emisor, contenido esencial.
-- NIVEL 2 (doc sustantivo): 5-8 oraciones. Contexto, contenido detallado, fundamentos, conclusiones.
-- NIVEL 3 (denuncia/declaración): 10-20 oraciones. MÁXIMO DETALLE:
+- NIVEL 1 (doc administrativo): 5-8 oraciones. Tipo, número, fecha, emisor, destinatario, contenido esencial, acciones ordenadas, personas involucradas.
+- NIVEL 2 (doc sustantivo): 8-15 oraciones. Contexto, contenido detallado, fundamentos normativos, datos específicos (montos, fechas, períodos), conclusiones, destinatarios.
+- NIVEL 3 (denuncia/declaración): 15-30 oraciones. MÁXIMO DETALLE:
   a) Identificación: nombre, cargo, estamento, dependencia
   b) Contexto procesal: fecha, ante quién, calidad procesal
   c) Relato cronológico: TODOS los hechos, fechas, lugares, personas, conductas
@@ -981,7 +981,7 @@ ${referenceStyle}
 GENERA UN PÁRRAFO FORMAL POR CADA DILIGENCIA, numerados. Respeta el NIVEL DE DETALLE indicado para cada una. Solo texto plano, sin markdown.`;
 
     /* 6. Llamar en LOTES para evitar timeout (max ~10 diligencias por lote) */
-    const DILS_PER_BATCH=10;
+    const DILS_PER_BATCH=4;
     const batches=[];
     const dilEntries=dilContext.split('### DILIGENCIA ').filter(s=>s.trim());
     for(let i=0;i<dilEntries.length;i+=DILS_PER_BATCH){
@@ -1000,28 +1000,57 @@ GENERA UN PÁRRAFO FORMAL POR CADA DILIGENCIA, numerados. Respeta el NIVEL DE DE
 ${b>0?`\nCONTINUACIÓN: Continúa numerando desde el párrafo anterior. Este es el lote ${b+1} de ${batches.length}.\n`:''}
 ## DILIGENCIAS (lote ${b+1}/${batches.length}, diligencias ${startNum} a ${Math.min(startNum+DILS_PER_BATCH-1,dils.length)})
 
-${batches[b].substring(0,12000)}
+${batches[b].substring(0,35000)}
 ${referenceStyle?'\n'+referenceStyle.substring(0,4000):''}
 
 GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL DE DETALLE indicado para cada una. NUNCA omitas diligencias. Texto plano sin markdown.`;
 
       try{
+        /* Usar streaming para evitar timeout de Netlify */
         const r=await authFetch(CHAT_ENDPOINT,{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             model:'claude-sonnet-4-20250514',
-            max_tokens:4096,
+            max_tokens:8192,
+            stream:true,
             system:systemPrompt,
             messages:[{role:'user',content:batchPrompt}]
           })
         });
         const ct=r.headers.get('content-type')||'';
-        if(!ct.includes('json')){console.warn('Lote '+(b+1)+' timeout');continue;}
-        const data=await r.json();
-        if(data.error){console.warn('Lote '+(b+1)+':',data.error);continue;}
-        const txt=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('')||'';
+        let txt='';
+        if(ct.includes('text/event-stream')){
+          /* Leer stream SSE */
+          const reader=r.body.getReader();
+          const decoder=new TextDecoder();
+          let buf='';
+          while(true){
+            const{done,value}=await reader.read();
+            if(done)break;
+            buf+=decoder.decode(value,{stream:true});
+            const lines=buf.split('\n');
+            buf=lines.pop()||'';
+            for(const line of lines){
+              if(!line.startsWith('data: '))continue;
+              const payload=line.slice(6).trim();
+              if(payload==='[DONE]')continue;
+              try{
+                const ev=JSON.parse(payload);
+                if(ev.type==='content_block_delta'&&ev.delta?.text){
+                  txt+=ev.delta.text;
+                }
+              }catch(_){}
+            }
+          }
+        }else if(ct.includes('json')){
+          const data=await r.json();
+          if(data.error){console.warn('Lote '+(b+1)+':',data.error);continue;}
+          txt=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('')||'';
+        }else{console.warn('Lote '+(b+1)+' timeout/error');continue;}
         if(txt)paragraphs+=(paragraphs?'\n\n':'')+txt;
+        /* Actualizar progreso visual */
+        if(content){content.innerHTML=`<div class="loading">⏳ Lote ${b+1}/${batches.length} completado (${txt.length} chars)… generando siguiente…</div>`;}
       }catch(e){console.warn('Lote '+(b+1)+' error:',e.message);}
     }
 
