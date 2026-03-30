@@ -8,6 +8,10 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPCEtLSBCYWNrZ3JvdW5kIGNpcmNsZSAtLT4KICA8cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI3IiBmaWxsPSIjNGY0NmU1Ii8+CiAgCiAgPCEtLSBTY2FsZXMgb2YganVzdGljZSAoc2ltcGxpZmllZCwgY2xlYW4pIC0tPgogIDwhLS0gQ2VudGVyIHBvc3QgLS0+CiAgPHJlY3QgeD0iMTUuNSIgeT0iNyIgd2lkdGg9IjEiIGhlaWdodD0iMTYiIHJ4PSIwLjUiIGZpbGw9IiNmZmYiLz4KICA8IS0tIEJhc2UgLS0+CiAgPHJlY3QgeD0iMTEiIHk9IjIzIiB3aWR0aD0iMTAiIGhlaWdodD0iMS41IiByeD0iMC43NSIgZmlsbD0iI2ZmZiIvPgogIDwhLS0gVG9wIGJlYW0gLS0+CiAgPHJlY3QgeD0iOSIgeT0iOSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjEuMiIgcng9IjAuNiIgZmlsbD0iI2ZmZiIvPgogIAogIDwhLS0gTGVmdCBwYW4gc3RyaW5ncyAtLT4KICA8bGluZSB4MT0iMTAiIHkxPSIxMC4yIiB4Mj0iOSIgeTI9IjE2IiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMC44IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8bGluZSB4MT0iMTEiIHkxPSIxMC4yIiB4Mj0iMTIiIHkyPSIxNiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjAuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPCEtLSBMZWZ0IHBhbiAtLT4KICA8cGF0aCBkPSJNOC41IDE2IFExMC41IDE4IDEyLjUgMTYiIHN0cm9rZT0iI2U5YzQ2YSIgc3Ryb2tlLXdpZHRoPSIxLjEiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIAogIDwhLS0gUmlnaHQgcGFuIHN0cmluZ3MgLS0+CiAgPGxpbmUgeDE9IjIxIiB5MT0iMTAuMiIgeDI9IjIwIiB5Mj0iMTYiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIwLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxsaW5lIHgxPSIyMiIgeTE9IjEwLjIiIHgyPSIyMyIgeTI9IjE2IiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMC44IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8IS0tIFJpZ2h0IHBhbiAtLT4KICA8cGF0aCBkPSJNMTkuNSAxNiBRMjEuNSAxOCAyMy41IDE2IiBzdHJva2U9IiNlOWM0NmEiIHN0cm9rZS13aWR0aD0iMS4xIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAKICA8IS0tIFRvcCBwaXZvdCBkb3QgLS0+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSI5IiByPSIxLjIiIGZpbGw9IiNlOWM0NmEiLz4KPC9zdmc+"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,450;0,500;0,600;0,700;1,400&family=Geist+Mono:wght@400;500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* ══════════════════════════════════════════
    FISCALITO DESIGN v2 — Design System
@@ -333,6 +337,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .send-btn svg{width:15px;height:15px;fill:currentColor;}
 .input-hint{display:flex;justify-content:space-between;padding:3px 14px 5px;flex-shrink:0;}
 .input-attach-hint{font-size:9.5px;color:var(--text-muted);}
+.attached-files-bar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 8px;max-height:60px;overflow-y:auto;}
+.attached-file-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--gold-glow);border:1px solid rgba(79,70,229,.18);border-radius:12px;font-size:10px;color:var(--text-dim);max-width:200px;}
+.attached-file-chip .af-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.attached-file-chip .af-remove{cursor:pointer;color:var(--text-muted);font-size:12px;line-height:1;}
+.attached-file-chip .af-remove:hover{color:var(--red);}
+.attached-file-chip.af-loading{opacity:.6;}
 .fn-panel{display:none;flex-direction:column;align-items:flex-start;padding:14px;overflow-y:auto;flex:1;gap:6px;}
 .fn-panel-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--border);font-size:12.5px;color:var(--text-dim);cursor:pointer;width:100%;max-width:600px;transition:all .15s;}
 .fn-panel-link:hover{border-color:var(--gold-dim);color:var(--gold);background:var(--gold-glow);}
@@ -821,13 +831,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
             <button class="input-attach" title="Adjuntar documento" onclick="document.getElementById('fnDocInput').click()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
-            <input type="file" id="fnDocInput" accept=".pdf,.docx,.txt,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.wma,.amr,.aiff,.aif,.caf,.webm,.weba,.3gp,.mp4,.m4v,.mov,.avi,.mkv,.wmv,.flv,audio/*,video/*" style="display:none" onchange="handleFnDocUpload(this)" multiple/>
+            <input type="file" id="fnDocInput" accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.wma,.amr,.aiff,.aif,.caf,.webm,.weba,.3gp,.mp4,.m4v,.mov,.avi,.mkv,.wmv,.flv,audio/*,video/*" style="display:none" onchange="handleFnDocUpload(this)" multiple/>
             <textarea class="input-box" id="inputBox" placeholder="Solicitud concreta…" rows="1"
               onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
             <button class="send-btn" onclick="sendMessage()">
               <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
             </button>
           </div>
+          <div class="attached-files-bar" id="attachedFilesBar" style="display:none;"></div>
           <div class="input-hint" id="inputHint">
             <span id="fnHint" style="font-size:10px;color:var(--text-muted);">Solo expediente</span>
             <span class="input-attach-hint">Adjunte documentos solo si forman parte del expediente</span>
@@ -2818,11 +2829,27 @@ async function sendMessage(){
     // Detectar formato según el mensaje del usuario
     const formatInstr = (activeFn === 'F0' || activeFn === 'F2') ? detectFormatInstruction(text) : '';
 
+    // Incluir contenido de archivos adjuntos en el mensaje del usuario
+    let userContent=text;
+    if(_attachedFiles&&_attachedFiles.length>0){
+      const readyFiles=_attachedFiles.filter(f=>f.status==='ready'&&f.text&&!f.text.startsWith('[Archivo multimedia'));
+      if(readyFiles.length>0){
+        userContent+='\n\n--- DOCUMENTOS ADJUNTOS ---';
+        readyFiles.forEach(f=>{
+          userContent+=`\n\n### Documento: ${f.name}\n${f.text}`;
+        });
+        userContent+='\n--- FIN DOCUMENTOS ADJUNTOS ---';
+      }
+      // Limpiar archivos adjuntos después de enviar
+      _attachedFiles=[];
+      renderAttachedFiles();
+    }
+
     const body={
       model:'claude-sonnet-4-20250514',
       max_tokens:activeFn==='F7'?24000:activeFn==='F8'?16000:activeFn==='F5'?4096:4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
-      messages:[...historyMsgs,{role:'user',content:text}],
+      messages:[...historyMsgs,{role:'user',content:userContent}],
       stream:true
     };
     const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -2938,14 +2965,104 @@ function showTyping(){
 function removeTyping(id){const e=document.getElementById(id);if(e)e.remove();}
 function setLoading(v){const btn=document.getElementById('sendBtn');const inp=document.getElementById('inputBox');if(v){btn?.setAttribute('disabled','true');inp?.setAttribute('disabled','true');}else{btn?.removeAttribute('disabled');inp?.removeAttribute('disabled');inp?.focus();}}
 
-/* ── Fn doc upload ── */
-function handleFnDocUpload(input){
+/* ── Fn doc upload — extracción real de contenido ── */
+let _attachedFiles=[];  // [{name, text, status:'ready'|'loading'|'error'}]
+
+function removeAttachedFile(idx){
+  _attachedFiles.splice(idx,1);
+  renderAttachedFiles();
+}
+function renderAttachedFiles(){
+  const bar=document.getElementById('attachedFilesBar');
+  if(!bar)return;
+  if(!_attachedFiles.length){bar.style.display='none';bar.innerHTML='';return;}
+  bar.style.display='flex';
+  bar.innerHTML=_attachedFiles.map((f,i)=>{
+    const icon=f.name.match(/\.pdf$/i)?'📕':f.name.match(/\.docx?$/i)?'📘':f.name.match(/\.xlsx?$/i)?'📗':f.name.match(/\.csv$/i)?'📗':'📄';
+    const cls=f.status==='loading'?'attached-file-chip af-loading':'attached-file-chip';
+    const statusIcon=f.status==='loading'?'⏳':f.status==='error'?'⚠️':'✓';
+    return `<div class="${cls}" title="${f.status==='error'?'Error al leer':'Contenido extraído: '+((f.text||'').length)+' chars'}">${icon} <span class="af-name">${f.name}</span> <span style="font-size:9px;opacity:.7">${statusIcon}</span> <span class="af-remove" onclick="removeAttachedFile(${i})">✕</span></div>`;
+  }).join('');
+}
+
+async function extractPdfText(file){
+  if(!window.pdfjsLib)throw new Error('PDF.js no cargado');
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let text='';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const content=await page.getTextContent();
+    text+=content.items.map(it=>it.str).join(' ')+'\n';
+  }
+  return text.trim();
+}
+
+async function extractDocxText(file){
+  if(!window.mammoth)throw new Error('Mammoth no cargado');
+  const buf=await file.arrayBuffer();
+  const result=await mammoth.extractRawText({arrayBuffer:buf});
+  return (result.value||'').trim();
+}
+
+async function extractXlsxText(file){
+  if(!window.XLSX)throw new Error('SheetJS no cargado');
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  let text='';
+  wb.SheetNames.forEach(name=>{
+    const ws=wb.Sheets[name];
+    text+=`--- Hoja: ${name} ---\n`;
+    text+=XLSX.utils.sheet_to_csv(ws,{FS:'\t'})+'\n\n';
+  });
+  return text.trim();
+}
+
+async function extractTxtText(file){
+  return await file.text();
+}
+
+async function handleFnDocUpload(input){
   const files=Array.from(input.files||[]);
   if(!files.length)return;
   const inp=document.getElementById('inputBox');
+
+  for(const file of files){
+    const idx=_attachedFiles.length;
+    _attachedFiles.push({name:file.name,text:'',status:'loading'});
+    renderAttachedFiles();
+
+    try{
+      let text='';
+      const ext=file.name.split('.').pop().toLowerCase();
+      if(ext==='pdf'){
+        text=await extractPdfText(file);
+      }else if(ext==='docx'){
+        text=await extractDocxText(file);
+      }else if(ext==='xlsx'||ext==='xls'){
+        text=await extractXlsxText(file);
+      }else if(ext==='txt'||ext==='csv'){
+        text=await extractTxtText(file);
+      }else{
+        // Audio/video files — no text extraction, just note
+        text='[Archivo multimedia: '+file.name+']';
+      }
+      // Limitar a 50000 chars por archivo para no exceder contexto
+      if(text.length>50000)text=text.substring(0,50000)+'\n[...texto truncado a 50.000 caracteres]';
+      _attachedFiles[idx].text=text;
+      _attachedFiles[idx].status='ready';
+    }catch(err){
+      console.warn('Error extrayendo '+file.name+':',err);
+      _attachedFiles[idx].status='error';
+      _attachedFiles[idx].text='[Error al leer: '+err.message+']';
+    }
+    renderAttachedFiles();
+  }
+
+  const readyCount=_attachedFiles.filter(f=>f.status==='ready').length;
   const names=files.map(f=>f.name).join(', ');
-  if(inp&&!inp.value){inp.value=`Analiza los siguientes documentos: ${names}`;}
-  showToast(`✓ ${files.length} documento(s) adjuntos como referencia`);
+  if(inp&&!inp.value){inp.value=`Analiza los siguientes documentos adjuntos: ${names}`;}
+  showToast(`✓ ${readyCount} documento(s) leídos correctamente`);
   input.value='';
 }
 
