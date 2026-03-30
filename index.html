@@ -2914,11 +2914,27 @@ async function sendMessage(){
     msgDiv.innerHTML=`<div class="msg-av-icon">⚖️</div><div class="msg-body"><div class="msg-tag">${activeFn} · ${fn?.name||'Fiscalito'}</div><div class="msg-bub"></div><div class="msg-actions-placeholder"></div></div>`;
     const msgsC=document.getElementById('msgs');
     msgsC.appendChild(msgDiv);
+
+    /* ── Botón flotante "Detener / Continuar" durante streaming (F7/F8 o respuestas largas) ── */
+    let _streamControlBtn=document.getElementById('streamControlBtn');
+    if(_streamControlBtn)_streamControlBtn.remove();
+    if(['F7','F8','F0','F2'].includes(activeFn)){
+      _streamControlBtn=document.createElement('div');
+      _streamControlBtn.id='streamControlBtn';
+      _streamControlBtn.innerHTML=`<button onclick="abortAndContinue()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .2s" onmouseover="this.style.background='var(--gold)';this.style.color='#fff';this.style.borderColor='var(--gold)'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text)';this.style.borderColor='var(--border)'">
+        <span style="font-size:14px">🔄</span> Detener y continuar después
+      </button>`;
+      _streamControlBtn.style.cssText='position:sticky;bottom:70px;display:flex;justify-content:center;z-index:50;padding:8px 0;';
+      msgsC.appendChild(_streamControlBtn);
+    }
     const bubEl=msgDiv.querySelector('.msg-bub');
     const actionsPlaceholder=msgDiv.querySelector('.msg-actions-placeholder');
 
     let fullText='';
     const reader=r.body.getReader();
+    _activeReader=reader;
+    _lastPartialText='';
+    _lastStreamAborted=false;
     const decoder=new TextDecoder();
     let sseBuffer='';
     let streamError=false;
@@ -2954,6 +2970,7 @@ async function sendMessage(){
             const evt=JSON.parse(payload);
             if(evt.type==='content_block_delta'&&evt.delta?.type==='text_delta'){
               fullText+=evt.delta.text;
+              _lastPartialText=fullText;
               scheduleRender();
             }
             if(evt.type==='error'){
@@ -2967,10 +2984,25 @@ async function sendMessage(){
       streamError=true;
       console.warn('Stream read error:',streamErr);
     }
+    _activeReader=null;
+    const _scBtn=document.getElementById('streamControlBtn');if(_scBtn)_scBtn.remove();
     if(!fullText)fullText='Sin respuesta.';
+    _lastPartialText=fullText;
     bubEl.innerHTML=md(fullText);
-    if(streamError&&fullText.length>0){
-      bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:6px;font-size:11px;color:#b45309">⚠️ La respuesta fue interrumpida (posible timeout del servidor). El texto parcial se conservó. Puedes escribir "continúa" para que siga desde donde quedó.</div>`;
+    const wasInterrupted=streamError||_lastStreamAborted;
+    if(wasInterrupted&&fullText.length>0){
+      bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:6px;font-size:11px;color:#b45309;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>⚠️ La respuesta fue interrumpida.</span>
+        <button onclick="continueFromPartial()" style="background:var(--gold);color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">▶ Continuar redacción</button>
+      </div>`;
+    }
+    /* Botón "Continuar" siempre visible para F7/F8 cuando la respuesta parece cortada */
+    const looksIncomplete=fullText.length>500&&!/\n\s*$/.test(fullText)&&!fullText.trim().endsWith('.')&&!fullText.trim().endsWith('---');
+    if(!wasInterrupted&&looksIncomplete&&['F7','F8'].includes(activeFn)){
+      bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:6px;font-size:11px;color:#1e40af;display:flex;align-items:center;gap:8px">
+        <span>La respuesta podría estar incompleta.</span>
+        <button onclick="continueFromPartial()" style="background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer">▶ Continuar redacción</button>
+      </div>`;
     }
     actionsPlaceholder.outerHTML=actions;
     msgsC.scrollTop=msgsC.scrollHeight;trimDomMessages();
@@ -2978,11 +3010,33 @@ async function sendMessage(){
     if(currentCase&&session){
       sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
     }
-  }catch(err){removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
+  }catch(err){_activeReader=null;const _scb=document.getElementById('streamControlBtn');if(_scb)_scb.remove();removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
   finally{setLoading(false);}
 }
 
 function quickChat(text){showView('viewWelcome');pickFn('F0');document.getElementById('inputBox').value=text;sendMessage();}
+
+/* ── Abortar stream activo y continuar ── */
+let _activeReader=null;
+let _lastPartialText='';
+let _lastStreamAborted=false;
+
+function abortAndContinue(){
+  /* Cancelar el reader activo si existe */
+  if(_activeReader){try{_activeReader.cancel();}catch(e){}}
+  _lastStreamAborted=true;
+  /* Pequeño delay para que el stream termine de cerrarse */
+  setTimeout(()=>continueFromPartial(),300);
+}
+
+async function continueFromPartial(){
+  if(!_lastPartialText||_lastPartialText.length<20){showToast('No hay texto parcial para continuar');return;}
+  /* Tomar los últimos ~800 chars como contexto de continuación */
+  const tail=_lastPartialText.slice(-800);
+  const continuePrompt=`INSTRUCCIÓN CRÍTICA: Tu respuesta anterior fue cortada. El último fragmento que generaste fue:\n\n---\n${tail}\n---\n\nCONTINÚA EXACTAMENTE desde donde quedaste. NO repitas lo anterior, NO agregues encabezados nuevos, NO empieces de cero. Simplemente continúa la redacción desde el punto exacto donde se cortó el texto.`;
+  document.getElementById('inputBox').value=continuePrompt;
+  sendMessage();
+}
 
 /* ── Selector de formato manual ── */
 function toggleFormatChip(btn, format) {
