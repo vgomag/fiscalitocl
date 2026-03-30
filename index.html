@@ -2326,7 +2326,7 @@ function pickFn(code){
       const isActive=f.code===code;
       const panel=FN_PANELS[f.code];
       const icon=panel?.icon||'';
-      const shortName=f.name.replace('Consulta General','General').replace('Redacción y Estilo','Redacción').replace('Cuestionario Inculpado','Inculpado').replace('Cuestionario Testigos','Testigos').replace('Análisis IRAC','IRAC').replace('Formulación de Cargos','Cargos').replace('Vista / Informe Final','Vista').replace('Informe en Derecho','Derecho').replace('Redactar Plantilla','Plantilla').replace('Chat Jurisprudencial','Jurisp.').replace('Transcripción de Actas','Transcripción');
+      const shortName=f.name.replace('Consulta General','General').replace('Redacción y Estilo','Redacción').replace('Cuestionario Inculpado','Inculpado').replace('Cuestionario Testigos','Testigos').replace('Análisis IRAC','IRAC').replace('Formulación de Cargos','Cargos').replace('Vista / Informe Final','Vista').replace('Informe en Derecho','Derecho').replace('Redactar Plantilla','Plantilla').replace('Chat Jurisprudencial','Jurisp.').replace('Transcripción de Actas','Transcripción').replace('Oficios y Comunicaciones','Oficios');
       return `<button class="fn-btn${isActive?' active':''}" onclick="pickFn('${f.code}')" title="${esc(f.name)}: ${esc(f.desc)}">
         <span class="fn-btn-icon">${icon}</span>
         <span>${f.code}</span>
