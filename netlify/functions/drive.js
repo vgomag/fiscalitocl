@@ -182,7 +182,7 @@ exports.handler = async (event) => {
     }
 
     if (action === 'download') {
-      const { fileId } = body;
+      const { fileId, exportFormat } = body;
       if (!fileId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'fileId requerido' }) };
       const meta = await driveGet(`/drive/v3/files/${fileId}?fields=id,name,mimeType,size`, token);
       if (meta.status >= 300) return { statusCode: 400, headers, body: JSON.stringify({ error: 'No se pudo obtener metadata' }) };
@@ -192,19 +192,26 @@ exports.handler = async (event) => {
       /* Limit to ~4.5MB (base64 will be ~6MB, Netlify response limit) */
       if (size > 4.5 * 1024 * 1024) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Archivo demasiado grande (max ~4.5MB). Divida el PDF en partes menores.' }) };
       let buf;
+      let finalMime = mime;
       if (mime.includes('google-apps.document')) {
-        const r = await driveDownloadBinary(`/drive/v3/files/${fileId}/export?mimeType=application%2Fpdf`, token);
+        /* Google Docs: export as docx for client-side extraction, or pdf */
+        const expMime = exportFormat === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf';
+        const r = await driveDownloadBinary(`/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(expMime)}`, token);
         if (r.status < 300) buf = r.data;
+        finalMime = expMime;
       } else if (mime.includes('google-apps.spreadsheet')) {
-        const r = await driveDownloadBinary(`/drive/v3/files/${fileId}/export?mimeType=application%2Fpdf`, token);
+        /* Google Sheets: export as xlsx for client-side extraction, or pdf */
+        const expMime = exportFormat === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf';
+        const r = await driveDownloadBinary(`/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(expMime)}`, token);
         if (r.status < 300) buf = r.data;
+        finalMime = expMime;
       } else {
         const r = await driveDownloadBinary(`/drive/v3/files/${fileId}?alt=media`, token);
         if (r.status < 300) buf = r.data;
+        finalMime = mime;
       }
       if (!buf) return { statusCode: 500, headers, body: JSON.stringify({ error: 'No se pudo descargar el archivo' }) };
       const base64 = buf.toString('base64');
-      const finalMime = mime.includes('google-apps') ? 'application/pdf' : mime;
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, name, mimeType: finalMime, size: buf.length, base64 }) };
     }
 

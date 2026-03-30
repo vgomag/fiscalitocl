@@ -2528,8 +2528,8 @@ async function sendMessage(){
         const cid=currentCase.id;
         const _isVista=activeFn==='F7'||activeFn==='F8';
         const _dilSelect=_isVista?
-          'diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,extracted_text,fojas_inicio,fojas_fin':
-          'diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,fojas_inicio,fojas_fin';
+          'id,diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,extracted_text,fojas_inicio,fojas_fin,drive_file_id,mime_type':
+          'id,diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,fojas_inicio,fojas_fin,drive_file_id,mime_type,extracted_text';
         let _dilQ=sb.from('diligencias').select(_dilSelect).eq('case_id',cid).order('fecha_diligencia',{ascending:_isVista?true:false});
         if(!_isVista)_dilQ=_dilQ.limit(activeFn==='F5'?25:40);
         const _safeQ=q=>Promise.resolve(q).catch(e=>({data:null,error:e}));
@@ -2558,6 +2558,50 @@ async function sendMessage(){
           const pend=rChk.data.filter(c=>!c.is_completed);
           caseContext+=`\n\n## CHECKLIST (${done}/${rChk.data.length} completados)`;
           if(pend.length){caseContext+='\nPendientes:';pend.forEach(c=>caseContext+=`\n- [ ] ${c.item_text}`);}
+        }
+        /* ── Extraer texto de diligencias Word/Excel sin extracted_text ── */
+        if(rDil.data?.length){
+          const _isDocType=d=>{
+            const fn=(d.file_name||'').toLowerCase();
+            const mt=(d.mime_type||'').toLowerCase();
+            return /\.(docx|xlsx|xls|csv|doc)$/i.test(fn)||mt.includes('google-apps.document')||mt.includes('google-apps.spreadsheet')||mt.includes('wordprocessingml')||mt.includes('spreadsheetml');
+          };
+          const _needsExtract=rDil.data.filter(d=>d.drive_file_id&&!d.extracted_text&&_isDocType(d));
+          if(_needsExtract.length>0){
+            const MAX_FETCH=10; // máximo archivos a descargar on-the-fly
+            const toFetch=_needsExtract.slice(0,MAX_FETCH);
+            await Promise.all(toFetch.map(async(dil)=>{
+              try{
+                const ext=(dil.file_name||'').split('.').pop().toLowerCase();
+                const isGoogleDoc=(dil.mime_type||'').includes('google-apps.document');
+                const isGoogleSheet=(dil.mime_type||'').includes('google-apps.spreadsheet');
+                const exportFormat=isGoogleDoc?'docx':isGoogleSheet?'xlsx':null;
+                const dlRes=await authFetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download',fileId:dil.drive_file_id,...(exportFormat?{exportFormat}:{})})});
+                if(!dlRes.ok)return;
+                const dlData=await dlRes.json();
+                if(!dlData.ok||!dlData.base64)return;
+                const bytes=Uint8Array.from(atob(dlData.base64),c=>c.charCodeAt(0));
+                let text='';
+                const effExt=isGoogleDoc?'docx':isGoogleSheet?'xlsx':ext;
+                if(effExt==='docx'&&window.mammoth){
+                  const r=await mammoth.extractRawText({arrayBuffer:bytes.buffer});
+                  text=(r.value||'').trim();
+                }else if((effExt==='xlsx'||effExt==='xls')&&window.XLSX){
+                  const wb=XLSX.read(bytes,{type:'array'});
+                  wb.SheetNames.forEach(name=>{text+=`--- Hoja: ${name} ---\n`+XLSX.utils.sheet_to_csv(wb.Sheets[name],{FS:'\t'})+'\n\n';});
+                  text=text.trim();
+                }else if(effExt==='csv'){
+                  text=new TextDecoder().decode(bytes);
+                }
+                if(text){
+                  if(text.length>50000)text=text.substring(0,50000)+'\n[...truncado]';
+                  dil.extracted_text=text;
+                  // Guardar en Supabase para futuras consultas
+                  sb.from('diligencias').update({extracted_text:text,is_processed:true,processing_status:'completed'}).eq('id',dil.id).then(({error})=>{if(error)console.warn('No se pudo guardar texto extraído para',dil.file_name,error);});
+                }
+              }catch(exErr){console.warn('Error extrayendo diligencia',dil.file_name,':',exErr);}
+            }));
+          }
         }
         /* Diligencias — context budget adaptativo según función */
         if(rDil.data?.length){
