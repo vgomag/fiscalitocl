@@ -1030,6 +1030,7 @@ function applyLogo(src){
 const SB_URL='https://zgoxrzbkftzulsphmtfk.supabase.co';
 const SB_KEY='sb_publishable_qIWOIFlcCKbtr8_2Gf0FQA_73kSqD9-';
 const CHAT_ENDPOINT='/.netlify/functions/chat';
+const CHAT_STREAM_ENDPOINT='/api/chat-stream';
 
 /** Fetch autenticado — envía token de Supabase en cada request al chat */
 async function authFetch(url, options = {}) {
@@ -2824,7 +2825,7 @@ async function sendMessage(){
       messages:[...historyMsgs,{role:'user',content:text}],
       stream:true
     };
-    const r=await authFetch(CHAT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     removeTyping(typingId);
     if(!r.ok){const e=await r.text().catch(()=>'');try{const ej=JSON.parse(e);appendMsg('assistant','⚠️ Error: '+(ej.error||r.status));}catch{appendMsg('assistant','⚠️ Error: '+r.status);}return;}
 
@@ -2847,29 +2848,42 @@ async function sendMessage(){
     const reader=r.body.getReader();
     const decoder=new TextDecoder();
     let sseBuffer='';
+    let streamError=false;
 
-    while(true){
-      const{done,value}=await reader.read();
-      if(done)break;
-      sseBuffer+=decoder.decode(value,{stream:true});
-      const lines=sseBuffer.split('\n');
-      sseBuffer=lines.pop()||'';
-      for(const line of lines){
-        if(!line.startsWith('data: '))continue;
-        const payload=line.slice(6).trim();
-        if(payload==='[DONE]')continue;
-        try{
-          const evt=JSON.parse(payload);
-          if(evt.type==='content_block_delta'&&evt.delta?.type==='text_delta'){
-            fullText+=evt.delta.text;
-            bubEl.innerHTML=md(fullText);
-            msgsC.scrollTop=msgsC.scrollHeight;
-          }
-        }catch{}
+    try{
+      while(true){
+        const{done,value}=await reader.read();
+        if(done)break;
+        sseBuffer+=decoder.decode(value,{stream:true});
+        const lines=sseBuffer.split('\n');
+        sseBuffer=lines.pop()||'';
+        for(const line of lines){
+          if(!line.startsWith('data: '))continue;
+          const payload=line.slice(6).trim();
+          if(payload==='[DONE]')continue;
+          try{
+            const evt=JSON.parse(payload);
+            if(evt.type==='content_block_delta'&&evt.delta?.type==='text_delta'){
+              fullText+=evt.delta.text;
+              bubEl.innerHTML=md(fullText);
+              msgsC.scrollTop=msgsC.scrollHeight;
+            }
+            if(evt.type==='error'){
+              streamError=true;
+              console.warn('Stream error event:',evt);
+            }
+          }catch{}
+        }
       }
+    }catch(streamErr){
+      streamError=true;
+      console.warn('Stream read error:',streamErr);
     }
     if(!fullText)fullText='Sin respuesta.';
     bubEl.innerHTML=md(fullText);
+    if(streamError&&fullText.length>0){
+      bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:6px;font-size:11px;color:#b45309">⚠️ La respuesta fue interrumpida (posible timeout del servidor). El texto parcial se conservó. Puedes escribir "continúa" para que siga desde donde quedó.</div>`;
+    }
     actionsPlaceholder.outerHTML=actions;
     msgsC.scrollTop=msgsC.scrollHeight;
     /* Persist to Supabase */
