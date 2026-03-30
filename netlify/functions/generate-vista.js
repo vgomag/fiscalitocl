@@ -8,32 +8,12 @@
  *   mode: "sancion" | "sobreseimiento" | "art129" (medida cautelar art 129)
  */
 const https = require('https');
+const { callAnthropic: _sharedCall } = require('./shared/anthropic');
 
+/* Wrapper que usa Sonnet con timeout largo para generación de vistas */
 function callAnthropic(apiKey, system, userMsg, maxTokens) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: maxTokens || 8000,
-      system,
-      messages: [{ role: 'user', content: userMsg }]
-    });
-    const req = https.request('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      timeout: 55000
-    }, (res) => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(d)); } catch(e) { reject(new Error('Parse error')); }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout 55s')); });
-    req.write(body); req.end();
+  return _sharedCall(apiKey, system, userMsg, {
+    model: 'claude-sonnet-4-6', maxTokens: maxTokens || 8000, timeout: 55000
   });
 }
 

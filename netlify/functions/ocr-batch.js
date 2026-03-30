@@ -6,12 +6,8 @@
  *
  * POST { files: [{ driveFileId, fileName, mimeType }], caseId }
  */
-const crypto = require('https');
 const https = require('https');
-
-function base64url(buf) {
-  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+const { base64url, callAnthropicVision } = require('./shared/anthropic');
 
 async function getAccessToken(sa) {
   const now = Math.floor(Date.now() / 1000);
@@ -43,50 +39,6 @@ function driveDownload(fileId, token) {
       res.on('data', d => chunks.push(d));
       res.on('end', () => resolve({ status: res.statusCode, data: Buffer.concat(chunks) }));
     }).on('error', reject);
-  });
-}
-
-function callAnthropicVision(apiKey, base64Data, mimeType, fileName) {
-  return new Promise((resolve, reject) => {
-    const mediaType = mimeType.includes('pdf') ? 'application/pdf' :
-      mimeType.includes('png') ? 'image/png' :
-      mimeType.includes('jpg') || mimeType.includes('jpeg') ? 'image/jpeg' : 'image/png';
-
-    const content = mediaType === 'application/pdf' ? [
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } },
-      { type: 'text', text: `Extrae TODO el texto de este documento PDF "${fileName}". Devuelve el texto completo preservando la estructura, párrafos y listas. Si hay tablas, represéntalas de forma legible. NO resumas, extrae literalmente.` }
-    ] : [
-      { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } },
-      { type: 'text', text: `Extrae TODO el texto visible en esta imagen del documento "${fileName}". Preserva la estructura. NO resumas.` }
-    ];
-
-    const body = JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content }]
-    });
-
-    const req = https.request('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      timeout: 30000
-    }, (res) => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(d);
-          if (res.statusCode === 429) resolve({ error: 'rate_limited', retryAfter: 3 });
-          else resolve(parsed);
-        } catch (e) { reject(new Error('Parse error')); }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('OCR timeout 30s')); });
-    req.write(body); req.end();
   });
 }
 

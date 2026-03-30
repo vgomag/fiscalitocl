@@ -10,6 +10,7 @@
  *   - batch-autofill: Extrae metadata + avanza etapas para múltiples casos
  */
 const https = require('https');
+const { callAnthropic } = require('./shared/anthropic');
 
 /* ── Etapas procesales ordenadas ── */
 const STAGES = ['indagatoria', 'cargos', 'descargos', 'prueba', 'vista', 'resolucion', 'cerrado'];
@@ -64,34 +65,6 @@ const METADATA_PATTERNS = {
     { pattern: /ley\s+18\.?834/i, value: '18834' }
   ]
 };
-
-function callAnthropic(apiKey, system, userMsg, maxTokens) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: maxTokens || 2000,
-      system,
-      messages: [{ role: 'user', content: userMsg }]
-    });
-    const req = https.request('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      timeout: 25000
-    }, (res) => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(d)); } catch(e) { reject(new Error('Parse error')); }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
-    req.write(body); req.end();
-  });
-}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {

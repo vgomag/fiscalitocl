@@ -13,6 +13,7 @@
  *   - Reglamento UMAG: plazos internos complementarios
  */
 const https = require('https');
+const { callAnthropic } = require('./shared/anthropic');
 
 /* ── Plazos de prescripción por tipo (en días) ── */
 const PRESCRIPTION_RULES = {
@@ -303,34 +304,7 @@ function analyzePrescription(caseData, diligencias, etapas) {
   };
 }
 
-/* ── Análisis con IA (opcional, más profundo) ── */
-function callAnthropic(apiKey, system, userMsg, maxTokens) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: maxTokens || 2000,
-      system,
-      messages: [{ role: 'user', content: userMsg }]
-    });
-    const req = https.request('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      timeout: 25000
-    }, (res) => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(d)); } catch(e) { reject(new Error('Parse error')); }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
-    req.write(body); req.end();
-  });
-}
+/* ── Análisis con IA (opcional, usa módulo compartido) ── */
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
