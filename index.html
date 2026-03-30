@@ -2915,7 +2915,7 @@ function showTyping(){
   c.appendChild(d);c.scrollTop=c.scrollHeight;return id;
 }
 function removeTyping(id){const e=document.getElementById(id);if(e)e.remove();}
-function setLoading(v){document.getElementById('sendBtn')?.setAttribute('disabled',v);document.getElementById('inputBox')?.setAttribute('disabled',v);}
+function setLoading(v){const btn=document.getElementById('sendBtn');const inp=document.getElementById('inputBox');if(v){btn?.setAttribute('disabled','true');inp?.setAttribute('disabled','true');}else{btn?.removeAttribute('disabled');inp?.removeAttribute('disabled');inp?.focus();}}
 
 /* ── Fn doc upload ── */
 function handleFnDocUpload(input){
