@@ -1380,6 +1380,58 @@ El acta debe quedar LISTA PARA IMPRESIÓN Y FIRMA del declarante:
 - Cierre: "Leída que le fue su declaración, se ratifica y firma"
 - Espacios para firma del declarante y fiscal investigadora`,
 
+  F12:`## F12 — OFICIOS, MEMORÁNDUMS Y RESOLUCIONES CON NUMERACIÓN CORRELATIVA
+
+Eres un redactor institucional experto de la Universidad de Magallanes (UMAG), especializado en la elaboración de documentos administrativos formales: oficios, memorándums y resoluciones.
+
+## TIPOS DE DOCUMENTOS
+
+### OFICIO (comunicación externa o entre unidades)
+Estructura obligatoria:
+- Encabezado: UNIVERSIDAD DE MAGALLANES + unidad emisora
+- Número: [se asignará automáticamente, usar el indicado por el usuario]
+- ANT.: Antecedentes o referencias
+- MAT.: Materia/asunto
+- FECHA: Fecha del documento
+- DE: Remitente (nombre, cargo)
+- A: Destinatario (nombre, cargo, institución)
+- Cuerpo: Párrafos justificados, lenguaje institucional formal, tercera persona
+- Cierre: "Saluda atentamente a Ud." o fórmula equivalente
+- Firma: nombre y cargo
+- Distribución (c.c.) si corresponde
+
+### MEMORÁNDUM (comunicación interna)
+Estructura obligatoria:
+- Encabezado: MEMORÁNDUM + Número
+- DE: Remitente
+- PARA/A: Destinatario
+- MAT.: Materia
+- FECHA: Fecha
+- REF.: Referencia (si aplica)
+- Cuerpo: Conciso, directo, lenguaje institucional
+- Firma
+
+### RESOLUCIÓN (acto administrativo)
+Estructura obligatoria:
+- Encabezado: RESOLUCIÓN EXENTA N° [número]
+- VISTOS: Antecedentes normativos y de hecho
+- CONSIDERANDO: Fundamentos (numerados con "Que,")
+- RESUELVO: Disposiciones (numeradas)
+- ANÓTESE, COMUNÍQUESE Y ARCHÍVESE
+- Firma: autoridad competente
+
+## REGLAS DE REDACCIÓN
+1. Lenguaje institucional formal, tercera persona, sin expresiones coloquiales
+2. Citar normativa con artículo, cuerpo legal y número de ley cuando corresponda
+3. Si hay expediente vinculado, usar sus datos (nombre, resolución, materia, partes)
+4. Usar [COMPLETAR] para datos faltantes que no estén en el contexto
+5. Respetar el número correlativo indicado por el usuario
+6. NO inventar números de resolución, oficios o referencias que no existan
+7. Formato limpio, SIN markdown. Usar mayúsculas para encabezados de campos
+
+## SALIDA
+Genera el documento COMPLETO, listo para copiar o exportar a Word. No agregues explicaciones antes ni después del documento a menos que el usuario lo pida.`,
+
   F_LEY_KARIN:`## MODO LEY KARIN / GÉNERO
 Eres un asistente jurídico especializado en la Ley 21.369 sobre acoso sexual, violencia y discriminación de género en la educación superior, y en la Ley 21.643 (Ley Karin) sobre prevención del acoso laboral y sexual.
 
@@ -2308,6 +2360,19 @@ function pickFn(code){
     return; // ← SALIR, no ejecutar showFnPanel ni nada más
   }
 
+  /* ═══════════════════════════════════════════
+     F12 — Panel personalizado de Oficios/Memos/Resoluciones
+     ═══════════════════════════════════════════ */
+  if(code==='F12'){
+    const _p12=document.getElementById('fnPanel');
+    if(_p12)_p12.style.cssText='';
+    if(typeof renderF12Panel==='function'){
+      try{ renderF12Panel(); }catch(e){ console.error('F12 render error:',e); }
+    }
+    if(typeof buildF12Chips==='function'){try{buildF12Chips();}catch(e){}}
+    /* NO return — seguimos con el flujo normal para que el chat siga disponible */
+  }
+
   /* ── Flujo normal para todas las demás funciones ── */
   /* Restaurar elementos que F11 pudo haber alterado */
   const _panel=document.getElementById('fnPanel');
@@ -2335,6 +2400,11 @@ function showFnPanel(code){
   /* ── F11: delegar al módulo de transcripción si está cargado ── */
   if(code==='F11' && typeof renderF11Panel==='function'){
     renderF11Panel();
+    return;
+  }
+  /* ── F12: delegar al módulo de oficios si está cargado ── */
+  if(code==='F12' && typeof renderF12Panel==='function'){
+    renderF12Panel();
     return;
   }
   const panel=document.getElementById('fnPanel');
@@ -2369,6 +2439,8 @@ function showFnPanel(code){
 function buildFnChips(code){
   /* F11: los chips se manejan desde mod-transcripcion.js */
   if(code==='F11' && typeof buildF11Chips==='function'){buildF11Chips();return;}
+  /* F12: los chips se manejan desde mod-oficios.js */
+  if(code==='F12' && typeof buildF12Chips==='function'){buildF12Chips();return;}
   const row=document.getElementById('fnChipsRow');if(!row)return;
   const p=FN_PANELS[code];
   if(!p||!p.chips){row.innerHTML='';return;}
