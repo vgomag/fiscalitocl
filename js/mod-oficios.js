@@ -12,9 +12,11 @@
 /* ══════════════════════════════════════════
    ESTADO DEL MÓDULO
    ══════════════════════════════════════════ */
+const ORG_ID = 'umag';  // Identificador de organización — compartido por todo el equipo
+
 const oficios = {
   counters: {},        // { oficio: {last_number, prefix, format_template}, memo: {...}, resolucion: {...} }
-  history: [],         // Últimos docs generados
+  history: [],         // Últimos docs generados (compartidos por toda la org)
   currentType: 'oficio',
   loaded: false,
   sheetId: null,       // Google Sheet ID (se guarda en Supabase user settings)
@@ -216,11 +218,11 @@ async function loadDocCounters() {
     resolucion: { last_number: 0, prefix: 'RES',  format_template: '{PREFIX}-{NUM}/{YEAR}' },
   };
 
-  // 1. Cargar desde Supabase
+  // 1. Cargar desde Supabase (COMPARTIDO por organización)
   try {
     const { data, error } = await sb.from('document_counters')
       .select('doc_type,last_number,prefix,format_template')
-      .eq('user_id', session.user.id)
+      .eq('org_id', ORG_ID)
       .eq('year', year);
     if (!error && data) {
       data.forEach(d => {
