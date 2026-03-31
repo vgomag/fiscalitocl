@@ -1,48 +1,28 @@
 // ============================================================================
-// MÓDULO LEY 21.369 — FISCALITO (Reforma SES 2026)
+// MÓDULO LEY 21.369 — FISCALITO (Reforma SES 2026) — Versión simplificada
 // Respuesta a Fiscalización SES: cumplimiento, semáforo, evidencias, plan mejora
-// Estructura: 4 Secciones SES + Evidencias + Conclusión + Plan de Mejora
+// 4 pestañas: Semáforo · Respuesta SES · Documentos · Chat IA
 // ============================================================================
 (function(){
 "use strict";
 
-// ── Secciones SES (reemplazan las 10 áreas genéricas) ──────────────────────
+// ── Secciones SES ──────────────────────────────────────────────────────────
 const SECCIONES=[
-  {
-    id:"politica_integral",
-    num:1,
-    label:"Política Integral (Art. 4 Ley 21.369)",
-    icon:"📋",
-    objetivo:"Verificar existencia, contenido mínimo, participación, difusión y unidades responsables.",
-    campos_extra:["responsable_seguimiento"]
-  },
-  {
-    id:"modelo_prevencion",
-    num:2,
-    label:"Modelo de Prevención",
-    icon:"🛡️",
-    objetivo:"Verificar diagnóstico, medidas evaluables, campañas, capacitación, currículo e inducción.",
-    campos_extra:["brechas_identificadas","plan_mejora_breve"]
-  },
-  {
-    id:"investigacion_sancion",
-    num:3,
-    label:"Modelo de Investigación y Sanción",
-    icon:"🔍",
-    objetivo:"Verificar debido proceso, órganos especializados, tipificación, medidas de protección, reserva, eficacia y acceso al expediente.",
-    campos_extra:["riesgos_criticos","acciones_correctivas"]
-  },
-  {
-    id:"adecuacion_contratos",
-    num:4,
-    label:"Adecuación de Contratos y Convenios",
-    icon:"📄",
-    objetivo:"Verificar incorporación obligatoria de la normativa interna en instrumentos celebrados.",
-    campos_extra:["plan_regularizacion"]
-  }
+  {id:"politica_integral",num:1,label:"Política Integral (Art. 4 Ley 21.369)",icon:"📋",
+   objetivo:"Verificar existencia, contenido mínimo, participación, difusión y unidades responsables.",
+   campos_extra:["responsable_seguimiento"]},
+  {id:"modelo_prevencion",num:2,label:"Modelo de Prevención",icon:"🛡️",
+   objetivo:"Verificar diagnóstico, medidas evaluables, campañas, capacitación, currículo e inducción.",
+   campos_extra:["brechas_identificadas","plan_mejora_breve"]},
+  {id:"investigacion_sancion",num:3,label:"Modelo de Investigación y Sanción",icon:"🔍",
+   objetivo:"Verificar debido proceso, órganos especializados, tipificación, medidas de protección, reserva, eficacia y acceso al expediente.",
+   campos_extra:["riesgos_criticos","acciones_correctivas"]},
+  {id:"adecuacion_contratos",num:4,label:"Adecuación de Contratos y Convenios",icon:"📄",
+   objetivo:"Verificar incorporación obligatoria de la normativa interna en instrumentos celebrados.",
+   campos_extra:["plan_regularizacion"]}
 ];
 
-// ── Estados SES (3 estados en vez de 4) ────────────────────────────────────
+// ── Estados SES ────────────────────────────────────────────────────────────
 const STATUS_CFG={
   cumple:      {label:"Cumple",     cls:"ley-st-ok",   color:"#16a34a", icon:"✅"},
   parcial:     {label:"Parcial",    cls:"ley-st-parc", color:"#f59e0b", icon:"⚠️"},
@@ -50,9 +30,9 @@ const STATUS_CFG={
   sin_evaluar: {label:"Sin evaluar",cls:"ley-st-se",   color:"#9ca3af", icon:"⬜"}
 };
 
-// ── Ítems pre-poblados del documento SES (con estado de cumplimiento) ──────
+// ── Ítems pre-poblados del documento SES ───────────────────────────────────
 const ITEMS_SES=[
-  // Sección 1: Política Integral (8 ítems) — todos ☑️ Cumple en el documento
+  // Sección 1: Política Integral (8 ítems)
   {seccion:"politica_integral",orden:1,estado:"cumple",item_exigido:"Acciones de prevención, información, sensibilización, sanción, capacitación y formación",evidencia_ref:"Política Integral (Dec. 029/SU/2022); Protocolo (Dec. 030/SU/2022)",observacion_default:"Mantener plan anual de actividades"},
   {seccion:"politica_integral",orden:2,estado:"cumple",item_exigido:"Mecanismos de monitoreo y evaluación de impacto",evidencia_ref:"Política de Igualdad (Dec. 005/SU/2023); informes de seguimiento",observacion_default:"Formalizar indicadores y periodicidad"},
   {seccion:"politica_integral",orden:3,estado:"cumple",item_exigido:"Estrategia de comunicación interna",evidencia_ref:"Publicación web; inducciones; campañas",observacion_default:"Reforzar difusión a contratistas"},
@@ -62,7 +42,7 @@ const ITEMS_SES=[
   {seccion:"politica_integral",orden:7,estado:"cumple",item_exigido:"Apoyo psicológico, médico, social y jurídico",evidencia_ref:"UPA; derivaciones a redes externas",observacion_default:"Formalizar convenios de derivación"},
   {seccion:"politica_integral",orden:8,estado:"cumple",item_exigido:"Entrevistas videograbadas (priorización)",evidencia_ref:"Protocolo interno; actas de diligencias",observacion_default:"Asegurar resguardo de datos"},
 
-  // Sección 2: Modelo de Prevención (6 ítems) — todos ☑️ Cumple
+  // Sección 2: Modelo de Prevención (6 ítems)
   {seccion:"modelo_prevencion",orden:1,estado:"cumple",item_exigido:"Diagnóstico actualizado de riesgos",evidencia_ref:"Diagnóstico con perspectiva de género (junio 2025)",observacion_default:"Programar actualización 2027"},
   {seccion:"modelo_prevencion",orden:2,estado:"cumple",item_exigido:"Medidas evaluables según diagnóstico",evidencia_ref:"Plan de acción; metas/indicadores",observacion_default:"Formalizar tablero de control"},
   {seccion:"modelo_prevencion",orden:3,estado:"cumple",item_exigido:"Campañas permanentes de sensibilización",evidencia_ref:"Charlas; claustros 2021–2022",observacion_default:"Actualizar reporte 2025–2026 (UPA)"},
@@ -70,7 +50,7 @@ const ITEMS_SES=[
   {seccion:"modelo_prevencion",orden:5,estado:"cumple",item_exigido:"Contenidos en planes curriculares",evidencia_ref:"Crédito Cultural; mallas TS y Derecho",observacion_default:"Extender a otras carreras"},
   {seccion:"modelo_prevencion",orden:6,estado:"cumple",item_exigido:"Inducciones con enfoque de género",evidencia_ref:"Programas de inducción institucional",observacion_default:"Incorporar a contratistas"},
 
-  // Sección 3: Investigación y Sanción (8 ítems) — todos ☑️ Cumple
+  // Sección 3: Investigación y Sanción (8 ítems)
   {seccion:"investigacion_sancion",orden:1,estado:"cumple",item_exigido:"Procedimientos especiales con debido proceso",evidencia_ref:"Protocolo (Dec. 030/SU/2022)",observacion_default:"Revisar plazos máximos"},
   {seccion:"investigacion_sancion",orden:2,estado:"cumple",item_exigido:"Órganos especializados",evidencia_ref:"Fiscalía de Género",observacion_default:"Fortalecer dotación"},
   {seccion:"investigacion_sancion",orden:3,estado:"cumple",item_exigido:"Tipificación + sanciones + agravantes/atenuantes",evidencia_ref:"Protocolo interno",observacion_default:"Difundir extracto pedagógico"},
@@ -80,7 +60,7 @@ const ITEMS_SES=[
   {seccion:"investigacion_sancion",orden:7,estado:"cumple",item_exigido:"Difusión del modelo a la comunidad",evidencia_ref:"Web; inducciones",observacion_default:"Campaña anual"},
   {seccion:"investigacion_sancion",orden:8,estado:"cumple",item_exigido:"Acceso al expediente y derecho a descargos",evidencia_ref:"Protocolos; actas de notificación",observacion_default:"Checklist de notificaciones"},
 
-  // Sección 4: Adecuación de Contratos (4 ítems) — todos ☑️ Cumple
+  // Sección 4: Adecuación de Contratos (4 ítems)
   {seccion:"adecuacion_contratos",orden:1,estado:"cumple",item_exigido:"Cláusula de incorporación de Política y Protocolo en contratos",evidencia_ref:"Modelos contractuales; Dec. 029/2022 y 030/2022",observacion_default:"Auditar contratos 2024–2026"},
   {seccion:"adecuacion_contratos",orden:2,estado:"cumple",item_exigido:"Aplicación a convenios académicos/investigación",evidencia_ref:"Modelos de convenio",observacion_default:"Checklist en Secretaría General"},
   {seccion:"adecuacion_contratos",orden:3,estado:"cumple",item_exigido:"Aplicación a actividades de esparcimiento/recreación",evidencia_ref:"Bases/contratos",observacion_default:"Incluir cláusula tipo"},
@@ -109,7 +89,7 @@ const PLAN_MEJORA_DEFAULT=[
 
 // ── State ───────────────────────────────────────────────────────────────────
 let items=[], docs=[], evidencias={}, planMejora=[], conclusion={};
-let seccionMeta={}; // estado global + campos extra por sección
+let seccionMeta={};
 let loading=false, activeTab="dashboard";
 let chatMessages=[], chatLoading=false;
 let aiReport=null, generatingReport=false;
@@ -150,10 +130,6 @@ s.textContent=`
 .ley-section-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
 .ley-section-header .title{font-weight:600;font-size:14px}
 .ley-section-header .stats{display:flex;gap:8px;font-size:11px}
-.ley-item{background:var(--bg,#fff);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px}
-.ley-item-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.ley-item .req{font-size:13px;flex:1}
-.ley-item .meta{font-size:11px;color:var(--text-muted);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
 .ley-st{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
 .ley-st-ok{background:#dcfce7;color:#166534}
 .ley-st-parc{background:#fef3c7;color:#92400e}
@@ -196,7 +172,6 @@ s.textContent=`
 .ley-ev-check.ev-ok{border-left:3px solid #16a34a;background:#f0fdf4}
 .ley-ev-check.ev-pending{border-left:3px solid #f59e0b;background:#fffbeb}
 .ley-plan-row{display:grid;grid-template-columns:1fr 1fr 120px 80px 120px 40px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
-.ley-conclusion-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px}
 .ley-obj-box{background:var(--bg,#f8fafc);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--text-muted)}
 `;
 document.head.appendChild(s);
@@ -243,13 +218,10 @@ async function loadData(){
         else if(m.key?.startsWith("seccion_")) seccionMeta[m.key.replace("seccion_","")]=JSON.parse(m.value||"{}");
       });
     }
-    // Si no hay plan de mejora cargado, usar default
     if(!planMejora.length) planMejora=[...PLAN_MEJORA_DEFAULT];
-    // Si no hay ítems, inicializar desde template SES
     if(!items.length) await seedFromTemplate();
   }catch(e){
     console.error("[Ley21369] Error cargando datos:",e);
-    // Si la tabla meta no existe, seguir con lo que hay
     if(!items.length) await seedFromTemplate().catch(()=>{});
   }
   loading=false;
@@ -262,15 +234,10 @@ async function seedFromTemplate(){
     const user=await getUser();
     if(!user) return;
     const rows=ITEMS_SES.map(it=>({
-      user_id:user.id,
-      area:it.seccion,
-      requirement:it.item_exigido,
-      description:it.evidencia_ref,
-      verification_notes:it.observacion_default,
-      status:it.estado||"sin_evaluar",
-      sort_order:it.orden,
-      responsible:null,
-      due_date:null
+      user_id:user.id, area:it.seccion, requirement:it.item_exigido,
+      description:it.evidencia_ref, verification_notes:it.observacion_default,
+      status:it.estado||"sin_evaluar", sort_order:it.orden,
+      responsible:null, due_date:null
     }));
     const{data,error}=await sb.from("ley21369_items").insert(rows).select();
     if(data) items=data;
@@ -279,26 +246,10 @@ async function seedFromTemplate(){
 }
 
 // ── CRUD Operations ─────────────────────────────────────────────────────────
-async function addItem(seccion,requirement,description,responsible,dueDate){
-  try{
-    const user=await getUser(); if(!user)return;
-    const{error}=await sb.from("ley21369_items").insert({
-      user_id:user.id, area:seccion, requirement:requirement.trim(),
-      description:description?.trim()||null, responsible:responsible?.trim()||null,
-      due_date:dueDate||null, status:"sin_evaluar",
-      sort_order:items.filter(i=>i.area===seccion).length+1
-    });
-    if(error){showToast("Error al agregar ítem","error");return}
-    showToast("Ítem agregado","success");
-    loadData();
-  }catch(e){console.warn("[Ley21369] addItem error:",e);showToast("Error al agregar","error")}
-}
-
 async function updateStatus(id,status){
   try{
     const update={status,updated_at:new Date().toISOString()};
-    if(status==="cumple") update.completed_at=new Date().toISOString();
-    else update.completed_at=null;
+    update.completed_at=status==="cumple"?new Date().toISOString():null;
     await sb.from("ley21369_items").update(update).eq("id",id);
     items=items.map(i=>i.id===id?{...i,...update}:i);
     render();
@@ -358,7 +309,7 @@ async function deleteDoc(id,path){
   }catch(e){console.warn("[Ley21369] deleteDoc error:",e);showToast("Error al eliminar","error")}
 }
 
-// ── Meta persistence (evidencias, plan mejora, conclusión, sección meta) ───
+// ── Meta persistence ────────────────────────────────────────────────────────
 async function saveMeta(key,value){
   try{
     const user=await getUser(); if(!user)return;
@@ -369,6 +320,42 @@ async function saveMeta(key,value){
     );
     if(error) console.warn("[Ley21369] saveMeta error:",error);
   }catch(e){console.warn("[Ley21369] saveMeta error:",e)}
+}
+
+async function toggleEvidencia(evId,checked){
+  evidencias[evId]=checked;
+  await saveMeta("evidencias",evidencias);
+  render();
+}
+
+async function updateConclusion(field,value){
+  conclusion[field]=value;
+  await saveMeta("conclusion",conclusion);
+}
+
+async function updateSeccionMeta(secId,field,value){
+  if(!seccionMeta[secId])seccionMeta[secId]={};
+  seccionMeta[secId][field]=value;
+  await saveMeta("seccion_"+secId,seccionMeta[secId]);
+}
+
+async function updatePlan(idx,field,value){
+  if(planMejora[idx]){
+    planMejora[idx][field]=value;
+    await saveMeta("plan_mejora",planMejora);
+  }
+}
+
+async function addPlanRow(){
+  planMejora.push({brecha:"",accion:"",responsable:"",plazo:"",indicador:""});
+  await saveMeta("plan_mejora",planMejora);
+  render();
+}
+
+async function removePlanRow(idx){
+  planMejora.splice(idx,1);
+  await saveMeta("plan_mejora",planMejora);
+  render();
 }
 
 // ── Section Analysis ────────────────────────────────────────────────────────
@@ -399,22 +386,19 @@ function globalStats(){
   const sin_evaluar=items.filter(i=>i.status==="sin_evaluar").length;
   const evaluated=total-sin_evaluar;
   const pct=evaluated?Math.round(cumple/evaluated*100):0;
-  // Estado global SES
   let estadoGlobal="cumple";
   if(no_cumple>0)estadoGlobal="no_cumple";
   else if(parcial>0||sin_evaluar>0)estadoGlobal="parcial";
   return{total,cumple,parcial,no_cumple,sin_evaluar,evaluated,pct,estadoGlobal};
 }
 
-// ── Render Tabs ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TABS — Solo 4 pestañas (sin duplicación)
+// ══════════════════════════════════════════════════════════════════════════════
 const TABS=[
   {id:"dashboard",label:"📊 Semáforo SES"},
-  {id:"secciones",label:"📋 Secciones"},
-  {id:"checklist",label:"✅ Checklist"},
-  {id:"evidencias",label:"📁 Evidencias"},
-  {id:"conclusion",label:"📝 Conclusión"},
-  {id:"plan_mejora",label:"🎯 Plan Mejora"},
-  {id:"table",label:"📑 Respuesta Fiscalización SES"},
+  {id:"respuesta",label:"📑 Respuesta Fiscalización SES"},
+  {id:"documentos",label:"📁 Documentos"},
   {id:"chat",label:"💬 Chat IA"}
 ];
 
@@ -455,24 +439,18 @@ function renderBody(){
     </div>`;
   }
 
-  const renderers={
-    dashboard:renderDashboard,
-    secciones:renderSecciones,
-    checklist:renderChecklist,
-    evidencias:renderEvidencias,
-    conclusion:renderConclusion,
-    plan_mejora:renderPlanMejora,
-    table:renderTable,
-    chat:renderChat
-  };
+  const renderers={dashboard:renderDashboard,respuesta:renderRespuesta,documentos:renderDocumentos,chat:renderChat};
   el.innerHTML=reportHTML+(renderers[activeTab]||renderers.dashboard)();
 }
 
-// ── Tab: Dashboard (Semáforo SES) ───────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 1: SEMÁFORO SES (resumen visual de solo lectura)
+// ══════════════════════════════════════════════════════════════════════════════
 function renderDashboard(){
   const s=globalStats();
   const secs=analyzeSecciones();
   const scGlobal=STATUS_CFG[s.estadoGlobal]||STATUS_CFG.sin_evaluar;
+  const evCount=EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length;
 
   let html=`
   <div style="text-align:center;margin-bottom:16px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
@@ -481,7 +459,7 @@ function renderDashboard(){
     <span class="ley-st ${scGlobal.cls}" style="font-size:14px;padding:4px 16px">${scGlobal.label}</span>
     <div style="font-size:24px;font-weight:700;color:${scGlobal.color};margin-top:8px">${s.pct}%</div>
     <div class="ley-progress" style="max-width:300px;margin:8px auto"><div class="ley-progress-fill" style="width:${s.pct}%;background:${scGlobal.color}"></div></div>
-    <div style="font-size:11px;color:var(--text-muted)">${s.evaluated} de ${s.total} ítems evaluados</div>
+    <div style="font-size:11px;color:var(--text-muted)">${s.evaluated} de ${s.total} ítems evaluados · ${evCount}/${EVIDENCIAS_SES.length} evidencias adjuntas</div>
   </div>
 
   <div class="ley-cards">
@@ -497,7 +475,7 @@ function renderDashboard(){
     const secSt=sec.no_cumple>0?"no_cumple":sec.parcial>0||sec.sin_evaluar>sec.total/2?"parcial":"cumple";
     const stCfg=STATUS_CFG[secSt];
     html+=`<div class="ley-section-card risk-${sec.risk}">
-      <div class="ley-section-header" onclick="this.parentElement.querySelector('.ley-section-items')?.classList.toggle('collapsed')">
+      <div class="ley-section-header">
         <span class="title">${sec.icon} ${sec.num}) ${h(sec.label)} — <span style="color:${stCfg.color}">${stCfg.icon} ${stCfg.label}</span></span>
         <span class="stats">
           <span style="color:#16a34a">✅${sec.cumple}</span>
@@ -508,258 +486,23 @@ function renderDashboard(){
         </span>
       </div>
       <div class="ley-progress" style="margin-top:8px"><div class="ley-progress-fill" style="width:${sec.pct}%;background:${stCfg.color}"></div></div>
-      <div class="ley-section-items" style="margin-top:6px">
-        ${sec.items.map(i=>{
-          const sc=STATUS_CFG[i.status]||STATUS_CFG.sin_evaluar;
-          const hasDocs=docs.some(d=>d.item_id===i.id);
-          return`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)">
-            <span>${sc.icon} ${h(i.requirement)}${!hasDocs&&i.status==="cumple"?' <span style="color:#ef4444;font-size:10px">⚠ sin verificador</span>':""}</span>
-            <span class="ley-st ${sc.cls}">${sc.label}</span>
-          </div>`;
-        }).join("")}
-      </div>
     </div>`;
   });
 
   return html;
 }
 
-// ── Tab: Secciones (detalle editable) ───────────────────────────────────────
-function renderSecciones(){
-  let html="";
-  const secs=analyzeSecciones();
-
-  secs.forEach(sec=>{
-    html+=`<div class="ley-section-card" style="border-left:3px solid ${sec.risk==="ok"?"#16a34a":sec.risk==="warning"?"#f59e0b":"#ef4444"}">
-      <div class="ley-section-header" onclick="this.closest('.ley-section-card').querySelector('.sec-body').style.display=this.closest('.ley-section-card').querySelector('.sec-body').style.display==='none'?'block':'none'">
-        <span class="title">${sec.icon} ${sec.num}) ${h(sec.label)} (${sec.total} ítems)</span>
-        <span style="font-size:12px;color:var(--text-muted)">${sec.cumple}/${sec.total} cumple</span>
-      </div>
-      <div class="ley-obj-box" style="margin-top:8px"><strong>Objetivo SES:</strong> ${h(sec.objetivo)}</div>
-      <div class="sec-body">`;
-
-    sec.items.forEach(i=>{
-      const sc=STATUS_CFG[i.status]||STATUS_CFG.sin_evaluar;
-      const iDocs=docs.filter(d=>d.item_id===i.id);
-      html+=`<div class="ley-item">
-        <div class="ley-item-row">
-          <div class="req">
-            <strong>${h(i.requirement)}</strong>
-            ${i.description?`<div class="meta">📎 Evidencia ref: ${h(i.description)}</div>`:""}
-          </div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <select class="ley-select" onchange="window._ley21369.updateStatus('${i.id}',this.value)">
-              ${Object.entries(STATUS_CFG).map(([k,v])=>`<option value="${k}"${i.status===k?" selected":""}>${v.icon} ${v.label}</option>`).join("")}
-            </select>
-            <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.deleteItem('${i.id}')" title="Eliminar">🗑</button>
-          </div>
-        </div>
-        <textarea class="ley-textarea" rows="2" placeholder="Observaciones / Acciones de mejora…"
-          style="margin-top:6px" onfocusout="window._ley21369.updateField('${i.id}','verification_notes',this.value)">${h(i.verification_notes||"")}</textarea>
-        <div class="ley-docs-row">
-          ${iDocs.map(d=>`<span class="ley-doc-badge" onclick="window._ley21369.downloadDoc('${d.id}')">📄 ${h(d.file_name)} <button onclick="event.stopPropagation();window._ley21369.deleteDoc('${d.id}','${h(d.file_path)}')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:10px">✕</button></span>`).join("")}
-          <label class="ley-doc-badge" style="cursor:pointer">📎 Evidencia <input type="file" style="display:none" onchange="if(this.files[0])window._ley21369.uploadDoc('${i.id}',this.files[0]);this.value=''"></label>
-        </div>
-      </div>`;
-    });
-
-    html+=`<button class="ley-btn ley-btn-sm" style="width:100%;margin-top:4px" onclick="window._ley21369.showAddModal('${sec.id}')">➕ Agregar ítem a ${h(sec.label)}</button>`;
-    html+=`</div></div>`;
-  });
-
-  return html;
-}
-
-// ── Tab: Checklist ──────────────────────────────────────────────────────────
-function renderChecklist(){
-  let html=`<p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Marque el estado de cumplimiento de cada ítem. Los cambios se guardan automáticamente.</p>`;
-
-  SECCIONES.forEach(sec=>{
-    const si=items.filter(i=>i.area===sec.id);
-    if(!si.length)return;
-    const c=si.filter(i=>i.status==="cumple").length;
-    html+=`<div style="margin-bottom:16px">
-      <h4 style="font-size:13px;margin-bottom:6px">${sec.icon} ${sec.num}) ${h(sec.label)} <span style="color:var(--text-muted);font-weight:400">(${c}/${si.length} cumple)</span></h4>`;
-    si.forEach(i=>{
-      const sc=STATUS_CFG[i.status]||STATUS_CFG.sin_evaluar;
-      html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <select class="ley-select" style="min-width:110px" onchange="window._ley21369.updateStatus('${i.id}',this.value)">
-          ${Object.entries(STATUS_CFG).map(([k,v])=>`<option value="${k}"${i.status===k?" selected":""}>${v.icon} ${v.label}</option>`).join("")}
-        </select>
-        <span style="font-size:12px;flex:1;${i.status==="cumple"?"color:var(--text-muted)":""}">${h(i.requirement)}</span>
-        ${i.description?`<span style="font-size:10px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h(i.description)}">📎 ${h(i.description)}</span>`:""}
-      </div>`;
-    });
-    html+=`</div>`;
-  });
-  return html;
-}
-
-// ── Tab: Evidencias (Sección 5 SES) ─────────────────────────────────────────
-function renderEvidencias(){
-  const total=EVIDENCIAS_SES.length;
-  const checked=EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length;
-
-  let html=`<h3 style="font-size:15px;margin-bottom:4px">📁 5) Evidencias Adjuntas (checklist documental para SES)</h3>
-  <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${checked}/${total} evidencias marcadas como adjuntas</p>
-  <div class="ley-progress" style="margin-bottom:16px"><div class="ley-progress-fill" style="width:${total?Math.round(checked/total*100):0}%;background:#16a34a"></div></div>`;
-
-  EVIDENCIAS_SES.forEach(ev=>{
-    const ok=evidencias[ev.id];
-    const secLabel=SECCIONES.find(s=>s.id===ev.seccion_rel)?.label||"";
-    const evDocs=docs.filter(d=>d.category==="evidencia_ses"&&(d.file_name||"").toLowerCase().includes(ev.id));
-    html+=`<div class="ley-ev-check ${ok?"ev-ok":"ev-pending"}">
-      <input type="checkbox" style="width:16px;height:16px;accent-color:#16a34a" ${ok?"checked":""}
-        onchange="window._ley21369.toggleEvidencia('${ev.id}',this.checked)">
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:500">${h(ev.label)}</div>
-        <div style="font-size:10px;color:var(--text-muted)">Sección: ${h(secLabel)}</div>
-      </div>
-      <label class="ley-doc-badge" style="cursor:pointer;font-size:10px">📤 Subir
-        <input type="file" style="display:none" onchange="if(this.files[0])window._ley21369.uploadDoc(null,this.files[0]);this.value=''">
-      </label>
-    </div>`;
-  });
-
-  // Documentos generales subidos
-  const generalDocs=docs.filter(d=>!d.item_id);
-  if(generalDocs.length){
-    html+=`<h4 style="font-size:13px;margin:16px 0 8px">Documentos subidos</h4>`;
-    generalDocs.forEach(d=>{
-      html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;font-size:12px">
-        <span>📄 ${h(d.file_name)} <span style="color:var(--text-muted)">(${fmtSize(d.file_size)} · ${fmtDate(d.created_at)})</span></span>
-        <div style="display:flex;gap:4px">
-          <button class="ley-btn ley-btn-sm" onclick="window._ley21369.downloadDoc('${d.id}')">⬇</button>
-          <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.deleteDoc('${d.id}','${h(d.file_path)}')">🗑</button>
-        </div>
-      </div>`;
-    });
-  }
-
-  return html;
-}
-
-async function toggleEvidencia(evId,checked){
-  evidencias[evId]=checked;
-  await saveMeta("evidencias",evidencias);
-  render();
-}
-
-// ── Tab: Conclusión Ejecutiva (Sección 6 SES) ──────────────────────────────
-function renderConclusion(){
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 2: RESPUESTA FISCALIZACIÓN SES (documento completo — vista única de edición)
+// Secciones 1-4 (ítems), 5 (evidencias), 6 (conclusión), 7 (plan mejora)
+// ══════════════════════════════════════════════════════════════════════════════
+function renderRespuesta(){
   const s=globalStats();
   const scGlobal=STATUS_CFG[s.estadoGlobal]||STATUS_CFG.sin_evaluar;
-
-  let html=`<h3 style="font-size:15px;margin-bottom:12px">📝 6) Conclusión Ejecutiva para SES</h3>
-  <div class="ley-conclusion-box">
-    <div style="margin-bottom:14px">
-      <label style="font-size:12px;font-weight:600">Estado de cumplimiento global</label>
-      <div style="display:flex;gap:12px;margin-top:6px">
-        ${["cumple","parcial","no_cumple"].map(st=>{
-          const cfg=STATUS_CFG[st];
-          return`<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
-            <input type="radio" name="ley_conclusion_estado" value="${st}" ${(conclusion.estado_global||s.estadoGlobal)===st?"checked":""}
-              onchange="window._ley21369.updateConclusion('estado_global','${st}')">
-            ${cfg.icon} ${cfg.label}
-          </label>`;
-        }).join("")}
-      </div>
-      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Calculado automáticamente: ${scGlobal.icon} ${scGlobal.label} (${s.cumple}/${s.evaluated} evaluados cumplen)</div>
-    </div>
-
-    <div class="ley-form-group">
-      <label>Brechas relevantes</label>
-      <textarea class="ley-textarea" rows="3" placeholder="Describa las brechas relevantes detectadas…"
-        onfocusout="window._ley21369.updateConclusion('brechas',this.value)">${h(conclusion.brechas||"")}</textarea>
-    </div>
-
-    <div class="ley-form-group">
-      <label>Medidas correctivas comprometidas (plazo)</label>
-      <textarea class="ley-textarea" rows="3" placeholder="Medidas correctivas y plazos comprometidos…"
-        onfocusout="window._ley21369.updateConclusion('medidas_correctivas',this.value)">${h(conclusion.medidas_correctivas||"")}</textarea>
-    </div>
-
-    <div class="ley-form-group">
-      <label>Responsable institucional</label>
-      <input class="ley-input" placeholder="Nombre y cargo del responsable institucional"
-        value="${h(conclusion.responsable||"")}"
-        onfocusout="window._ley21369.updateConclusion('responsable',this.value)">
-    </div>
-
-    <div style="margin-top:12px;padding:10px;background:var(--bg,#f8fafc);border-radius:8px;font-size:12px;color:var(--text-muted)">
-      <strong>Resumen automático:</strong> De ${s.total} ítems exigidos, ${s.cumple} cumplen, ${s.parcial} parcialmente y ${s.no_cumple} no cumplen. ${s.sin_evaluar} pendientes de evaluación. Cobertura documental: ${EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length}/${EVIDENCIAS_SES.length} evidencias adjuntas.
-    </div>
-  </div>`;
-
-  return html;
-}
-
-async function updateConclusion(field,value){
-  conclusion[field]=value;
-  await saveMeta("conclusion",conclusion);
-}
-
-async function updateSeccionMeta(secId,field,value){
-  if(!seccionMeta[secId])seccionMeta[secId]={};
-  seccionMeta[secId][field]=value;
-  await saveMeta("seccion_"+secId,seccionMeta[secId]);
-}
-
-// ── Tab: Plan de Mejora (Sección 7 SES) ─────────────────────────────────────
-function renderPlanMejora(){
-  let html=`<h3 style="font-size:15px;margin-bottom:4px">🎯 7) Plan de Mejora 2026–2027</h3>
-  <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Opcional para fiscalización proactiva — Brecha / Acción / Responsable / Plazo / Indicador</p>
-
-  <div style="overflow-x:auto">
-    <div class="ley-plan-row" style="font-weight:600;font-size:11px;color:var(--text-muted);border-bottom:2px solid var(--border)">
-      <span>Brecha</span><span>Acción</span><span>Responsable</span><span>Plazo</span><span>Indicador</span><span></span>
-    </div>`;
-
-  planMejora.forEach((pm,idx)=>{
-    html+=`<div class="ley-plan-row">
-      <input class="ley-input" value="${h(pm.brecha)}" onfocusout="window._ley21369.updatePlan(${idx},'brecha',this.value)">
-      <input class="ley-input" value="${h(pm.accion)}" onfocusout="window._ley21369.updatePlan(${idx},'accion',this.value)">
-      <input class="ley-input" value="${h(pm.responsable)}" onfocusout="window._ley21369.updatePlan(${idx},'responsable',this.value)">
-      <input class="ley-input" value="${h(pm.plazo)}" onfocusout="window._ley21369.updatePlan(${idx},'plazo',this.value)">
-      <input class="ley-input" value="${h(pm.indicador)}" onfocusout="window._ley21369.updatePlan(${idx},'indicador',this.value)">
-      <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.removePlanRow(${idx})">🗑</button>
-    </div>`;
-  });
-
-  html+=`</div>
-  <button class="ley-btn" style="margin-top:10px" onclick="window._ley21369.addPlanRow()">➕ Agregar fila</button>`;
-
-  return html;
-}
-
-async function updatePlan(idx,field,value){
-  if(planMejora[idx]){
-    planMejora[idx][field]=value;
-    await saveMeta("plan_mejora",planMejora);
-  }
-}
-
-async function addPlanRow(){
-  planMejora.push({brecha:"",accion:"",responsable:"",plazo:"",indicador:""});
-  await saveMeta("plan_mejora",planMejora);
-  render();
-}
-
-async function removePlanRow(idx){
-  planMejora.splice(idx,1);
-  await saveMeta("plan_mejora",planMejora);
-  render();
-}
-
-// ── Tab: Tabla SES (formato completo tipo documento) ────────────────────────
-function renderTable(){
-  const s=globalStats();
-  const scGlobal=STATUS_CFG[s.estadoGlobal]||STATUS_CFG.sin_evaluar;
-  const evCount=EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length;
 
   let html=`<div style="overflow-x:auto;font-family:Arial,sans-serif">
 
-  <!-- ═══ ENCABEZADO DOCUMENTO ═══ -->
+  <!-- ENCABEZADO DOCUMENTO -->
   <div style="text-align:center;margin-bottom:20px;padding:20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
     <div style="font-size:18px;font-weight:700;letter-spacing:.5px;margin-bottom:4px">RESPUESTA A FISCALIZACIÓN SES 2026</div>
     <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
@@ -769,29 +512,25 @@ function renderTable(){
     </div>
   </div>`;
 
-  // ═══ SECCIONES 1-4 ═══
+  // ═══ SECCIONES 1-4: Checklist de ítems ═══
   SECCIONES.forEach(sec=>{
     const si=items.filter(i=>i.area===sec.id);
     const cumple=si.filter(i=>i.status==="cumple").length;
     const parcial=si.filter(i=>i.status==="parcial").length;
     const noCumple=si.filter(i=>i.status==="no_cumple").length;
-    // Estado global de la sección
     let secEstado="cumple";
     if(noCumple>0)secEstado="no_cumple";
     else if(parcial>0||si.some(i=>i.status==="sin_evaluar"))secEstado="parcial";
     const secSt=STATUS_CFG[secEstado];
-    // Campos extra de la sección
     const meta=seccionMeta[sec.id]||{};
 
     html+=`
     <div style="margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <!-- Título sección -->
       <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border)">
         <div style="font-size:14px;font-weight:700">${sec.num}) ${h(sec.label)} — Checklist de Cumplimiento</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px"><strong>Objetivo SES:</strong> ${h(sec.objetivo)}</div>
       </div>
 
-      <!-- Tabla de ítems -->
       <table class="ley-table" style="margin:0"><thead><tr>
         <th style="width:30%">Ítem exigido por la ley</th>
         <th style="width:55px;text-align:center">Cumple</th>
@@ -799,6 +538,7 @@ function renderTable(){
         <th style="width:65px;text-align:center">No cumple</th>
         <th style="width:25%">Evidencia verificable</th>
         <th style="width:25%">Observaciones / Acciones de mejora</th>
+        <th style="width:30px"></th>
       </tr></thead><tbody>`;
 
     si.forEach(i=>{
@@ -809,12 +549,19 @@ function renderTable(){
         <td style="text-align:center"><input type="radio" name="ses_${i.id}" value="no_cumple" ${i.status==="no_cumple"?"checked":""} onchange="window._ley21369.updateStatus('${i.id}','no_cumple')"></td>
         <td><input class="ley-input" value="${h(i.description||"")}" onfocusout="window._ley21369.updateField('${i.id}','description',this.value)" placeholder="Evidencia…" style="font-size:11px"></td>
         <td><input class="ley-input" value="${h(i.verification_notes||"")}" onfocusout="window._ley21369.updateField('${i.id}','verification_notes',this.value)" placeholder="Observaciones…" style="font-size:11px"></td>
+        <td><button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.deleteItem('${i.id}')" title="Eliminar">🗑</button></td>
       </tr>`;
     });
-    if(!si.length) html+=`<tr><td colspan="6" style="text-align:center;padding:10px;color:var(--text-muted)">Sin ítems</td></tr>`;
+    if(!si.length) html+=`<tr><td colspan="7" style="text-align:center;padding:10px;color:var(--text-muted)">Sin ítems</td></tr>`;
+
     html+=`</tbody></table>
 
-      <!-- Estado global de la sección + campos extra -->
+      <!-- Agregar ítem -->
+      <div style="padding:4px 16px;border-top:1px solid var(--border)">
+        <button class="ley-btn ley-btn-sm" style="width:100%" onclick="window._ley21369.showAddModal('${sec.id}')">➕ Agregar ítem</button>
+      </div>
+
+      <!-- Estado global sección + campos extra -->
       <div style="padding:10px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:12px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <span style="font-weight:600">Estado global ${h(sec.label.split("(")[0].trim())}:</span>
@@ -828,7 +575,7 @@ function renderTable(){
           }).join("")}
         </div>`;
 
-    // Campos extra por sección (como en el documento)
+    // Campos extra por sección
     if(sec.id==="politica_integral"){
       html+=`<div style="margin-top:6px"><span style="color:var(--text-muted)">Responsable de seguimiento:</span>
         <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.responsable_seguimiento||"")}"
@@ -861,6 +608,7 @@ function renderTable(){
   <div style="margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
     <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border)">
       <div style="font-size:14px;font-weight:700">5) Evidencias Adjuntas (checklist documental para SES)</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length}/${EVIDENCIAS_SES.length} evidencias marcadas</div>
     </div>
     <div style="padding:10px 16px">`;
   EVIDENCIAS_SES.forEach(ev=>{
@@ -900,6 +648,9 @@ function renderTable(){
       <div style="margin-bottom:6px">Responsable institucional:
         <input class="ley-input" style="display:inline;width:calc(100% - 170px)" value="${h(conclusion.responsable||"")}"
           onfocusout="window._ley21369.updateConclusion('responsable',this.value)"></div>
+      <div style="margin-top:8px;padding:8px;background:var(--bg,#f8fafc);border-radius:6px;color:var(--text-muted)">
+        <strong>Resumen automático:</strong> De ${s.total} ítems exigidos, ${s.cumple} cumplen, ${s.parcial} parcialmente y ${s.no_cumple} no cumplen. ${s.sin_evaluar} pendientes de evaluación. Cobertura documental: ${EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length}/${EVIDENCIAS_SES.length} evidencias adjuntas.
+      </div>
     </div>
   </div>`;
 
@@ -930,7 +681,87 @@ function renderTable(){
   return html;
 }
 
-// ── Tab: Chat IA ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 3: DOCUMENTOS (todos los archivos: por ítem + evidencias generales)
+// ══════════════════════════════════════════════════════════════════════════════
+function renderDocumentos(){
+  let html=`<h3 style="font-size:15px;margin-bottom:12px">📁 Gestión de Documentos y Evidencias</h3>`;
+
+  // Upload general
+  html+=`<div style="margin-bottom:16px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:12px">
+    <label class="ley-btn ley-btn-primary" style="cursor:pointer">📤 Subir evidencia general
+      <input type="file" style="display:none" onchange="if(this.files[0])window._ley21369.uploadDoc(null,this.files[0]);this.value=''">
+    </label>
+    <span style="font-size:12px;color:var(--text-muted)">Suba decretos, actas, informes y otros documentos de respaldo</span>
+  </div>`;
+
+  // Documentos por sección
+  SECCIONES.forEach(sec=>{
+    const si=items.filter(i=>i.area===sec.id);
+    const secDocs=si.flatMap(i=>docs.filter(d=>d.item_id===i.id).map(d=>({...d,_itemReq:i.requirement})));
+    if(!secDocs.length&&!si.length)return;
+
+    html+=`<div style="margin-bottom:16px">
+      <h4 style="font-size:13px;margin-bottom:8px">${sec.icon} ${sec.num}) ${h(sec.label)}</h4>`;
+
+    si.forEach(i=>{
+      const iDocs=docs.filter(d=>d.item_id===i.id);
+      const sc=STATUS_CFG[i.status]||STATUS_CFG.sin_evaluar;
+      html+=`<div style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+          <span>${sc.icon} ${h(i.requirement)}</span>
+          <label class="ley-doc-badge" style="cursor:pointer;font-size:10px">📎 Subir evidencia
+            <input type="file" style="display:none" onchange="if(this.files[0])window._ley21369.uploadDoc('${i.id}',this.files[0]);this.value=''">
+          </label>
+        </div>`;
+      if(iDocs.length){
+        iDocs.forEach(d=>{
+          html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;margin-top:4px;background:var(--bg,#f8fafc);border-radius:6px;font-size:11px">
+            <span>📄 ${h(d.file_name)} <span style="color:var(--text-muted)">(${fmtSize(d.file_size)} · ${fmtDate(d.created_at)})</span></span>
+            <div style="display:flex;gap:4px">
+              <button class="ley-btn ley-btn-sm" onclick="window._ley21369.downloadDoc('${d.id}')">⬇</button>
+              <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.deleteDoc('${d.id}','${h(d.file_path)}')">🗑</button>
+            </div>
+          </div>`;
+        });
+      } else {
+        html+=`<div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding:2px 8px">Sin documentos adjuntos${i.status==="cumple"?' — <span style="color:#ef4444">⚠ Cumple sin verificador</span>':""}</div>`;
+      }
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  });
+
+  // Documentos generales (sin item_id)
+  const generalDocs=docs.filter(d=>!d.item_id);
+  if(generalDocs.length){
+    html+=`<div style="margin-top:16px">
+      <h4 style="font-size:13px;margin-bottom:8px">📦 Evidencias generales</h4>`;
+    generalDocs.forEach(d=>{
+      html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;font-size:12px">
+        <span>📄 ${h(d.file_name)} <span style="color:var(--text-muted)">(${fmtSize(d.file_size)} · ${fmtDate(d.created_at)})</span></span>
+        <div style="display:flex;gap:4px">
+          <button class="ley-btn ley-btn-sm" onclick="window._ley21369.downloadDoc('${d.id}')">⬇</button>
+          <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.deleteDoc('${d.id}','${h(d.file_path)}')">🗑</button>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // Resumen cobertura
+  const totalItems=items.length;
+  const itemsConDoc=items.filter(i=>docs.some(d=>d.item_id===i.id)).length;
+  html+=`<div style="margin-top:16px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-muted)">
+    <strong>Cobertura documental:</strong> ${itemsConDoc}/${totalItems} ítems con evidencia adjunta · ${generalDocs.length} documentos generales · ${docs.length} archivos totales
+  </div>`;
+
+  return html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 4: CHAT IA
+// ══════════════════════════════════════════════════════════════════════════════
 function renderChat(){
   const msgs=chatMessages.map(m=>`<div class="ley-chat-msg ${m.role}"><div class="bubble">${m.role==="assistant"&&typeof md==="function"?md(m.content):h(m.content)}</div></div>`).join("");
   return`<div class="ley-chat-container">
@@ -1090,27 +921,23 @@ function exportExcel(){
     });
   });
 
-  // Evidencias
   csv+="\n5) Evidencias Adjuntas\n";
   EVIDENCIAS_SES.forEach(ev=>{
     csv+=`"${evidencias[ev.id]?"✅":"⬜"}","${ev.label}"\n`;
   });
 
-  // Conclusión
   csv+="\n6) Conclusión Ejecutiva\n";
   csv+=`"Estado global","${STATUS_CFG[conclusion.estado_global||s.estadoGlobal]?.label||""}"\n`;
   csv+=`"Brechas","${(conclusion.brechas||"").replace(/"/g,'""')}"\n`;
   csv+=`"Medidas correctivas","${(conclusion.medidas_correctivas||"").replace(/"/g,'""')}"\n`;
   csv+=`"Responsable","${(conclusion.responsable||"").replace(/"/g,'""')}"\n`;
 
-  // Plan de Mejora
   csv+="\n7) Plan de Mejora 2026–2027\n";
   csv+="Brecha,Acción,Responsable,Plazo,Indicador\n";
   planMejora.forEach(pm=>{
     csv+=[pm.brecha,pm.accion,pm.responsable,pm.plazo,pm.indicador].map(c=>`"${String(c||"").replace(/"/g,'""')}"`).join(",")+"\n";
   });
 
-  // Resumen
   csv+=`\nRESUMEN\nTotal ítems,${s.total}\nCumple,${s.cumple}\nParcial,${s.parcial}\nNo cumple,${s.no_cumple}\nSin evaluar,${s.sin_evaluar}\nCumplimiento,${s.pct}%\n`;
 
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
@@ -1180,7 +1007,6 @@ async function resetToTemplate(){
   if(!confirm("¿Re-inicializar todos los ítems desde el template SES?\nEsto eliminará los ítems actuales y creará los 26 ítems del documento SES."))return;
   try{
     const user=await getUser(); if(!user)return;
-    // Delete existing items and their docs
     await sb.from("ley21369_documentos").delete().eq("user_id",user.id);
     await sb.from("ley21369_items").delete().eq("user_id",user.id);
     items=[];
