@@ -50,41 +50,41 @@ const STATUS_CFG={
   sin_evaluar: {label:"Sin evaluar",cls:"ley-st-se",   color:"#9ca3af", icon:"⬜"}
 };
 
-// ── Ítems pre-poblados del documento SES ───────────────────────────────────
+// ── Ítems pre-poblados del documento SES (con estado de cumplimiento) ──────
 const ITEMS_SES=[
-  // Sección 1: Política Integral (8 ítems)
-  {seccion:"politica_integral",orden:1,item_exigido:"Acciones de prevención, información, sensibilización, sanción, capacitación y formación",evidencia_ref:"Política Integral (Dec. 029/SU/2022); Protocolo (Dec. 030/SU/2022)",observacion_default:"Mantener plan anual de actividades"},
-  {seccion:"politica_integral",orden:2,item_exigido:"Mecanismos de monitoreo y evaluación de impacto",evidencia_ref:"Política de Igualdad (Dec. 005/SU/2023); informes de seguimiento",observacion_default:"Formalizar indicadores y periodicidad"},
-  {seccion:"politica_integral",orden:3,item_exigido:"Estrategia de comunicación interna",evidencia_ref:"Publicación web; inducciones; campañas",observacion_default:"Reforzar difusión a contratistas"},
-  {seccion:"politica_integral",orden:4,item_exigido:"Procedimiento participativo (paridad/representación)",evidencia_ref:"Actas de claustro; procesos participativos",observacion_default:"Sistematizar actas 2024–2025"},
-  {seccion:"politica_integral",orden:5,item_exigido:"Unidades con personal capacitado (implementación)",evidencia_ref:"UPA (Dec. T/R N°19/2018)",observacion_default:"Mantener formación continua"},
-  {seccion:"politica_integral",orden:6,item_exigido:"Órgano de investigación y sanción",evidencia_ref:"Fiscalía de Género (Dec. T/R N°78/2022)",observacion_default:"Actualizar dotación si aumenta demanda"},
-  {seccion:"politica_integral",orden:7,item_exigido:"Apoyo psicológico, médico, social y jurídico",evidencia_ref:"UPA; derivaciones a redes externas",observacion_default:"Formalizar convenios de derivación"},
-  {seccion:"politica_integral",orden:8,item_exigido:"Entrevistas videograbadas (priorización)",evidencia_ref:"Protocolo interno; actas de diligencias",observacion_default:"Asegurar resguardo de datos"},
+  // Sección 1: Política Integral (8 ítems) — todos ☑️ Cumple en el documento
+  {seccion:"politica_integral",orden:1,estado:"cumple",item_exigido:"Acciones de prevención, información, sensibilización, sanción, capacitación y formación",evidencia_ref:"Política Integral (Dec. 029/SU/2022); Protocolo (Dec. 030/SU/2022)",observacion_default:"Mantener plan anual de actividades"},
+  {seccion:"politica_integral",orden:2,estado:"cumple",item_exigido:"Mecanismos de monitoreo y evaluación de impacto",evidencia_ref:"Política de Igualdad (Dec. 005/SU/2023); informes de seguimiento",observacion_default:"Formalizar indicadores y periodicidad"},
+  {seccion:"politica_integral",orden:3,estado:"cumple",item_exigido:"Estrategia de comunicación interna",evidencia_ref:"Publicación web; inducciones; campañas",observacion_default:"Reforzar difusión a contratistas"},
+  {seccion:"politica_integral",orden:4,estado:"cumple",item_exigido:"Procedimiento participativo (paridad/representación)",evidencia_ref:"Actas de claustro; procesos participativos",observacion_default:"Sistematizar actas 2024–2025"},
+  {seccion:"politica_integral",orden:5,estado:"cumple",item_exigido:"Unidades con personal capacitado (implementación)",evidencia_ref:"UPA (Dec. T/R N°19/2018)",observacion_default:"Mantener formación continua"},
+  {seccion:"politica_integral",orden:6,estado:"cumple",item_exigido:"Órgano de investigación y sanción",evidencia_ref:"Fiscalía de Género (Dec. T/R N°78/2022)",observacion_default:"Actualizar dotación si aumenta demanda"},
+  {seccion:"politica_integral",orden:7,estado:"cumple",item_exigido:"Apoyo psicológico, médico, social y jurídico",evidencia_ref:"UPA; derivaciones a redes externas",observacion_default:"Formalizar convenios de derivación"},
+  {seccion:"politica_integral",orden:8,estado:"cumple",item_exigido:"Entrevistas videograbadas (priorización)",evidencia_ref:"Protocolo interno; actas de diligencias",observacion_default:"Asegurar resguardo de datos"},
 
-  // Sección 2: Modelo de Prevención (6 ítems)
-  {seccion:"modelo_prevencion",orden:1,item_exigido:"Diagnóstico actualizado de riesgos",evidencia_ref:"Diagnóstico con perspectiva de género (junio 2025)",observacion_default:"Programar actualización 2027"},
-  {seccion:"modelo_prevencion",orden:2,item_exigido:"Medidas evaluables según diagnóstico",evidencia_ref:"Plan de acción; metas/indicadores",observacion_default:"Formalizar tablero de control"},
-  {seccion:"modelo_prevencion",orden:3,item_exigido:"Campañas permanentes de sensibilización",evidencia_ref:"Charlas; claustros 2021–2022",observacion_default:"Actualizar reporte 2025–2026 (UPA)"},
-  {seccion:"modelo_prevencion",orden:4,item_exigido:"Programas permanentes de capacitación",evidencia_ref:"Programas virtuales Dirección de Género",observacion_default:"Consolidar malla y registros"},
-  {seccion:"modelo_prevencion",orden:5,item_exigido:"Contenidos en planes curriculares",evidencia_ref:"Crédito Cultural; mallas TS y Derecho",observacion_default:"Extender a otras carreras"},
-  {seccion:"modelo_prevencion",orden:6,item_exigido:"Inducciones con enfoque de género",evidencia_ref:"Programas de inducción institucional",observacion_default:"Incorporar a contratistas"},
+  // Sección 2: Modelo de Prevención (6 ítems) — todos ☑️ Cumple
+  {seccion:"modelo_prevencion",orden:1,estado:"cumple",item_exigido:"Diagnóstico actualizado de riesgos",evidencia_ref:"Diagnóstico con perspectiva de género (junio 2025)",observacion_default:"Programar actualización 2027"},
+  {seccion:"modelo_prevencion",orden:2,estado:"cumple",item_exigido:"Medidas evaluables según diagnóstico",evidencia_ref:"Plan de acción; metas/indicadores",observacion_default:"Formalizar tablero de control"},
+  {seccion:"modelo_prevencion",orden:3,estado:"cumple",item_exigido:"Campañas permanentes de sensibilización",evidencia_ref:"Charlas; claustros 2021–2022",observacion_default:"Actualizar reporte 2025–2026 (UPA)"},
+  {seccion:"modelo_prevencion",orden:4,estado:"cumple",item_exigido:"Programas permanentes de capacitación",evidencia_ref:"Programas virtuales Dirección de Género",observacion_default:"Consolidar malla y registros"},
+  {seccion:"modelo_prevencion",orden:5,estado:"cumple",item_exigido:"Contenidos en planes curriculares",evidencia_ref:"Crédito Cultural; mallas TS y Derecho",observacion_default:"Extender a otras carreras"},
+  {seccion:"modelo_prevencion",orden:6,estado:"cumple",item_exigido:"Inducciones con enfoque de género",evidencia_ref:"Programas de inducción institucional",observacion_default:"Incorporar a contratistas"},
 
-  // Sección 3: Investigación y Sanción (8 ítems)
-  {seccion:"investigacion_sancion",orden:1,item_exigido:"Procedimientos especiales con debido proceso",evidencia_ref:"Protocolo (Dec. 030/SU/2022)",observacion_default:"Revisar plazos máximos"},
-  {seccion:"investigacion_sancion",orden:2,item_exigido:"Órganos especializados",evidencia_ref:"Fiscalía de Género",observacion_default:"Fortalecer dotación"},
-  {seccion:"investigacion_sancion",orden:3,item_exigido:"Tipificación + sanciones + agravantes/atenuantes",evidencia_ref:"Protocolo interno",observacion_default:"Difundir extracto pedagógico"},
-  {seccion:"investigacion_sancion",orden:4,item_exigido:"Medidas de protección durante investigación",evidencia_ref:"Protocolo; resoluciones",observacion_default:"Estandarizar check de riesgo"},
-  {seccion:"investigacion_sancion",orden:5,item_exigido:"Reserva compatible con transparencia",evidencia_ref:"Cláusulas de reserva; prácticas",observacion_default:"Capacitar en acceso a info"},
-  {seccion:"investigacion_sancion",orden:6,item_exigido:"Medidas de eficacia procesal",evidencia_ref:"Instructivos internos",observacion_default:"Implementar control de plazos"},
-  {seccion:"investigacion_sancion",orden:7,item_exigido:"Difusión del modelo a la comunidad",evidencia_ref:"Web; inducciones",observacion_default:"Campaña anual"},
-  {seccion:"investigacion_sancion",orden:8,item_exigido:"Acceso al expediente y derecho a descargos",evidencia_ref:"Protocolos; actas de notificación",observacion_default:"Checklist de notificaciones"},
+  // Sección 3: Investigación y Sanción (8 ítems) — todos ☑️ Cumple
+  {seccion:"investigacion_sancion",orden:1,estado:"cumple",item_exigido:"Procedimientos especiales con debido proceso",evidencia_ref:"Protocolo (Dec. 030/SU/2022)",observacion_default:"Revisar plazos máximos"},
+  {seccion:"investigacion_sancion",orden:2,estado:"cumple",item_exigido:"Órganos especializados",evidencia_ref:"Fiscalía de Género",observacion_default:"Fortalecer dotación"},
+  {seccion:"investigacion_sancion",orden:3,estado:"cumple",item_exigido:"Tipificación + sanciones + agravantes/atenuantes",evidencia_ref:"Protocolo interno",observacion_default:"Difundir extracto pedagógico"},
+  {seccion:"investigacion_sancion",orden:4,estado:"cumple",item_exigido:"Medidas de protección durante investigación",evidencia_ref:"Protocolo; resoluciones",observacion_default:"Estandarizar check de riesgo"},
+  {seccion:"investigacion_sancion",orden:5,estado:"cumple",item_exigido:"Reserva compatible con transparencia",evidencia_ref:"Cláusulas de reserva; prácticas",observacion_default:"Capacitar en acceso a info"},
+  {seccion:"investigacion_sancion",orden:6,estado:"cumple",item_exigido:"Medidas de eficacia procesal",evidencia_ref:"Instructivos internos",observacion_default:"Implementar control de plazos"},
+  {seccion:"investigacion_sancion",orden:7,estado:"cumple",item_exigido:"Difusión del modelo a la comunidad",evidencia_ref:"Web; inducciones",observacion_default:"Campaña anual"},
+  {seccion:"investigacion_sancion",orden:8,estado:"cumple",item_exigido:"Acceso al expediente y derecho a descargos",evidencia_ref:"Protocolos; actas de notificación",observacion_default:"Checklist de notificaciones"},
 
-  // Sección 4: Adecuación de Contratos (4 ítems)
-  {seccion:"adecuacion_contratos",orden:1,item_exigido:"Cláusula de incorporación de Política y Protocolo en contratos",evidencia_ref:"Modelos contractuales; Dec. 029/2022 y 030/2022",observacion_default:"Auditar contratos 2024–2026"},
-  {seccion:"adecuacion_contratos",orden:2,item_exigido:"Aplicación a convenios académicos/investigación",evidencia_ref:"Modelos de convenio",observacion_default:"Checklist en Secretaría General"},
-  {seccion:"adecuacion_contratos",orden:3,item_exigido:"Aplicación a actividades de esparcimiento/recreación",evidencia_ref:"Bases/contratos",observacion_default:"Incluir cláusula tipo"},
-  {seccion:"adecuacion_contratos",orden:4,item_exigido:"Canal de denuncia habilitado para terceros",evidencia_ref:"UPA; derivación a Rectoría",observacion_default:"Difusión"}
+  // Sección 4: Adecuación de Contratos (4 ítems) — todos ☑️ Cumple
+  {seccion:"adecuacion_contratos",orden:1,estado:"cumple",item_exigido:"Cláusula de incorporación de Política y Protocolo en contratos",evidencia_ref:"Modelos contractuales; Dec. 029/2022 y 030/2022",observacion_default:"Auditar contratos 2024–2026"},
+  {seccion:"adecuacion_contratos",orden:2,estado:"cumple",item_exigido:"Aplicación a convenios académicos/investigación",evidencia_ref:"Modelos de convenio",observacion_default:"Checklist en Secretaría General"},
+  {seccion:"adecuacion_contratos",orden:3,estado:"cumple",item_exigido:"Aplicación a actividades de esparcimiento/recreación",evidencia_ref:"Bases/contratos",observacion_default:"Incluir cláusula tipo"},
+  {seccion:"adecuacion_contratos",orden:4,estado:"cumple",item_exigido:"Canal de denuncia habilitado para terceros",evidencia_ref:"UPA; derivación a Rectoría",observacion_default:"Difusión"}
 ];
 
 // ── Evidencias SES (Sección 5) ─────────────────────────────────────────────
@@ -267,7 +267,7 @@ async function seedFromTemplate(){
       requirement:it.item_exigido,
       description:it.evidencia_ref,
       verification_notes:it.observacion_default,
-      status:"sin_evaluar",
+      status:it.estado||"sin_evaluar",
       sort_order:it.orden,
       responsible:null,
       due_date:null
@@ -414,7 +414,7 @@ const TABS=[
   {id:"evidencias",label:"📁 Evidencias"},
   {id:"conclusion",label:"📝 Conclusión"},
   {id:"plan_mejora",label:"🎯 Plan Mejora"},
-  {id:"table",label:"📑 Tabla SES"},
+  {id:"table",label:"📑 Respuesta Fiscalización SES"},
   {id:"chat",label:"💬 Chat IA"}
 ];
 
@@ -699,6 +699,12 @@ async function updateConclusion(field,value){
   await saveMeta("conclusion",conclusion);
 }
 
+async function updateSeccionMeta(secId,field,value){
+  if(!seccionMeta[secId])seccionMeta[secId]={};
+  seccionMeta[secId][field]=value;
+  await saveMeta("seccion_"+secId,seccionMeta[secId]);
+}
+
 // ── Tab: Plan de Mejora (Sección 7 SES) ─────────────────────────────────────
 function renderPlanMejora(){
   let html=`<h3 style="font-size:15px;margin-bottom:4px">🎯 7) Plan de Mejora 2026–2027</h3>
@@ -747,19 +753,53 @@ async function removePlanRow(idx){
 
 // ── Tab: Tabla SES (formato completo tipo documento) ────────────────────────
 function renderTable(){
-  let html=`<div style="overflow-x:auto">`;
+  const s=globalStats();
+  const scGlobal=STATUS_CFG[s.estadoGlobal]||STATUS_CFG.sin_evaluar;
+  const evCount=EVIDENCIAS_SES.filter(ev=>evidencias[ev.id]).length;
 
+  let html=`<div style="overflow-x:auto;font-family:Arial,sans-serif">
+
+  <!-- ═══ ENCABEZADO DOCUMENTO ═══ -->
+  <div style="text-align:center;margin-bottom:20px;padding:20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
+    <div style="font-size:18px;font-weight:700;letter-spacing:.5px;margin-bottom:4px">RESPUESTA A FISCALIZACIÓN SES 2026</div>
+    <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
+      Implementación de la Ley N° 21.369 – Universidad de Magallanes<br>
+      Fecha: ${new Date().toLocaleDateString("es-CL",{year:"numeric",month:"long"})}<br>
+      Unidad responsable: Dirección de Género / Fiscalía de Género / UPA
+    </div>
+  </div>`;
+
+  // ═══ SECCIONES 1-4 ═══
   SECCIONES.forEach(sec=>{
     const si=items.filter(i=>i.area===sec.id);
-    html+=`<h4 style="font-size:13px;margin:16px 0 8px">${sec.icon} ${sec.num}) ${h(sec.label)}</h4>
-    <table class="ley-table"><thead><tr>
-      <th style="width:30%">Ítem exigido</th>
-      <th style="width:60px;text-align:center">Cumple</th>
-      <th style="width:60px;text-align:center">Parcial</th>
-      <th style="width:70px;text-align:center">No cumple</th>
-      <th style="width:25%">Evidencia verificable</th>
-      <th style="width:25%">Observaciones / Acciones de mejora</th>
-    </tr></thead><tbody>`;
+    const cumple=si.filter(i=>i.status==="cumple").length;
+    const parcial=si.filter(i=>i.status==="parcial").length;
+    const noCumple=si.filter(i=>i.status==="no_cumple").length;
+    // Estado global de la sección
+    let secEstado="cumple";
+    if(noCumple>0)secEstado="no_cumple";
+    else if(parcial>0||si.some(i=>i.status==="sin_evaluar"))secEstado="parcial";
+    const secSt=STATUS_CFG[secEstado];
+    // Campos extra de la sección
+    const meta=seccionMeta[sec.id]||{};
+
+    html+=`
+    <div style="margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <!-- Título sección -->
+      <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:700">${sec.num}) ${h(sec.label)} — Checklist de Cumplimiento</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px"><strong>Objetivo SES:</strong> ${h(sec.objetivo)}</div>
+      </div>
+
+      <!-- Tabla de ítems -->
+      <table class="ley-table" style="margin:0"><thead><tr>
+        <th style="width:30%">Ítem exigido por la ley</th>
+        <th style="width:55px;text-align:center">Cumple</th>
+        <th style="width:55px;text-align:center">Parcial</th>
+        <th style="width:65px;text-align:center">No cumple</th>
+        <th style="width:25%">Evidencia verificable</th>
+        <th style="width:25%">Observaciones / Acciones de mejora</th>
+      </tr></thead><tbody>`;
 
     si.forEach(i=>{
       html+=`<tr>
@@ -767,16 +807,126 @@ function renderTable(){
         <td style="text-align:center"><input type="radio" name="ses_${i.id}" value="cumple" ${i.status==="cumple"?"checked":""} onchange="window._ley21369.updateStatus('${i.id}','cumple')"></td>
         <td style="text-align:center"><input type="radio" name="ses_${i.id}" value="parcial" ${i.status==="parcial"?"checked":""} onchange="window._ley21369.updateStatus('${i.id}','parcial')"></td>
         <td style="text-align:center"><input type="radio" name="ses_${i.id}" value="no_cumple" ${i.status==="no_cumple"?"checked":""} onchange="window._ley21369.updateStatus('${i.id}','no_cumple')"></td>
-        <td><input class="ley-input" value="${h(i.description||"")}" onfocusout="window._ley21369.updateField('${i.id}','description',this.value)" placeholder="Evidencia…"></td>
-        <td><input class="ley-input" value="${h(i.verification_notes||"")}" onfocusout="window._ley21369.updateField('${i.id}','verification_notes',this.value)" placeholder="Observaciones…"></td>
+        <td><input class="ley-input" value="${h(i.description||"")}" onfocusout="window._ley21369.updateField('${i.id}','description',this.value)" placeholder="Evidencia…" style="font-size:11px"></td>
+        <td><input class="ley-input" value="${h(i.verification_notes||"")}" onfocusout="window._ley21369.updateField('${i.id}','verification_notes',this.value)" placeholder="Observaciones…" style="font-size:11px"></td>
       </tr>`;
     });
-
     if(!si.length) html+=`<tr><td colspan="6" style="text-align:center;padding:10px;color:var(--text-muted)">Sin ítems</td></tr>`;
-    html+=`</tbody></table>`;
+    html+=`</tbody></table>
+
+      <!-- Estado global de la sección + campos extra -->
+      <div style="padding:10px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:12px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-weight:600">Estado global ${h(sec.label.split("(")[0].trim())}:</span>
+          ${["cumple","parcial","no_cumple"].map(st=>{
+            const cfg=STATUS_CFG[st];
+            return`<label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer">
+              <input type="radio" name="secGlobal_${sec.id}" value="${st}" ${secEstado===st?"checked":""}
+                onchange="window._ley21369.updateSeccionMeta('${sec.id}','estado_global','${st}')">
+              ${cfg.icon} ${cfg.label}
+            </label>`;
+          }).join("")}
+        </div>`;
+
+    // Campos extra por sección (como en el documento)
+    if(sec.id==="politica_integral"){
+      html+=`<div style="margin-top:6px"><span style="color:var(--text-muted)">Responsable de seguimiento:</span>
+        <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.responsable_seguimiento||"")}"
+          onfocusout="window._ley21369.updateSeccionMeta('${sec.id}','responsable_seguimiento',this.value)"></div>`;
+    } else if(sec.id==="modelo_prevencion"){
+      html+=`<div style="margin-top:6px"><span style="color:var(--text-muted)">Brechas identificadas:</span>
+        <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.brechas_identificadas||"")}"
+          onfocusout="window._ley21369.updateSeccionMeta('${sec.id}','brechas_identificadas',this.value)"></div>
+        <div style="margin-top:4px"><span style="color:var(--text-muted)">Plan de mejora (plazo/responsable):</span>
+        <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.plan_mejora_breve||"")}"
+          onfocusout="window._ley21369.updateSeccionMeta('${sec.id}','plan_mejora_breve',this.value)"></div>`;
+    } else if(sec.id==="investigacion_sancion"){
+      html+=`<div style="margin-top:6px"><span style="color:var(--text-muted)">Riesgos críticos detectados:</span>
+        <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.riesgos_criticos||"")}"
+          onfocusout="window._ley21369.updateSeccionMeta('${sec.id}','riesgos_criticos',this.value)"></div>
+        <div style="margin-top:4px"><span style="color:var(--text-muted)">Acciones correctivas priorizadas:</span>
+        <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.acciones_correctivas||"")}"
+          onfocusout="window._ley21369.updateSeccionMeta('${sec.id}','acciones_correctivas',this.value)"></div>`;
+    } else if(sec.id==="adecuacion_contratos"){
+      html+=`<div style="margin-top:6px"><span style="color:var(--text-muted)">Plan de regularización documental:</span>
+        <input class="ley-input" style="display:inline;width:300px;margin-left:4px" value="${h(meta.plan_regularizacion||"")}"
+          onfocusout="window._ley21369.updateSeccionMeta('${sec.id}','plan_regularizacion',this.value)"></div>`;
+    }
+
+    html+=`</div></div>`;
   });
 
-  html+=`</div>`;
+  // ═══ SECCIÓN 5: EVIDENCIAS ═══
+  html+=`
+  <div style="margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+    <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:700">5) Evidencias Adjuntas (checklist documental para SES)</div>
+    </div>
+    <div style="padding:10px 16px">`;
+  EVIDENCIAS_SES.forEach(ev=>{
+    const ok=evidencias[ev.id];
+    html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)">
+      <input type="checkbox" style="width:14px;height:14px;accent-color:#16a34a" ${ok?"checked":""}
+        onchange="window._ley21369.toggleEvidencia('${ev.id}',this.checked)">
+      <span>${ok?"☑️":"⬜"} ${h(ev.label)}</span>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  // ═══ SECCIÓN 6: CONCLUSIÓN EJECUTIVA ═══
+  html+=`
+  <div style="margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+    <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:700">6) Conclusión Ejecutiva para SES (resumen en 5 líneas)</div>
+    </div>
+    <div style="padding:12px 16px;font-size:12px;line-height:1.8">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-weight:600">Estado de cumplimiento global:</span>
+        ${["cumple","parcial","no_cumple"].map(st=>{
+          const cfg=STATUS_CFG[st];
+          return`<label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer">
+            <input type="radio" name="conclusionGlobal" value="${st}" ${(conclusion.estado_global||s.estadoGlobal)===st?"checked":""}
+              onchange="window._ley21369.updateConclusion('estado_global','${st}')">
+            ${cfg.icon} ${cfg.label}
+          </label>`;
+        }).join("")}
+      </div>
+      <div style="margin-bottom:6px">Brechas relevantes:
+        <input class="ley-input" style="display:inline;width:calc(100% - 140px)" value="${h(conclusion.brechas||"")}"
+          onfocusout="window._ley21369.updateConclusion('brechas',this.value)"></div>
+      <div style="margin-bottom:6px">Medidas correctivas comprometidas (plazo):
+        <input class="ley-input" style="display:inline;width:calc(100% - 260px)" value="${h(conclusion.medidas_correctivas||"")}"
+          onfocusout="window._ley21369.updateConclusion('medidas_correctivas',this.value)"></div>
+      <div style="margin-bottom:6px">Responsable institucional:
+        <input class="ley-input" style="display:inline;width:calc(100% - 170px)" value="${h(conclusion.responsable||"")}"
+          onfocusout="window._ley21369.updateConclusion('responsable',this.value)"></div>
+    </div>
+  </div>`;
+
+  // ═══ SECCIÓN 7: PLAN DE MEJORA ═══
+  html+=`
+  <div style="margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+    <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:700">7) Plan de Mejora 2026–2027 (opcional para fiscalización proactiva)</div>
+    </div>
+    <table class="ley-table" style="margin:0"><thead><tr>
+      <th>Brecha</th><th>Acción</th><th>Responsable</th><th>Plazo</th><th>Indicador</th><th style="width:30px"></th>
+    </tr></thead><tbody>`;
+  planMejora.forEach((pm,idx)=>{
+    html+=`<tr>
+      <td><input class="ley-input" value="${h(pm.brecha)}" onfocusout="window._ley21369.updatePlan(${idx},'brecha',this.value)" style="font-size:11px"></td>
+      <td><input class="ley-input" value="${h(pm.accion)}" onfocusout="window._ley21369.updatePlan(${idx},'accion',this.value)" style="font-size:11px"></td>
+      <td><input class="ley-input" value="${h(pm.responsable)}" onfocusout="window._ley21369.updatePlan(${idx},'responsable',this.value)" style="font-size:11px"></td>
+      <td><input class="ley-input" value="${h(pm.plazo)}" onfocusout="window._ley21369.updatePlan(${idx},'plazo',this.value)" style="font-size:11px"></td>
+      <td><input class="ley-input" value="${h(pm.indicador)}" onfocusout="window._ley21369.updatePlan(${idx},'indicador',this.value)" style="font-size:11px"></td>
+      <td><button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.removePlanRow(${idx})">🗑</button></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>
+    <div style="padding:8px 16px"><button class="ley-btn ley-btn-sm" onclick="window._ley21369.addPlanRow()">➕ Agregar fila</button></div>
+  </div>
+
+  </div>`;
   return html;
 }
 
@@ -1051,7 +1201,7 @@ function render(){
 window._ley21369={
   updateStatus,updateField,deleteItem,uploadDoc,downloadDoc,deleteDoc,
   sendChat,generateReport,exportExcel,showAddModal,
-  toggleEvidencia,updateConclusion,
+  toggleEvidencia,updateConclusion,updateSeccionMeta,
   updatePlan,addPlanRow,removePlanRow,
   resetToTemplate,
   copyReport:()=>{if(aiReport){navigator.clipboard.writeText(aiReport);showToast("Copiado al portapapeles","success")}},
