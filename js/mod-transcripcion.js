@@ -525,19 +525,22 @@ async function transcribeAudio(){
 /* ── Prompts de estructuración ── */
 const T_PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
 
-CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes. Actúo como Fiscal Investigadora.
+OBJETIVO: Elaborar un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración transcrita, integrándolo al acta. El documento final debe presentarse con redacción fluida, coherente y ordenada, facilitando su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
+
+CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes, en el cual actúo como Fiscal Investigadora. La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas.
 
 REGLAS DE EDICIÓN:
-- Conservar la redacción en primera persona y el estilo expresivo del declarante
-- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea") y repeticiones innecesarias
-- NO agregar información nueva ni interpretar intenciones
-- Mantener palabras originales del declarante salvo errores gramaticales
-- Unir frases fragmentadas para fluidez sin cambiar sentido
+- Conservar, en lo posible, la redacción en primera persona y el estilo expresivo del declarante
+- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea", "bueno", "como te digo") y repeticiones innecesarias que no alteren el sentido ni el tono del testimonio
+- NO agregar información nueva ni interpretar intenciones; solo reescribir lo existente
+- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical
+- Unir frases fragmentadas cuando sea necesario para fluidez, sin cambiar el sentido
 - Conservar comillas, fechas, cifras y nombres propios exactamente como están
 - Tono formal, claro y preciso, coherente con documento legal
-- Respetar terminología jurídica y secuencia cronológica
+- Respetar la terminología jurídica y la secuencia cronológica de los hechos
+- Conservar la estructura lógica de los párrafos
 
-ENTREGA: Solo la versión final, sin comentarios ni marcas de edición.`;
+ENTREGA: Solo la versión final corregida, sin comentarios ni marcadores de edición.`;
 
 const T_PROMPT_QA = T_PROMPT_BASE + `
 
@@ -673,8 +676,8 @@ async function structureTranscripcion(){
       const hasBaseDoc=!!transcripcion.baseDocText?.trim();
       const mode=hasBaseDoc?'fill_acta':(transcripcion.selectedMode||'directa');
 
-      /* SHORT TEXT (≤4000 chars): single fast call */
-      if(raw.length<=4000){
+      /* SHORT TEXT (≤6000 chars): single fast call — umbral ampliado para reducir splits innecesarios */
+      if(raw.length<=6000){
         setProgress(40,'Estructurando con IA rápida…');
         const resp=await fetch('/.netlify/functions/structure',{
           method:'POST',
@@ -718,7 +721,7 @@ async function structureTranscripcion(){
         const r2=await fetch('/.netlify/functions/structure',{
           method:'POST',
           headers:{'Content-Type':'application/json','x-auth-token':session?.access_token||''},
-          body:JSON.stringify({rawText:part2,mode:'directa',caseContext:'(continuación de la declaración)'})
+          body:JSON.stringify({rawText:part2,mode:'pregunta_respuesta',caseContext:'(continuación de la declaración — solo estructurar el contenido, NO repetir encabezado ni cierre)'})
         });
         if(!r2.ok)throw new Error('Parte 2: HTTP '+r2.status);
         const d2=await r2.json();

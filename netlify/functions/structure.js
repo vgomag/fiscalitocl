@@ -40,19 +40,22 @@ function callAnthropic(apiKey, system, userMsg, maxTokens) {
 
 const PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
 
-CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes. Actúo como Fiscal Investigadora.
+OBJETIVO: Elaborar un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración transcrita, integrándolo al acta. El documento final debe presentarse con redacción fluida, coherente y ordenada, facilitando su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
+
+CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes, en el cual actúo como Fiscal Investigadora. La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas.
 
 REGLAS DE EDICIÓN:
-- Conservar la redacción en primera persona y el estilo expresivo del declarante
-- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea") y repeticiones innecesarias
-- NO agregar información nueva ni interpretar intenciones
-- Mantener palabras originales del declarante salvo errores gramaticales
-- Unir frases fragmentadas para fluidez sin cambiar sentido
+- Conservar, en lo posible, la redacción en primera persona y el estilo expresivo del declarante
+- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea", "bueno", "como te digo") y repeticiones innecesarias que no alteren el sentido ni el tono del testimonio
+- NO agregar información nueva ni interpretar intenciones; solo reescribir lo existente
+- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical
+- Unir frases fragmentadas cuando sea necesario para fluidez, sin cambiar el sentido
 - Conservar comillas, fechas, cifras y nombres propios exactamente como están
 - Tono formal, claro y preciso, coherente con documento legal
-- Respetar terminología jurídica y secuencia cronológica
+- Respetar la terminología jurídica y la secuencia cronológica de los hechos
+- Conservar la estructura lógica de los párrafos
 
-ENTREGA: Solo la versión final, sin comentarios ni marcas de edición.`;
+ENTREGA: Solo la versión final corregida, sin comentarios ni marcadores de edición.`;
 
 const PROMPTS = {
   pregunta_respuesta: PROMPT_BASE + `
@@ -180,13 +183,16 @@ exports.handler = async (event) => {
     if (caseContext) fullPrompt += '\n' + caseContext;
     if (baseDocText) fullPrompt += '\n\nDOCUMENTO BASE (plantilla del acta — preservar su estructura y llenar con las respuestas del audio):\n' + baseDocText.substring(0, 5000);
 
-    /* Pro plan: 26s timeout allows more text */
-    const text = rawText.substring(0, 12000);
+    /* Pro plan: 26s timeout allows more text — ampliado a 14000 para reducir splits */
+    const text = rawText.substring(0, 14000);
     const userMsg = mode === 'fill_acta'
       ? 'Llena el acta adjunta (DOCUMENTO BASE) con las respuestas de la siguiente transcripción de audio:\n\n' + text
-      : 'Estructura la siguiente declaración transcrita como acta formal:\n\n' + text;
+      : 'Elabora el Texto Refundido de la siguiente declaración transcrita:\n\n' + text;
 
-    const maxTok = (mode === 'fill_acta' || mode === 'con_expediente' || mode === 'directa') ? 8000 : 6000;
+    /* max_tokens ajustados por modo: QA necesita menos, acta completa necesita más */
+    const maxTok = (mode === 'fill_acta' || mode === 'con_expediente') ? 8000
+                 : mode === 'directa' ? 7000
+                 : 5000; /* pregunta_respuesta: más conciso, más rápido */
     const result = await callAnthropic(apiKey, fullPrompt, userMsg, maxTok);
     const structured = (result.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
 
