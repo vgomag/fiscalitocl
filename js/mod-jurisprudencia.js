@@ -241,7 +241,7 @@ function renderSkillPanel() {
         <label>Palabras clave <span class="skill-hint">separadas por coma</span></label>
         <textarea class="skill-input" id="skillKeywords" rows="2"
           placeholder="Ej: acoso laboral, proporcionalidad sanción, prescripción disciplinaria…"
-          oninput="juri.skillKeywords=this.value"
+          oninput="juri.skillKeywords=this.value;juriUpdateSearchBtn()"
         >${juriEsc(juri.skillKeywords)}</textarea>
       </div>
 
@@ -373,6 +373,11 @@ function juriToggleSkillSource(src) {
   const wrap = document.querySelector('.skill-wrap');
   if (wrap) wrap.innerHTML = renderSkillPanel().replace('<div class="skill-wrap">','').replace(/^<div class="skill-wrap">/, '').slice(0, -6);
   renderJuriView();  // full re-render to update buttons
+}
+
+function juriUpdateSearchBtn() {
+  const btn = document.querySelector('.skill-search-btn');
+  if (btn) btn.disabled = juri.skillLoading || !juri.skillKeywords.trim();
 }
 
 function updateSkillResultsUI() {
