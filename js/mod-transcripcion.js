@@ -1,20 +1,23 @@
 /* =========================================================
    MOD-TRANSCRIPCION.JS — F11 Transcripción de Actas
-   v5.0 · 2026-03-27 · Fiscalito / UMAG
+   v6.0 · 2026-04-01 · Fiscalito / UMAG
    =========================================================
-   Mejoras v5:
-   · Barra de progreso visual con %, etapas y tiempo
-   · Reintento automático 2x ante errores
-   · Fix modo "con expediente" — carga datos completos del caso
+   Cambios v6:
+   · Fix endpoint: usa /.netlify/functions/chat (mode:'transcribe')
+   · Fix respuesta: mapea data.transcript correctamente
+   · Límite 4.5MB real con mensaje claro al usuario
+   · Base64 encoding optimizado (chunks grandes, menos overhead)
+   · Detección de duración de audio para UX
+   · Eliminada dependencia a Supabase Edge Functions inexistentes
+   · Progreso más preciso y descriptivo
+   · Mejor manejo de errores con mensajes claros
    ========================================================= */
 
 /* ── CONSTANTES ── */
-const T_MAX_INPUT_MB  = 200;
+const T_MAX_INPUT_MB  = 4.5;  // Netlify body ~6MB, base64 expande ~33%
 const T_MAX_INPUT     = T_MAX_INPUT_MB * 1024 * 1024;
-const T_CHUNK_SECS    = 60;
-const T_SAMPLE_RATE   = 16000;
-const T_CHANNELS      = 1;
 const T_MAX_RETRIES   = 2;
+const T_STRUCTURE_MAX_CHARS = 14000;
 
 const T_EXTS = [
   '.mp3','.wav','.m4a','.aac','.ogg','.oga','.opus','.flac',
@@ -39,19 +42,18 @@ const T_MIME = {
 /* ── ESTADO ── */
 const transcripcion = {
   isRecording:false, mediaRecorder:null, audioChunks:[],
-  audioFile:null, audioUrl:null,
+  audioFile:null, audioUrl:null, audioDuration:null,
   baseDocText:'', baseDocName:'',
   rawText:'', structuredText:'', summary:'',
   segments:[], step:'upload',
   isProcessing:false, isGeneratingSummary:false,
   selectedMode:null, linkedCase:null,
   transcribeProvider:null,
-  progress:{ current:0, total:0, pct:0, stepLabel:'', startTime:0, retryCount:0 },
-  /* Metadata del acta */
+  progress:{ pct:0, stepLabel:'', startTime:0, retryCount:0 },
   meta:{ tipoDeclarante:'testigo', nombreDeclarante:'', fecha:'', lugar:'Punta Arenas' },
 };
 
-/* ── MONKEY-PATCH ── */
+/* ── MONKEY-PATCH showFnPanel ── */
 (function patchShowFnPanel(){
   const tryP=()=>{
     if(typeof window.showFnPanel!=='function'){setTimeout(tryP,50);return;}
@@ -71,12 +73,41 @@ function _sz(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+'
 function _dur(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return m+':'+(ss<10?'0':'')+ss;}
 function _elapsed(startMs){if(!startMs)return'';const s=Math.floor((Date.now()-startMs)/1000);if(s<60)return s+'s';return Math.floor(s/60)+'m '+s%60+'s';}
 function _fmtArr(v){if(!v)return'';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}}
-
-/* ── SLEEP ── */
 function _sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
+/* ── Base64 rápido ── */
+function _toBase64(arrayBuffer){
+  const bytes=new Uint8Array(arrayBuffer);
+  const CHUNK=0x8000; // 32KB chunks
+  let raw='';
+  for(let i=0;i<bytes.length;i+=CHUNK){
+    raw+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+CHUNK,bytes.length)));
+  }
+  return btoa(raw);
+}
+
+/* ── Detectar duración del audio ── */
+function _detectDuration(file){
+  return new Promise(resolve=>{
+    try{
+      const url=URL.createObjectURL(file);
+      const el=document.createElement(file.type?.startsWith('video/')?'video':'audio');
+      el.preload='metadata';
+      el.onloadedmetadata=()=>{
+        const d=isFinite(el.duration)?el.duration:null;
+        URL.revokeObjectURL(url);
+        resolve(d);
+      };
+      el.onerror=()=>{URL.revokeObjectURL(url);resolve(null);};
+      el.src=url;
+      // Timeout por si no carga metadata
+      setTimeout(()=>resolve(null),3000);
+    }catch(e){resolve(null);}
+  });
+}
+
 /* ────────────────────────────────────────────────────────
-   PROGRESS HELPERS
+   PROGRESS
    ──────────────────────────────────────────────────────── */
 function setProgress(pct,label){
   transcripcion.progress.pct=Math.min(100,Math.max(0,Math.round(pct)));
@@ -101,7 +132,6 @@ function updateProgressUI(){
   }
 }
 
-// Timer that updates elapsed time every second
 let _progressTimer=null;
 function startProgressTimer(){
   stopProgressTimer();
@@ -132,6 +162,7 @@ function updateTransPanel(){renderF11Panel();}
 function buildF11HTML(){
   const linked=transcripcion.linkedCase;
   const p=transcripcion.progress;
+  const durStr=transcripcion.audioDuration?(' · '+_dur(transcripcion.audioDuration)):'';
 
   /* ── Docs section ── */
   const docsSection=`<div class="f11-section">
@@ -142,7 +173,7 @@ function buildF11HTML(){
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <label class="f11-upload-audio-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Subir audio / video (MP3, M4A, WAV, OGG, MP4…)
+        Subir audio / video (máx. ${T_MAX_INPUT_MB}MB)
         <input type="file" accept="${T_ACCEPT}" style="display:none" onchange="handleTransAudioUpload(this)"/>
       </label>
       <label class="f11-upload-btn" style="font-size:11px;padding:4px 10px" title="Suba el acta/cuestionario con las preguntas para que se llene con las respuestas del audio">
@@ -152,8 +183,8 @@ function buildF11HTML(){
       </label>
     </div>
     ${transcripcion.audioFile
-      ?`<div class="f11-file-chip">🔊 ${esc(transcripcion.audioFile.name)} <span style="font-size:10px;opacity:.7;margin-left:4px">(${_sz(transcripcion.audioFile.size)})</span>
-          <button onclick="transcripcion.audioFile=null;transcripcion.audioUrl=null;renderF11Panel()" class="f11-chip-del">✕</button></div>`:''}
+      ?`<div class="f11-file-chip">🔊 ${esc(transcripcion.audioFile.name)} <span style="font-size:10px;opacity:.7;margin-left:4px">(${_sz(transcripcion.audioFile.size)}${durStr})</span>
+          <button onclick="transcripcion.audioFile=null;transcripcion.audioUrl=null;transcripcion.audioDuration=null;renderF11Panel()" class="f11-chip-del">✕</button></div>`:''}
     ${transcripcion.baseDocName
       ?`<div class="f11-file-chip">📄 ${esc(transcripcion.baseDocName)} <span style="font-size:10px;opacity:.7;margin-left:4px">(se llenará con audio)</span> <button onclick="clearTransDoc()" class="f11-chip-del">✕</button></div>`
       :`<div class="f11-empty-docs">${transcripcion.audioFile?'Opcionalmente suba un acta/cuestionario base para llenar con el audio':'Use el botón de arriba para cargar su archivo de audio'}</div>`}
@@ -224,7 +255,7 @@ function buildF11HTML(){
       <div class="f11-result-actions">
         <button class="btn-save" onclick="saveTranscripcionToCase()" style="font-size:11.5px">💾 Guardar al expediente</button>
         <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar</button>
-        <button class="btn-sm" onclick="downloadTransWord()">⬇ TXT</button>
+        <button class="btn-sm" onclick="downloadTransTxt()">⬇ TXT</button>
         <button class="btn-sm" onclick="exportActaToWord()" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600">📄 Word</button>
         ${!transcripcion.summary?'<button class="btn-sm" onclick="generateTransSummary()">📊 Resumen IA</button>':''}
         <button class="btn-cancel" style="margin-left:auto" onclick="resetTranscripcion()">↺ Nueva</button>
@@ -236,7 +267,7 @@ function buildF11HTML(){
   }
 
   /* ══════════════════════════════════════════════════
-     PROCESSING — Enhanced progress bar
+     PROCESSING — Progress bar
      ══════════════════════════════════════════════════ */
   if(transcripcion.isProcessing){
     const pct=p.pct||0;
@@ -267,7 +298,7 @@ function buildF11HTML(){
     </div>`;
   }
 
-  /* ── After transcription ── */
+  /* ── After transcription (raw text obtained) ── */
   if(transcripcion.step==='structure'&&transcripcion.rawText){
     return`<div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:8px">
       ${docsSection}${metaSection}${caseSection}
@@ -280,7 +311,7 @@ function buildF11HTML(){
         <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Estructurar como acta</div>
         <div class="f11-action-row">
           <button class="btn-save" style="flex:1" onclick="transcripcion.selectedMode='pregunta_respuesta';structureTranscripcion()">📋 Pregunta-Respuesta</button>
-          <button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='solo';structureTranscripcion()">📄 Acta directa</button>
+          <button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='directa';structureTranscripcion()">📄 Acta directa</button>
           <button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='con_expediente';structureTranscripcion()">📁 Con expediente</button>
         </div>
       </div>
@@ -314,12 +345,13 @@ function buildF11HTML(){
       <div class="f11-format-body">
         <strong>Audio:</strong> MP3, WAV, M4A, AAC, OGG, OPUS, FLAC, WMA, AMR, AIFF, CAF, WebM, 3GP<br>
         <strong>Video:</strong> MP4, MOV, AVI, MKV, WMV, FLV, WebM<br>
-        <strong>Grabaciones:</strong> iPhone (CAF/M4A), Android (AMR/3GP/OGG), WhatsApp (OPUS/OGG)
+        <strong>Grabaciones:</strong> iPhone (CAF/M4A), Android (AMR/3GP/OGG), WhatsApp (OPUS/OGG)<br>
+        <strong>Máximo:</strong> ${T_MAX_INPUT_MB} MB por archivo
       </div>
     </div>` : ''}
     <div class="f11-note">
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#f59e0b" stroke-width="1.5" style="flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8.5"/><circle cx="8" cy="11" r=".5" fill="#f59e0b" stroke="none"/></svg>
-      La transcripción se realiza mediante IA. Revise siempre el texto resultante.
+      La transcripción se realiza mediante IA (Whisper / ElevenLabs). Revise siempre el texto resultante.
     </div>
   </div>`;
 }
@@ -346,7 +378,7 @@ function selectF11Mode(mode){
   transcripcion.selectedMode=transcripcion.selectedMode===mode?null:mode;
   buildF11Chips();
   const hint=document.getElementById('fnHint');
-  if(hint)hint.textContent=({solo:'Solo transcribir',pregunta_respuesta:'Formato pregunta-respuesta',con_expediente:'Con datos del expediente'})[mode]||'Suba audio/video para transcribir';
+  if(hint)hint.textContent=({directa:'Acta formal completa',pregunta_respuesta:'Formato pregunta-respuesta',con_expediente:'Con datos del expediente',fill_acta:'Llenar acta existente con audio'})[mode]||'Suba audio/video para transcribir';
 }
 
 /* ── Input bar ── */
@@ -363,17 +395,18 @@ function updateTransInputBar(){
       fi.setAttribute('accept',T_ACCEPT);fi.accept=T_ACCEPT;
       fi.onchange=function(e){
         const f=e.target.files?.[0];if(!f)return;
-        const e2=_ext(f.name);
-        if(['pdf','docx','doc','txt'].includes(e2)){
+        const ext=_ext(f.name);
+        if(['pdf','docx','doc','txt'].includes(ext)){
           const r=new FileReader();
           r.onload=ev=>{transcripcion.baseDocText=ev.target.result||'';transcripcion.baseDocName=f.name;renderF11Panel();showToast('✓ Doc: '+f.name);};
           r.readAsText(f);fi.value='';return;
         }
-        if(!_isAV(f)){showToast('⚠ Formato no reconocido: .'+_ext(f.name));fi.value='';return;}
-        if(f.size>T_MAX_INPUT){showToast('⚠ Archivo muy grande ('+_sz(f.size)+')');fi.value='';return;}
+        if(!_isAV(f)){showToast('⚠ Formato no reconocido: .'+ext);fi.value='';return;}
+        if(f.size>T_MAX_INPUT){showToast('⚠ Archivo muy grande ('+_sz(f.size)+'). Máximo: '+T_MAX_INPUT_MB+'MB');fi.value='';return;}
         transcripcion.audioFile=f;
         transcripcion.audioUrl=URL.createObjectURL(f);
         transcripcion.step='upload';
+        _detectDuration(f).then(d=>{transcripcion.audioDuration=d;renderF11Panel();});
         renderF11Panel();showToast('✓ '+f.name+' ('+_sz(f.size)+')');fi.value='';
       };
     }
@@ -390,9 +423,10 @@ function unlinkF11Case(){transcripcion.linkedCase=null;renderF11Panel();}
 function handleTransAudioUpload(input){
   const f=input.files?.[0];if(!f)return;
   if(!_isAV(f)){showToast('⚠ Formato no reconocido. Use MP3, WAV, M4A, OGG, MP4, etc.');input.value='';return;}
-  if(f.size>T_MAX_INPUT){showToast('⚠ Archivo muy grande ('+_sz(f.size)+')');input.value='';return;}
+  if(f.size>T_MAX_INPUT){showToast('⚠ Archivo muy grande ('+_sz(f.size)+'). Máximo: '+T_MAX_INPUT_MB+'MB. Comprima el audio e intente de nuevo.');input.value='';return;}
   transcripcion.audioFile=f;
   transcripcion.audioUrl=URL.createObjectURL(f);
+  _detectDuration(f).then(d=>{transcripcion.audioDuration=d;renderF11Panel();});
   renderF11Panel();showToast('✓ '+f.name+' ('+_sz(f.size)+')');input.value='';
 }
 function handleTransDocUpload(input){
@@ -413,13 +447,20 @@ function startTransRecording(){
     transcripcion.mediaRecorder.ondataavailable=e=>transcripcion.audioChunks.push(e.data);
     transcripcion.mediaRecorder.onstop=()=>{
       const mt=transcripcion.mediaRecorder.mimeType||'audio/webm';
-      const e=mt.includes('mp4')?'m4a':mt.includes('ogg')?'ogg':'webm';
+      const ext=mt.includes('mp4')?'m4a':mt.includes('ogg')?'ogg':'webm';
       const blob=new Blob(transcripcion.audioChunks,{type:mt});
-      transcripcion.audioFile=new File([blob],'grabacion.'+e,{type:mt});
+      if(blob.size>T_MAX_INPUT){
+        showToast('⚠ Grabación muy larga ('+_sz(blob.size)+'). Máx: '+T_MAX_INPUT_MB+'MB');
+        transcripcion.isRecording=false;
+        stream.getTracks().forEach(t=>t.stop());
+        renderF11Panel();
+        return;
+      }
+      transcripcion.audioFile=new File([blob],'grabacion.'+ext,{type:mt});
       transcripcion.audioUrl=URL.createObjectURL(blob);
       transcripcion.isRecording=false;
       stream.getTracks().forEach(t=>t.stop());
-      renderF11Panel();showToast('✓ Grabado');
+      renderF11Panel();showToast('✓ Grabado ('+_sz(blob.size)+')');
     };
     transcripcion.mediaRecorder.start();transcripcion.isRecording=true;renderF11Panel();
   }).catch(err=>showToast('⚠ Micrófono: '+err.message));
@@ -427,17 +468,21 @@ function startTransRecording(){
 function stopTransRecording(){if(transcripcion.mediaRecorder&&transcripcion.isRecording)transcripcion.mediaRecorder.stop();}
 
 /* ════════════════════════════════════════════════════════
-   TRANSCRIBIR — con reintentos automáticos (2x)
+   TRANSCRIBIR — usa /.netlify/functions/chat (mode:'transcribe')
+   Con reintentos automáticos (2x)
    ════════════════════════════════════════════════════════ */
 async function transcribeAudio(){
   if(!transcripcion.audioFile){showToast('⚠ Carga un archivo de audio primero');return;}
+  if(transcripcion.isProcessing){showToast('⚠ Ya hay una transcripción en proceso');return;}
+
+  const file=transcripcion.audioFile;
   const inputBox=document.getElementById('inputBox');
   if(inputBox)inputBox.value='';
 
   transcripcion.isProcessing=true;
   transcripcion.transcribeProvider=null;
   transcripcion.step='transcribing';
-  transcripcion.progress={current:0,total:0,pct:0,stepLabel:'',startTime:0,retryCount:0};
+  transcripcion.progress={pct:0,stepLabel:'',startTime:0,retryCount:0};
   startProgressTimer();
   renderF11Panel();
 
@@ -448,67 +493,76 @@ async function transcribeAudio(){
       transcripcion.progress.retryCount=attempt;
 
       // ── Step 1: Prepare audio ──
-      setProgress(5,'Preparando audio…');
-      const arrayBuffer=await transcripcion.audioFile.arrayBuffer();
+      setProgress(5,'Leyendo archivo de audio…');
+      const arrayBuffer=await file.arrayBuffer();
 
-      setProgress(15,'Codificando audio…');
-      /* Fast base64 encoding using chunks to avoid call stack overflow */
-      const bytes=new Uint8Array(arrayBuffer);
-      let base64Audio='';
-      const CHUNK=32768;
-      for(let i=0;i<bytes.length;i+=CHUNK){
-        base64Audio+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+CHUNK,bytes.length)));
-      }
-      base64Audio=btoa(base64Audio);
+      setProgress(15,'Codificando audio ('+_sz(file.size)+')…');
+      const base64Audio=_toBase64(arrayBuffer);
 
-      // ── Step 2: Send to transcription ──
-      setProgress(25,'Enviando a transcripción ('+_sz(transcripcion.audioFile.size)+')…');
+      // ── Step 2: Send to Netlify chat function (mode: transcribe) ──
+      setProgress(25,'Enviando a transcripción…');
 
-      const{data,error}=await sb.functions.invoke('transcribe-audio',{
-        body:{audio:base64Audio,mimeType:transcripcion.audioFile.type}
+      const chatEndpoint=typeof CHAT_ENDPOINT!=='undefined'?CHAT_ENDPOINT:'/.netlify/functions/chat';
+      const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
+
+      const resp=await fetch(chatEndpoint,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-auth-token':authToken
+        },
+        body:JSON.stringify({
+          mode:'transcribe',
+          audioBase64:base64Audio,
+          fileName:file.name,
+          mimeType:_mime(file)
+        })
       });
 
-      if(error)throw new Error(error.message||'Error en transcripción');
+      if(!resp.ok){
+        const errBody=await resp.text();
+        let errMsg='HTTP '+resp.status;
+        try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){}
+        throw new Error(errMsg);
+      }
+
+      const data=await resp.json();
 
       // ── Step 3: Process response ──
       setProgress(70,'Procesando respuesta…');
 
-      if(data?.text){
-        transcripcion.rawText=data.text;
-        transcripcion.segments=data.segments||[];
-        transcripcion.transcribeProvider=data.provider||'elevenlabs';
-
-        setProgress(85,'Transcripción obtenida');
-
-        setProgress(100,'✅ Transcripción completa');
-
-        stopProgressTimer();
-        transcripcion.step='structure';
-        transcripcion.isProcessing=false;
-        renderF11Panel();
-
-        const sc=data.segments?new Set(data.segments.map(s=>s.speaker)).size:0;
-        showToast('✓ Transcripción completa'+(sc>1?' · '+sc+' hablantes':'')+' — estructurando…');
-
-        /* Auto-structure immediately for speed */
-        setTimeout(()=>structureTranscripcion(),300);
-        return; // ← Éxito, salir del loop
-      } else if(data?.error){
-        throw new Error(data.error);
-      } else {
-        throw new Error('Sin respuesta de transcripción');
+      // chat.js devuelve { transcript, provider }
+      const transcriptText=data.transcript||data.text||'';
+      if(!transcriptText){
+        throw new Error(data.error||'Sin texto de transcripción en la respuesta');
       }
+
+      transcripcion.rawText=transcriptText;
+      transcripcion.segments=data.segments||[];
+      transcripcion.transcribeProvider=data.provider||'desconocido';
+
+      setProgress(100,'✅ Transcripción completa');
+      stopProgressTimer();
+      transcripcion.step='structure';
+      transcripcion.isProcessing=false;
+      renderF11Panel();
+
+      showToast('✓ Transcripción completa ('+transcripcion.transcribeProvider+')');
+
+      /* Auto-structurar para velocidad */
+      setTimeout(()=>structureTranscripcion(),300);
+      return; // éxito
 
     }catch(err){
       lastError=err;
-      console.error('Transcripción intento '+(attempt+1)+':'+ err.message);
+      console.error('Transcripción intento '+(attempt+1)+':',err.message);
 
       if(attempt<T_MAX_RETRIES){
-        const waitSecs=(attempt+1)*3; // 3s, 6s
-        setProgress(20,'⚠ Error — reintentando en '+waitSecs+'s… ('+(attempt+1)+'/'+T_MAX_RETRIES+')');
+        const waitSecs=(attempt+1)*3;
+        setProgress(20,'⚠ '+err.message+' — reintentando en '+waitSecs+'s…');
         transcripcion.progress.retryCount=attempt+1;
         updateProgressUI();
-        showToast('⚠ Error: '+err.message+'. Reintentando…','warning');
+        showToast('⚠ '+err.message+'. Reintentando…','warning');
         await _sleep(waitSecs*1000);
       }
     }
@@ -525,121 +579,83 @@ async function transcribeAudio(){
 /* ── Prompts de estructuración ── */
 const T_PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
 
-OBJETIVO: Elaborar un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración transcrita, integrándolo al acta. El documento final debe presentarse con redacción fluida, coherente y ordenada, facilitando su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
-
-CONTEXTO: La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes, en el cual actúo como Fiscal Investigadora. La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas.
+OBJETIVO: Elaborar un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración transcrita, integrándolo al acta.
 
 REGLAS DE EDICIÓN:
-- Conservar, en lo posible, la redacción en primera persona y el estilo expresivo del declarante
-- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas ("eh", "mmm", "o sea", "bueno", "como te digo") y repeticiones innecesarias que no alteren el sentido ni el tono del testimonio
-- NO agregar información nueva ni interpretar intenciones; solo reescribir lo existente
-- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical
-- Unir frases fragmentadas cuando sea necesario para fluidez, sin cambiar el sentido
+- Conservar la redacción en primera persona y el estilo del declarante
+- Solo correcciones gramaticales menores: concordancia, puntuación, eliminación de muletillas
+- NO agregar información nueva ni interpretar intenciones
 - Conservar comillas, fechas, cifras y nombres propios exactamente como están
 - Tono formal, claro y preciso, coherente con documento legal
-- Respetar la terminología jurídica y la secuencia cronológica de los hechos
-- Conservar la estructura lógica de los párrafos
+- Respetar la terminología jurídica y la secuencia cronológica
 
-ENTREGA: Solo la versión final corregida, sin comentarios ni marcadores de edición.`;
+ENTREGA: Solo la versión final, sin comentarios ni marcadores de edición.`;
 
 const T_PROMPT_QA = T_PROMPT_BASE + `
 
 FORMATO: Pregunta-Respuesta
-- Estructura el texto como diálogo formal entre Fiscal y declarante
-- Cada pregunta precedida de "PREGUNTA:" o "FISCAL:"
-- Cada respuesta precedida de "RESPUESTA:" o "DECLARANTE:"
+- Estructura como diálogo formal entre Fiscal y declarante
+- Cada pregunta: "FISCAL:" / Cada respuesta: "DECLARANTE:"
 - Párrafos separados, numerados si es posible`;
 
 const T_PROMPT_DIRECTA = T_PROMPT_BASE + `
 
-FORMATO: ACTA FORMAL UMAG — Declaración en procedimiento disciplinario.
+FORMATO: ACTA FORMAL UMAG
 
-Genera el documento completo con esta estructura EXACTA:
+Genera con esta estructura:
 
-═══ ENCABEZADO ═══
 UNIVERSIDAD DE MAGALLANES
-DIRECCIÓN DE PERSONAL / [UNIDAD QUE CORRESPONDA]
 
 **ACTA DE DECLARACIÓN DE [TESTIGO/DENUNCIANTE/PERSONA DENUNCIADA]**
 
-En [LUGAR], a [FECHA EN PALABRAS], siendo las [HORA] horas, ante la Fiscal Investigadora [NOMBRE FISCAL], en el marco del procedimiento [TIPO] Rol N° [ROL], por presuntas infracciones a [MATERIA], comparece:
+En [LUGAR], a [FECHA], ante la Fiscal Investigadora, en el marco del procedimiento [TIPO] Rol N° [ROL], comparece:
 
-**[NOMBRE COMPLETO DEL DECLARANTE]**, quien previamente advertido/a de:
-- Su obligación de decir verdad conforme al artículo 17 de la Ley N° 19.880
-- Las penas del falso testimonio según los artículos 206 y siguientes del Código Penal
-- Su derecho a no declarar contra sí mismo/a (si es persona denunciada)
-- Las causales de inhabilidad
+**[NOMBRE]**, previamente advertido/a de:
+- Obligación de decir verdad (art. 17 Ley 19.880)
+- Penas del falso testimonio (arts. 206 y ss. CP)
+- Derecho a no declarar contra sí mismo/a (si corresponde)
 
-Declara no tener inhabilidad para declarar en este procedimiento y expone lo siguiente:
+Declara no tener inhabilidad y expone:
 
-═══ CUERPO ═══
-Declaración en formato pregunta-respuesta, con correcciones gramaticales aplicadas.
+[CUERPO EN FORMATO Q&A]
 
-═══ CIERRE ═══
-No habiendo más que agregar, y leída que le fue su declaración, se ratifica en ella y firma para constancia.
+Leída que le fue su declaración, se ratifica y firma.
 
-[Espacio firma]
 _________________________________
-[NOMBRE DECLARANTE]
-[CALIDAD: Testigo / Denunciante / Persona denunciada]
+[NOMBRE DECLARANTE] / [CALIDAD]
 
-[Espacio firma]
 _________________________________
-[NOMBRE FISCAL]
 Fiscal Investigadora
 
 Si falta algún dato, usar [COMPLETAR].`;
 
 const T_PROMPT_EXPEDIENTE = T_PROMPT_DIRECTA + `
 
-INSTRUCCIÓN ADICIONAL — MODO CON EXPEDIENTE:
-Los datos del expediente se proporcionan abajo. Úsalos para completar TODOS los campos del encabezado (ROL, nombre fiscal, tipo procedimiento, materia, participantes).
-NO dejes campos como [COMPLETAR] si el dato está disponible en el contexto del expediente.`;
+INSTRUCCIÓN ADICIONAL: Se proporcionan datos del expediente. Úsalos para completar TODOS los campos. NO dejes [COMPLETAR] si el dato está disponible.`;
 
 const T_PROMPT_FILL_ACTA = T_PROMPT_BASE + `
 
-INSTRUCCIÓN ESPECIAL — MODO LLENAR ACTA EXISTENTE:
-Se adjunta un DOCUMENTO BASE que es la plantilla/acta original con las preguntas del cuestionario.
-Tu tarea es LLENAR esa plantilla con las respuestas extraídas del audio transcrito.
+MODO LLENAR ACTA EXISTENTE:
+Se adjunta un DOCUMENTO BASE (plantilla/acta con preguntas).
+LLENA esa plantilla con las respuestas del audio transcrito.
 
 REGLAS:
-1. PRESERVA la estructura exacta del documento base (encabezado, numeración, preguntas)
-2. Después de cada pregunta del documento base, inserta la respuesta correspondiente del audio
-3. Si una pregunta del documento base NO tiene respuesta en el audio, escribe: "[Sin respuesta en el audio]"
-4. Si el audio contiene información adicional no cubierta por las preguntas, agrégala al final como "DECLARACIÓN COMPLEMENTARIA"
-5. Mantén el formato formal del documento base
-6. Completa los campos del encabezado con los datos del expediente si están disponibles
-7. Agrega el cierre formal: "Leída que le fue su declaración, se ratifica y firma" con espacios para firmas`;
+1. PRESERVA la estructura del documento base
+2. Después de cada pregunta, inserta la respuesta del audio
+3. Si no hay respuesta: "[Sin respuesta en el audio]"
+4. Info adicional al final como "DECLARACIÓN COMPLEMENTARIA"
+5. Agrega cierre formal con espacios para firmas`;
 
 /* ════════════════════════════════════════════════════════
-   CARGAR DATOS COMPLETOS DEL EXPEDIENTE PARA ACTA
-   ════════════════════════════════════════════════════════ */
-async function loadFullCaseContext(caseObj){
-  if(!caseObj||!caseObj.id)return'';
-  const mt=transcripcion.meta;
-  const tipoLabel={testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[mt.tipoDeclarante]||'declarante';
-  return `\n\nDATOS DEL EXPEDIENTE:
-- Expediente: ${caseObj.name||'[EXPEDIENTE]'}
-- ROL: ${caseObj.rol||'[ROL]'}
-- Tipo: ${caseObj.tipo_procedimiento||'[TIPO]'}
-- Materia: ${caseObj.materia||'[MATERIA]'}
-- Protocolo: ${caseObj.protocolo||'[PROTOCOLO]'}
-- Resolución: ${caseObj.nueva_resolucion||'[RESOLUCIÓN]'}
-- Denunciante(s): ${_fmtArr(caseObj.denunciantes)||'[DENUNCIANTE]'}
-- Denunciado/a(s): ${_fmtArr(caseObj.denunciados)||'[DENUNCIADO/A]'}
-- Declarante: ${mt.nombreDeclarante||'[COMPLETAR]'} (${tipoLabel})
-- Lugar diligencia: ${mt.lugar||'[COMPLETAR]'}`;
-}
-
-/* ════════════════════════════════════════════════════════
-   ESTRUCTURAR — versión rápida con endpoint dedicado
-   Usa Claude Haiku (3-5x más rápido que Sonnet) vía /structure
+   ESTRUCTURAR — con /.netlify/functions/structure
    ════════════════════════════════════════════════════════ */
 async function structureTranscripcion(){
   if(!transcripcion.rawText)return;
+  if(transcripcion.isProcessing&&transcripcion.step==='structuring')return; // evitar doble click
+
   transcripcion.step='structuring';
   transcripcion.isProcessing=true;
-  transcripcion.progress={current:0,total:0,pct:0,stepLabel:'',startTime:0,retryCount:0};
+  transcripcion.progress={pct:0,stepLabel:'',startTime:0,retryCount:0};
   startProgressTimer();
   renderF11Panel();
 
@@ -650,15 +666,14 @@ async function structureTranscripcion(){
       transcripcion.progress.retryCount=attempt;
       const lnk=transcripcion.linkedCase||(typeof currentCase!=='undefined'?currentCase:null);
       const mt=transcripcion.meta;
-      /* Sync metadata fields from DOM if present */
-      const _f11tipo=document.getElementById('f11TipoDeclarante');
-      const _f11nombre=document.getElementById('f11NombreDeclarante');
-      const _f11fecha=document.getElementById('f11Fecha');
-      const _f11lugar=document.getElementById('f11Lugar');
-      if(_f11tipo)mt.tipoDeclarante=_f11tipo.value;
-      if(_f11nombre)mt.nombreDeclarante=_f11nombre.value;
-      if(_f11fecha)mt.fecha=_f11fecha.value;
-      if(_f11lugar)mt.lugar=_f11lugar.value;
+
+      /* Sync metadata from DOM */
+      const _f=id=>document.getElementById(id);
+      const v=el=>el?el.value:'';
+      if(_f('f11TipoDeclarante'))mt.tipoDeclarante=v(_f('f11TipoDeclarante'));
+      if(_f('f11NombreDeclarante'))mt.nombreDeclarante=v(_f('f11NombreDeclarante'));
+      if(_f('f11Fecha'))mt.fecha=v(_f('f11Fecha'));
+      if(_f('f11Lugar'))mt.lugar=v(_f('f11Lugar'));
 
       const fechaStr=mt.fecha?new Date(mt.fecha+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):new Date().toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
       const tipoLabel={testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[mt.tipoDeclarante]||'declarante';
@@ -666,7 +681,7 @@ async function structureTranscripcion(){
 
       setProgress(15,'Preparando contexto…');
 
-      /* Build case + metadata context */
+      /* Build context */
       let caseCtx=`\nMETADATOS DEL ACTA:\n- Tipo: ${tipoActaLabel}\n- Declarante: ${mt.nombreDeclarante||'[COMPLETAR NOMBRE]'}\n- Calidad procesal: ${tipoLabel}\n- Fecha: ${fechaStr}\n- Lugar: ${mt.lugar||'[COMPLETAR]'}`;
       if(lnk){
         caseCtx+=`\n\nDATOS DEL EXPEDIENTE:\n- Expediente: ${lnk.name||'[EXPEDIENTE]'}\n- ROL: ${lnk.rol||'[ROL]'}\n- Tipo: ${lnk.tipo_procedimiento||'[TIPO]'}\n- Materia: ${lnk.materia||'[MATERIA]'}\n- Denunciante(s): ${_fmtArr(lnk.denunciantes)||'[DENUNCIANTE]'}\n- Denunciado/a(s): ${_fmtArr(lnk.denunciados)||'[DENUNCIADO/A]'}`;
@@ -675,19 +690,15 @@ async function structureTranscripcion(){
       const raw=transcripcion.rawText;
       const hasBaseDoc=!!transcripcion.baseDocText?.trim();
       const mode=hasBaseDoc?'fill_acta':(transcripcion.selectedMode||'directa');
+      const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
 
-      /* SHORT TEXT (≤6000 chars): single fast call — umbral ampliado para reducir splits innecesarios */
+      /* SHORT TEXT (≤6000 chars): single call */
       if(raw.length<=6000){
-        setProgress(40,'Estructurando con IA rápida…');
+        setProgress(40,'Estructurando con IA…');
         const resp=await fetch('/.netlify/functions/structure',{
           method:'POST',
-          headers:{'Content-Type':'application/json','x-auth-token':session?.access_token||''},
-          body:JSON.stringify({
-            rawText:raw,
-            mode:mode,
-            caseContext:caseCtx,
-            baseDocText:transcripcion.baseDocText||''
-          })
+          headers:{'Content-Type':'application/json','x-auth-token':authToken},
+          body:JSON.stringify({rawText:raw,mode,caseContext:caseCtx,baseDocText:transcripcion.baseDocText||''})
         });
         if(!resp.ok){
           const errData=await resp.json().catch(()=>({}));
@@ -699,9 +710,8 @@ async function structureTranscripcion(){
         setProgress(90,'Procesando resultado…');
 
       } else {
-        /* LONG TEXT: split in halves, structure each, concatenate */
+        /* LONG TEXT: split in halves */
         const mid=Math.floor(raw.length/2);
-        /* Find a good split point (paragraph break near middle) */
         let splitAt=raw.indexOf('\n',mid);
         if(splitAt<0||splitAt>mid+500)splitAt=mid;
 
@@ -711,8 +721,8 @@ async function structureTranscripcion(){
         setProgress(30,'Estructurando parte 1/2…');
         const r1=await fetch('/.netlify/functions/structure',{
           method:'POST',
-          headers:{'Content-Type':'application/json','x-auth-token':session?.access_token||''},
-          body:JSON.stringify({rawText:part1,mode:mode,caseContext:caseCtx,baseDocText:transcripcion.baseDocText||''})
+          headers:{'Content-Type':'application/json','x-auth-token':authToken},
+          body:JSON.stringify({rawText:part1,mode,caseContext:caseCtx,baseDocText:transcripcion.baseDocText||''})
         });
         if(!r1.ok)throw new Error('Parte 1: HTTP '+r1.status);
         const d1=await r1.json();
@@ -720,8 +730,8 @@ async function structureTranscripcion(){
         setProgress(65,'Estructurando parte 2/2…');
         const r2=await fetch('/.netlify/functions/structure',{
           method:'POST',
-          headers:{'Content-Type':'application/json','x-auth-token':session?.access_token||''},
-          body:JSON.stringify({rawText:part2,mode:'pregunta_respuesta',caseContext:'(continuación de la declaración — solo estructurar el contenido, NO repetir encabezado ni cierre)'})
+          headers:{'Content-Type':'application/json','x-auth-token':authToken},
+          body:JSON.stringify({rawText:part2,mode:'pregunta_respuesta',caseContext:'(continuación — solo estructurar, NO repetir encabezado ni cierre)'})
         });
         if(!r2.ok)throw new Error('Parte 2: HTTP '+r2.status);
         const d2=await r2.json();
@@ -746,7 +756,7 @@ async function structureTranscripcion(){
       console.error('Estructuración intento '+(attempt+1)+':',err.message);
       if(attempt<T_MAX_RETRIES){
         const waitSecs=(attempt+1)*2;
-        setProgress(20,'⚠ Error — reintentando en '+waitSecs+'s…');
+        setProgress(20,'⚠ '+err.message+' — reintentando en '+waitSecs+'s…');
         transcripcion.progress.retryCount=attempt+1;
         updateProgressUI();
         showToast('⚠ '+err.message+'. Reintentando…','warning');
@@ -768,10 +778,12 @@ async function generateTransSummary(){
   transcripcion.isGeneratingSummary=true;renderF11Panel();
   try {
     const ep=typeof CHAT_ENDPOINT!=='undefined'?CHAT_ENDPOINT:'/.netlify/functions/chat';
-    const body={model:'claude-sonnet-4-20250514',max_tokens:600,
+    const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
+    const body={model:'claude-haiku-4-5-20251001',max_tokens:600,
       system:'Eres Fiscalito. Genera un resumen ejecutivo en 3-5 puntos clave de la declaración.',
-      messages:[{role:'user',content:'Resumen de la declaración:\n\n'+transcripcion.rawText.substring(0,2500)}]};
-    const resp=await authFetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      messages:[{role:'user',content:'Resumen de la declaración:\n\n'+transcripcion.rawText.substring(0,3000)}]};
+    const resp=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json','x-auth-token':authToken},body:JSON.stringify(body)});
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
     const data=await resp.json();
     transcripcion.summary=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
     transcripcion.isGeneratingSummary=false;renderF11Panel();
@@ -782,7 +794,7 @@ async function generateTransSummary(){
 async function saveTranscripcionToCase(){
   const caseRef=transcripcion.linkedCase||(typeof currentCase!=='undefined'?currentCase:null);
   if(!caseRef||!caseRef.id){showToast('⚠ Vincula un expediente primero');return;}
-  if(!session?.user?.id){showToast('⚠ Inicia sesión');return;}
+  if(typeof session==='undefined'||!session?.user?.id){showToast('⚠ Inicia sesión');return;}
   const text=transcripcion.structuredText||transcripcion.rawText;
   if(!text?.trim()){showToast('⚠ Sin texto');return;}
 
@@ -822,7 +834,7 @@ async function saveTranscripcionToCase(){
 }
 
 function copyTranscripcion(){navigator.clipboard.writeText(transcripcion.structuredText||transcripcion.rawText);showToast('✓ Copiado');}
-function downloadTransWord(){
+function downloadTransTxt(){
   const b=new Blob([transcripcion.structuredText||transcripcion.rawText],{type:'text/plain;charset=utf-8'});
   const mt=transcripcion.meta;
   const declName=(mt.nombreDeclarante||'').replace(/\s+/g,'_')||'declarante';
@@ -831,7 +843,7 @@ function downloadTransWord(){
 function resetTranscripcion(){
   stopProgressTimer();
   if(transcripcion.audioUrl)URL.revokeObjectURL(transcripcion.audioUrl);
-  Object.assign(transcripcion,{isRecording:false,audioChunks:[],audioFile:null,audioUrl:null,baseDocText:'',baseDocName:'',rawText:'',structuredText:'',summary:'',segments:[],step:'upload',isProcessing:false,isGeneratingSummary:false,selectedMode:null,transcribeProvider:null,progress:{current:0,total:0,pct:0,stepLabel:'',startTime:0,retryCount:0},meta:{tipoDeclarante:'testigo',nombreDeclarante:'',fecha:'',lugar:'Punta Arenas'}});
+  Object.assign(transcripcion,{isRecording:false,audioChunks:[],audioFile:null,audioUrl:null,audioDuration:null,baseDocText:'',baseDocName:'',rawText:'',structuredText:'',summary:'',segments:[],step:'upload',isProcessing:false,isGeneratingSummary:false,selectedMode:null,transcribeProvider:null,progress:{pct:0,stepLabel:'',startTime:0,retryCount:0},meta:{tipoDeclarante:'testigo',nombreDeclarante:'',fecha:'',lugar:'Punta Arenas'}});
   renderF11Panel();buildF11Chips();
 }
 
@@ -870,8 +882,6 @@ function resetTranscripcion(){
 .trans-summary-box{background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:var(--radius);padding:12px 14px}
 .trans-result-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;font-size:12.5px;line-height:1.75;max-height:calc(100vh - 300px);overflow-y:auto}
 .trans-result-box h1,.trans-result-box h2,.trans-result-box h3{font-family:var(--font-serif);color:var(--gold)}
-
-/* ═══ PROGRESS BAR STYLES ═══ */
 .f11-progress-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center}
 .f11-progress-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .f11-progress-bar-wrap{display:flex;align-items:center;gap:10px;margin-bottom:10px}
@@ -893,5 +903,5 @@ function resetTranscripcion(){
   document.head.appendChild(s);
 })();
 
-console.log("%c🎙 Módulo Transcripción F11 v5 cargado — Fiscalito","color:#7c3aed;font-weight:bold");
-console.log("%c   ✓ Barra progreso visual  ✓ Reintentos 2x  ✓ Fix modo expediente","color:#666");
+console.log("%c🎙 Módulo Transcripción F11 v6 cargado — Fiscalito","color:#7c3aed;font-weight:bold");
+console.log("%c   ✓ Fix endpoint (Netlify chat)  ✓ Límite 4.5MB  ✓ Reintentos 2x","color:#666");
