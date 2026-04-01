@@ -1,23 +1,23 @@
 /* =========================================================
    MOD-TRANSCRIPCION.JS — F11 Transcripción de Actas
-   v6.0 · 2026-04-01 · Fiscalito / UMAG
+   v7.0 · 2026-04-01 · Fiscalito / UMAG
    =========================================================
-   Cambios v6:
-   · Fix endpoint: usa /.netlify/functions/chat (mode:'transcribe')
+   v7: Archivos grandes vía Supabase Storage
+   · < 4MB → base64 directo (rápido)
+   · 4-25MB → sube a Supabase Storage, envía URL al backend
+   · Fix endpoint: /.netlify/functions/chat (mode:'transcribe')
    · Fix respuesta: mapea data.transcript correctamente
-   · Límite 4.5MB real con mensaje claro al usuario
-   · Base64 encoding optimizado (chunks grandes, menos overhead)
-   · Detección de duración de audio para UX
-   · Eliminada dependencia a Supabase Edge Functions inexistentes
-   · Progreso más preciso y descriptivo
-   · Mejor manejo de errores con mensajes claros
    ========================================================= */
 
 /* ── CONSTANTES ── */
-const T_MAX_INPUT_MB  = 4.5;  // Netlify body ~6MB, base64 expande ~33%
+const T_MAX_DIRECT_MB = 4;    // Archivos < 4MB → base64 directo
+const T_MAX_DIRECT    = T_MAX_DIRECT_MB * 1024 * 1024;
+const T_MAX_STORAGE_MB = 25;  // Archivos 4-25MB → vía Supabase Storage
+const T_MAX_INPUT_MB  = T_MAX_STORAGE_MB;
 const T_MAX_INPUT     = T_MAX_INPUT_MB * 1024 * 1024;
 const T_MAX_RETRIES   = 2;
 const T_STRUCTURE_MAX_CHARS = 14000;
+const T_STORAGE_BUCKET = 'transcripcion-audio';
 
 const T_EXTS = [
   '.mp3','.wav','.m4a','.aac','.ogg','.oga','.opus','.flac',
@@ -173,7 +173,7 @@ function buildF11HTML(){
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <label class="f11-upload-audio-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Subir audio / video (máx. ${T_MAX_INPUT_MB}MB)
+        Subir audio / video (hasta ${T_MAX_INPUT_MB}MB)
         <input type="file" accept="${T_ACCEPT}" style="display:none" onchange="handleTransAudioUpload(this)"/>
       </label>
       <label class="f11-upload-btn" style="font-size:11px;padding:4px 10px" title="Suba el acta/cuestionario con las preguntas para que se llene con las respuestas del audio">
@@ -468,14 +468,52 @@ function startTransRecording(){
 function stopTransRecording(){if(transcripcion.mediaRecorder&&transcripcion.isRecording)transcripcion.mediaRecorder.stop();}
 
 /* ════════════════════════════════════════════════════════
-   TRANSCRIBIR — usa /.netlify/functions/chat (mode:'transcribe')
-   Con reintentos automáticos (2x)
+   UPLOAD A SUPABASE STORAGE (para archivos > 4MB)
+   ════════════════════════════════════════════════════════ */
+async function _uploadToStorage(file){
+  const userId=session?.user?.id||'anon';
+  const ts=Date.now();
+  const ext=_ext(file.name)||'bin';
+  const path=`${userId}/${ts}.${ext}`;
+
+  setProgress(15,'Subiendo audio a almacenamiento ('+_sz(file.size)+')…');
+
+  const{data,error}=await sb.storage.from(T_STORAGE_BUCKET).upload(path,file,{
+    contentType:_mime(file),
+    upsert:true
+  });
+  if(error){
+    // Si el bucket no existe, intentar crearlo
+    if(error.message?.includes('not found')||error.statusCode===404){
+      console.warn('Bucket no existe, intentando crear…');
+      try{
+        await sb.storage.createBucket(T_STORAGE_BUCKET,{public:false,fileSizeLimit:T_MAX_INPUT});
+        const retry=await sb.storage.from(T_STORAGE_BUCKET).upload(path,file,{contentType:_mime(file),upsert:true});
+        if(retry.error)throw new Error(retry.error.message);
+        return path;
+      }catch(e2){
+        throw new Error('No se pudo subir el audio: '+e2.message);
+      }
+    }
+    throw new Error('Error al subir audio: '+error.message);
+  }
+  return path;
+}
+
+async function _cleanupStorage(path){
+  try{await sb.storage.from(T_STORAGE_BUCKET).remove([path]);}catch(e){console.warn('Cleanup:',e);}
+}
+
+/* ════════════════════════════════════════════════════════
+   TRANSCRIBIR — con reintentos automáticos (2x)
+   < 4MB → base64 directo | 4-25MB → Supabase Storage
    ════════════════════════════════════════════════════════ */
 async function transcribeAudio(){
   if(!transcripcion.audioFile){showToast('⚠ Carga un archivo de audio primero');return;}
   if(transcripcion.isProcessing){showToast('⚠ Ya hay una transcripción en proceso');return;}
 
   const file=transcripcion.audioFile;
+  const useStorage=file.size>T_MAX_DIRECT;
   const inputBox=document.getElementById('inputBox');
   if(inputBox)inputBox.value='';
 
@@ -487,36 +525,48 @@ async function transcribeAudio(){
   renderF11Panel();
 
   let lastError=null;
+  let storagePath=null;
 
   for(let attempt=0;attempt<=T_MAX_RETRIES;attempt++){
     try{
       transcripcion.progress.retryCount=attempt;
-
-      // ── Step 1: Prepare audio ──
-      setProgress(5,'Leyendo archivo de audio…');
-      const arrayBuffer=await file.arrayBuffer();
-
-      setProgress(15,'Codificando audio ('+_sz(file.size)+')…');
-      const base64Audio=_toBase64(arrayBuffer);
-
-      // ── Step 2: Send to Netlify chat function (mode: transcribe) ──
-      setProgress(25,'Enviando a transcripción…');
-
       const chatEndpoint=typeof CHAT_ENDPOINT!=='undefined'?CHAT_ENDPOINT:'/.netlify/functions/chat';
       const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
+      let requestBody;
 
-      const resp=await fetch(chatEndpoint,{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-auth-token':authToken
-        },
-        body:JSON.stringify({
+      if(useStorage){
+        // ── Archivo grande: subir a Supabase Storage ──
+        setProgress(5,'Preparando archivo grande ('+_sz(file.size)+')…');
+        if(!storagePath){
+          storagePath=await _uploadToStorage(file);
+        }
+        setProgress(30,'Audio subido. Enviando a transcripción…');
+        requestBody={
+          mode:'transcribe',
+          storageBucket:T_STORAGE_BUCKET,
+          storagePath:storagePath,
+          fileName:file.name,
+          mimeType:_mime(file)
+        };
+      } else {
+        // ── Archivo pequeño: base64 directo ──
+        setProgress(5,'Leyendo archivo de audio…');
+        const arrayBuffer=await file.arrayBuffer();
+        setProgress(15,'Codificando audio ('+_sz(file.size)+')…');
+        const base64Audio=_toBase64(arrayBuffer);
+        setProgress(25,'Enviando a transcripción…');
+        requestBody={
           mode:'transcribe',
           audioBase64:base64Audio,
           fileName:file.name,
           mimeType:_mime(file)
-        })
+        };
+      }
+
+      const resp=await fetch(chatEndpoint,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-auth-token':authToken},
+        body:JSON.stringify(requestBody)
       });
 
       if(!resp.ok){
@@ -527,11 +577,8 @@ async function transcribeAudio(){
       }
 
       const data=await resp.json();
-
-      // ── Step 3: Process response ──
       setProgress(70,'Procesando respuesta…');
 
-      // chat.js devuelve { transcript, provider }
       const transcriptText=data.transcript||data.text||'';
       if(!transcriptText){
         throw new Error(data.error||'Sin texto de transcripción en la respuesta');
@@ -547,11 +594,12 @@ async function transcribeAudio(){
       transcripcion.isProcessing=false;
       renderF11Panel();
 
-      showToast('✓ Transcripción completa ('+transcripcion.transcribeProvider+')');
+      // Limpiar archivo de Storage
+      if(storagePath)_cleanupStorage(storagePath);
 
-      /* Auto-structurar para velocidad */
+      showToast('✓ Transcripción completa ('+transcripcion.transcribeProvider+')');
       setTimeout(()=>structureTranscripcion(),300);
-      return; // éxito
+      return;
 
     }catch(err){
       lastError=err;
@@ -568,7 +616,9 @@ async function transcribeAudio(){
     }
   }
 
-  // Todos los reintentos fallaron
+  // Limpiar storage si falló
+  if(storagePath)_cleanupStorage(storagePath);
+
   stopProgressTimer();
   transcripcion.isProcessing=false;
   transcripcion.step='upload';
