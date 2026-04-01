@@ -25,6 +25,11 @@
 [functions."drive-extract"]
   timeout = 26
 
+[functions."drive-scan"]
+  timeout = 26
+  # Descomentar la siguiente línea para activar escaneo automático cada 15 min:
+  # schedule = "*/15 * * * *"
+
 [[edge_functions]]
   function = "chat-stream"
   path = "/api/chat-stream"
