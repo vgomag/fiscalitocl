@@ -67,7 +67,7 @@ const transcripcion = {
 
 /* ── UTILIDADES ── */
 function _ext(n){if(!n)return'';const p=n.toLowerCase().split('.');return p.length>1?p.pop():'';}
-function _mime(f){const e=_ext(f.name);return(!f.type||f.type==='application/octet-stream')?T_MIME[e]||'audio/mpeg':f.type;}
+function _mime(f){const e=_ext(f.name);return T_MIME[e]||(f.type&&f.type!=='application/octet-stream'?f.type:'audio/mpeg');}
 function _isAV(f){if(!f)return false;const e=_ext(f.name);return T_EXTS.some(x=>x.replace('.','')=== e)||(f.type&&(f.type.startsWith('audio/')||f.type.startsWith('video/')));}
 function _sz(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
 function _dur(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return m+':'+(ss<10?'0':'')+ss;}
