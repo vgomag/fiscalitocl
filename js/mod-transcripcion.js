@@ -530,8 +530,13 @@ async function transcribeAudio(){
   for(let attempt=0;attempt<=T_MAX_RETRIES;attempt++){
     try{
       transcripcion.progress.retryCount=attempt;
-      const chatEndpoint=typeof CHAT_ENDPOINT!=='undefined'?CHAT_ENDPOINT:'/.netlify/functions/chat';
       const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
+
+      /* ── URL de la Edge Function de Supabase (sin timeout de Netlify) ── */
+      const sbUrl=(typeof SB_URL!=='undefined'&&SB_URL)?SB_URL:'https://zgoxrzbkftzulsphmtfk.supabase.co';
+      const transcribeEndpoint=sbUrl+'/functions/v1/transcribe';
+      const sbAnonKey=(typeof SB_KEY!=='undefined'&&SB_KEY)?SB_KEY:'';
+
       let requestBody;
 
       if(useStorage){
@@ -541,12 +546,11 @@ async function transcribeAudio(){
           storagePath=await _uploadToStorage(file);
         }
         setProgress(25,'Audio subido. Generando URL…');
-        // Crear URL firmada temporal (5 min) para que el backend descargue
-        const{data:signedData,error:signedErr}=await sb.storage.from(T_STORAGE_BUCKET).createSignedUrl(storagePath,300);
+        // Crear URL firmada temporal (10 min) para que el backend descargue
+        const{data:signedData,error:signedErr}=await sb.storage.from(T_STORAGE_BUCKET).createSignedUrl(storagePath,600);
         if(signedErr||!signedData?.signedUrl) throw new Error('No se pudo crear URL firmada: '+(signedErr?.message||'sin URL'));
         setProgress(30,'Enviando a transcripción…');
         requestBody={
-          mode:'transcribe',
           signedUrl:signedData.signedUrl,
           fileName:file.name,
           mimeType:_mime(file)
@@ -559,16 +563,20 @@ async function transcribeAudio(){
         const base64Audio=_toBase64(arrayBuffer);
         setProgress(25,'Enviando a transcripción…');
         requestBody={
-          mode:'transcribe',
           audioBase64:base64Audio,
           fileName:file.name,
           mimeType:_mime(file)
         };
       }
 
-      const resp=await fetch(chatEndpoint,{
+      /* ── Llamar Edge Function de Supabase (150s timeout vs 10s de Netlify) ── */
+      const resp=await fetch(transcribeEndpoint,{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-auth-token':authToken},
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer '+authToken,
+          'apikey':sbAnonKey
+        },
         body:JSON.stringify(requestBody)
       });
 
@@ -949,12 +957,4 @@ function resetTranscripcion(){
 .f11-pstep.active{background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600;box-shadow:0 0 8px rgba(79,70,229,.15)}
 .f11-pstep.done{background:rgba(5,150,105,.08);border-color:rgba(5,150,105,.25);color:var(--green)}
 .f11-form-field{display:flex;flex-direction:column;gap:3px}
-.f11-form-field label{font-size:10.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
-.f11-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:12px;width:100%;box-sizing:border-box;font-family:var(--font-body)}
-.f11-input:focus{border-color:var(--gold-dim);outline:none}
-`;
-  document.head.appendChild(s);
-})();
-
-console.log("%c🎙 Módulo Transcripción F11 v6 cargado — Fiscalito","color:#7c3aed;font-weight:bold");
-console.log("%c   ✓ Fix endpoint (Netlify chat)  ✓ Límite 4.5MB  ✓ Reintentos 2x","color:#666");
+.f11-form-field la
