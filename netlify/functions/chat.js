@@ -17,17 +17,25 @@ export default async (req) => {
       const openaiKey = Netlify.env.get('OPENAI_API_KEY');
       const elevenKey = Netlify.env.get('ELEVENLABS_API_KEY');
       if (!openaiKey && !elevenKey) return json({ error: 'No API key de transcripción' }, 500);
-      const { audioBase64, storageBucket, storagePath, fileName, mimeType } = body;
+      const { audioBase64, signedUrl, storageBucket, storagePath, fileName, mimeType } = body;
 
-      /* Obtener audio: base64 directo o descarga de Supabase Storage */
+      /* Obtener audio: base64 directo, URL firmada, o descarga de Supabase Storage */
       let audioBytes;
       if (audioBase64) {
         audioBytes = Buffer.from(audioBase64, 'base64');
+      } else if (signedUrl) {
+        try {
+          const dlResp = await fetch(signedUrl);
+          if (!dlResp.ok) throw new Error('HTTP ' + dlResp.status);
+          audioBytes = Buffer.from(await dlResp.arrayBuffer());
+        } catch (e) {
+          return json({ error: 'Error descargando audio: ' + e.message }, 400);
+        }
       } else if (storageBucket && storagePath) {
         try {
           const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
           const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY');
-          if (!sbUrl || !sbKey) throw new Error('Supabase config missing');
+          if (!sbUrl || !sbKey) throw new Error('Supabase config missing — use signedUrl');
           const dlUrl = `${sbUrl}/storage/v1/object/${storageBucket}/${storagePath}`;
           const dlResp = await fetch(dlUrl, {
             headers: { 'Authorization': 'Bearer ' + sbKey, 'apikey': sbKey }
@@ -38,7 +46,7 @@ export default async (req) => {
           return json({ error: 'Error descargando audio de Storage: ' + e.message }, 400);
         }
       } else {
-        return json({ error: 'No audio (ni audioBase64 ni storagePath)' }, 400);
+        return json({ error: 'No audio (ni audioBase64 ni signedUrl)' }, 400);
       }
 
       let transcript = null, provider = null;

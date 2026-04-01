@@ -540,11 +540,14 @@ async function transcribeAudio(){
         if(!storagePath){
           storagePath=await _uploadToStorage(file);
         }
-        setProgress(30,'Audio subido. Enviando a transcripción…');
+        setProgress(25,'Audio subido. Generando URL…');
+        // Crear URL firmada temporal (5 min) para que el backend descargue
+        const{data:signedData,error:signedErr}=await sb.storage.from(T_STORAGE_BUCKET).createSignedUrl(storagePath,300);
+        if(signedErr||!signedData?.signedUrl) throw new Error('No se pudo crear URL firmada: '+(signedErr?.message||'sin URL'));
+        setProgress(30,'Enviando a transcripción…');
         requestBody={
           mode:'transcribe',
-          storageBucket:T_STORAGE_BUCKET,
-          storagePath:storagePath,
+          signedUrl:signedData.signedUrl,
           fileName:file.name,
           mimeType:_mime(file)
         };
