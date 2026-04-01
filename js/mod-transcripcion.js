@@ -569,7 +569,7 @@ async function transcribeAudio(){
         };
       }
 
-      /* ── Llamar Edge Function de Supabase (SSE streaming — sin timeout) ── */
+      /* ── Llamar Edge Function de Supabase ── */
       const resp=await fetch(transcribeEndpoint,{
         method:'POST',
         headers:{
@@ -580,6 +580,8 @@ async function transcribeAudio(){
         body:JSON.stringify(requestBody)
       });
 
+      setProgress(40,'Esperando transcripción…');
+
       if(!resp.ok){
         const errBody=await resp.text();
         let errMsg='HTTP '+resp.status;
@@ -587,46 +589,12 @@ async function transcribeAudio(){
         throw new Error(errMsg);
       }
 
-      /* ── Leer SSE stream hasta recibir done:true ── */
-      let data=null;
-      const reader=resp.body.getReader();
-      const decoder=new TextDecoder();
-      let buf='';
-      while(true){
-        const{done:streamDone,value}=await reader.read();
-        if(streamDone)break;
-        buf+=decoder.decode(value,{stream:true});
-        const parts=buf.split('\n\n');
-        buf=parts.pop()||'';
-        for(const part of parts){
-          if(!part.startsWith('data: '))continue;
-          try{
-            const evt=JSON.parse(part.slice(6));
-            if(evt.status==='transcribing')setProgress(40,'Transcribiendo audio…');
-            else if(evt.status==='elevenlabs')setProgress(50,'Procesando con ElevenLabs…');
-            else if(evt.status==='whisper')setProgress(50,'Procesando con Whisper…');
-            else if(evt.status==='processing')setProgress(45,'Procesando… (espere)');
-            if(evt.done)data=evt;
-          }catch(e){}
-        }
-      }
-      /* fallback: si no se recibió done, intentar parsear último buffer */
-      if(!data&&buf){
-        try{
-          const last=buf.startsWith('data: ')?buf.slice(6):buf;
-          const evt=JSON.parse(last);
-          if(evt.done||evt.transcript||evt.text||evt.error)data=evt;
-        }catch(e){}
-      }
-
+      const data=await resp.json();
       setProgress(70,'Procesando respuesta…');
-
-      if(!data)throw new Error('Sin respuesta del servidor de transcripción');
-      if(data.error)throw new Error(data.error);
 
       const transcriptText=data.transcript||data.text||'';
       if(!transcriptText){
-        throw new Error('Sin texto de transcripción en la respuesta');
+        throw new Error(data.error||'Sin texto de transcripción en la respuesta');
       }
 
       transcripcion.rawText=transcriptText;
@@ -998,5 +966,5 @@ function resetTranscripcion(){
   document.head.appendChild(s);
 })();
 
-console.log("%c🎙 Módulo Transcripción F11 v8 cargado — SSE Streaming","color:#7c3aed;font-weight:bold");
-console.log("%c   ✓ SSE Stream (sin timeout)  ✓ ElevenLabs+Whisper  ✓ Límite 25MB  ✓ Reintentos 2x","color:#666");
+console.log("%c🎙 Módulo Transcripción F11 v9 cargado — Edge Function directa","color:#7c3aed;font-weight:bold");
+console.log("%c   ✓ ElevenLabs+Whisper  ✓ Límite 25MB  ✓ Reintentos 2x","color:#666");
