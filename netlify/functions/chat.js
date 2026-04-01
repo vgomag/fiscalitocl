@@ -34,11 +34,16 @@ export default async (req) => {
       } else if (storageBucket && storagePath) {
         try {
           const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
-          const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY');
-          if (!sbUrl || !sbKey) throw new Error('Supabase config missing — use signedUrl');
-          const dlUrl = `${sbUrl}/storage/v1/object/${storageBucket}/${storagePath}`;
+          const sbServiceKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY');
+          const sbAnonKey = Netlify.env.get('SUPABASE_ANON_KEY');
+          if (!sbUrl) throw new Error('SUPABASE_URL not configured');
+          /* Prefer service_role key; fallback to anon key + user token */
+          const dlKey = sbServiceKey || sbAnonKey;
+          const dlBearer = sbServiceKey || authToken;
+          if (!dlKey) throw new Error('No Supabase key available');
+          const dlUrl = `${sbUrl}/storage/v1/object/authenticated/${storageBucket}/${storagePath}`;
           const dlResp = await fetch(dlUrl, {
-            headers: { 'Authorization': 'Bearer ' + sbKey, 'apikey': sbKey }
+            headers: { 'Authorization': 'Bearer ' + dlBearer, 'apikey': dlKey }
           });
           if (!dlResp.ok) throw new Error('Storage download HTTP ' + dlResp.status);
           audioBytes = Buffer.from(await dlResp.arrayBuffer());
