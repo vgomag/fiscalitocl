@@ -505,6 +505,72 @@ async function _cleanupStorage(path){
 }
 
 /* ════════════════════════════════════════════════════════
+   POLL PARA RESULTADO DE TRANSCRIPCIÓN (two-phase)
+   Cuando el gateway devuelve 504, la Edge Function sigue
+   ejecutándose y guarda el resultado en la tabla
+   transcription_results. Esta función hace polling hasta
+   obtener el resultado o agotar el timeout.
+   ════════════════════════════════════════════════════════ */
+async function _pollForResult(endpoint,anonKey,jobId){
+  const POLL_INTERVAL=6000;   // 6 segundos entre intentos
+  const MAX_WAIT=150000;      // 2.5 minutos máximo
+  const started=Date.now();
+  let attempt=0;
+
+  while(Date.now()-started<MAX_WAIT){
+    attempt++;
+    const elapsed=Math.round((Date.now()-started)/1000);
+    setProgress(50+Math.min(elapsed/3,18),'Esperando transcripción… ('+elapsed+'s)');
+
+    await new Promise(r=>setTimeout(r,POLL_INTERVAL));
+
+    try{
+      const resp=await fetch(endpoint,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer '+anonKey,
+          'apikey':anonKey
+        },
+        body:JSON.stringify({pollJobId:jobId})
+      });
+
+      if(!resp.ok){
+        console.warn('Poll intento '+attempt+': HTTP '+resp.status);
+        continue;
+      }
+
+      const result=await resp.json();
+
+      if(result.status==='done'||result.transcript||result.text){
+        console.log('✅ Poll exitoso después de '+attempt+' intentos ('+elapsed+'s)');
+        return{
+          transcript:result.transcript||result.text||'',
+          text:result.transcript||result.text||'',
+          provider:result.provider||'whisper',
+          jobId:jobId
+        };
+      }
+
+      if(result.status==='error'){
+        throw new Error(result.error||'Error en transcripción (desde DB)');
+      }
+
+      // status === 'processing' o 'pending' → seguir esperando
+      console.log('⏳ Poll intento '+attempt+': status='+result.status+' ('+elapsed+'s)');
+
+    }catch(pollErr){
+      if(pollErr.message&&!pollErr.message.includes('Failed to fetch')){
+        throw pollErr; // error real, no de red
+      }
+      console.warn('Poll intento '+attempt+': error de red, reintentando…');
+    }
+  }
+
+  throw new Error('Timeout: la transcripción no completó en '+Math.round(MAX_WAIT/1000)+'s. Intenta con un archivo más corto.');
+}
+
+/* ════════════════════════════════════════════════════════
    TRANSCRIBIR — con reintentos automáticos (2x)
    < 4MB → base64 directo | 4-25MB → Supabase Storage
    ════════════════════════════════════════════════════════ */
@@ -537,6 +603,8 @@ async function transcribeAudio(){
       const transcribeEndpoint=sbUrl+'/functions/v1/transcribe';
       const sbAnonKey=(typeof SB_KEY!=='undefined'&&SB_KEY)?SB_KEY:'';
 
+      /* ── Generar jobId único para esta transcripción ── */
+      const jobId=crypto.randomUUID();
       let requestBody;
 
       if(useStorage){
@@ -546,14 +614,14 @@ async function transcribeAudio(){
           storagePath=await _uploadToStorage(file);
         }
         setProgress(25,'Audio subido. Generando URL…');
-        // Crear URL firmada temporal (10 min) para que el backend descargue
         const{data:signedData,error:signedErr}=await sb.storage.from(T_STORAGE_BUCKET).createSignedUrl(storagePath,600);
         if(signedErr||!signedData?.signedUrl) throw new Error('No se pudo crear URL firmada: '+(signedErr?.message||'sin URL'));
         setProgress(30,'Enviando a transcripción…');
         requestBody={
           signedUrl:signedData.signedUrl,
           fileName:file.name,
-          mimeType:_mime(file)
+          mimeType:_mime(file),
+          jobId:jobId
         };
       } else {
         // ── Archivo pequeño: base64 directo ──
@@ -565,31 +633,49 @@ async function transcribeAudio(){
         requestBody={
           audioBase64:base64Audio,
           fileName:file.name,
-          mimeType:_mime(file)
+          mimeType:_mime(file),
+          jobId:jobId
         };
       }
 
       /* ── Llamar Edge Function de Supabase ── */
-      const resp=await fetch(transcribeEndpoint,{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'Authorization':'Bearer '+authToken,
-          'apikey':sbAnonKey
-        },
-        body:JSON.stringify(requestBody)
-      });
+      let data=null;
+      try{
+        const resp=await fetch(transcribeEndpoint,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':'Bearer '+authToken,
+            'apikey':sbAnonKey
+          },
+          body:JSON.stringify(requestBody)
+        });
 
-      setProgress(40,'Esperando transcripción…');
+        setProgress(40,'Esperando transcripción…');
 
-      if(!resp.ok){
-        const errBody=await resp.text();
-        let errMsg='HTTP '+resp.status;
-        try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){}
-        throw new Error(errMsg);
+        if(resp.ok){
+          data=await resp.json();
+        } else if(resp.status===504||resp.status===502){
+          /* Gateway timeout — la función sigue ejecutándose en background.
+             Hacemos polling a la DB hasta que el resultado aparezca. */
+          console.log('⏳ Gateway timeout '+resp.status+', polling DB para jobId='+jobId);
+          setProgress(50,'Transcripción en progreso… (esperando resultado)');
+          data=await _pollForResult(transcribeEndpoint,sbAnonKey,jobId);
+        } else {
+          const errBody=await resp.text();
+          let errMsg='HTTP '+resp.status;
+          try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){}
+          throw new Error(errMsg);
+        }
+      }catch(fetchErr){
+        /* Network error / timeout — también intentar polling */
+        if(fetchErr.message&&(fetchErr.message.includes('Failed to fetch')||fetchErr.message.includes('network')||fetchErr.message.includes('timeout'))){
+          console.log('⏳ Network error, polling DB para jobId='+jobId);
+          setProgress(50,'Reconectando… (esperando resultado)');
+          data=await _pollForResult(transcribeEndpoint,sbAnonKey,jobId);
+        } else throw fetchErr;
       }
 
-      const data=await resp.json();
       setProgress(70,'Procesando respuesta…');
 
       const transcriptText=data.transcript||data.text||'';
@@ -966,5 +1052,5 @@ function resetTranscripcion(){
   document.head.appendChild(s);
 })();
 
-console.log("%c🎙 Módulo Transcripción F11 v9 cargado — Edge Function directa","color:#7c3aed;font-weight:bold");
+console.log("%c🎙 Módulo Transcripción F11 v10 cargado — Two-phase polling (504→DB)","color:#7c3aed;font-weight:bold");
 console.log("%c   ✓ ElevenLabs+Whisper  ✓ Límite 25MB  ✓ Reintentos 2x","color:#666");
