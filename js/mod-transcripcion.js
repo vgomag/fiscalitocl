@@ -293,6 +293,33 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
   document.head.appendChild(s);
 })();
 
+/* ══════════════════ VINCULAR CASO DESDE F11 ══════════════════ */
+
+/** Vincular un caso seleccionado desde el dropdown de F11 */
+window.f11LinkCase = function(caseId) {
+  if (!caseId) return;
+  const c = (typeof allCases !== 'undefined' ? allCases : []).find(x => x.id === caseId);
+  if (!c) { showToast('⚠ Caso no encontrado'); return; }
+  currentCase = c;
+  showToast('✅ Caso vinculado: ' + (c.name || c.nueva_resolucion || '—'));
+  renderF11Panel(); // Re-renderizar para mostrar el caso vinculado
+};
+
+/** Mostrar selector de caso (cuando ya hay uno vinculado y se quiere cambiar) */
+window.f11ShowCaseSelector = function() {
+  const info = document.getElementById('f11CaseInfo');
+  if (!info) return;
+  const cases = typeof allCases !== 'undefined' ? allCases : [];
+  info.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    + '<span>⚖️ Cambiar caso:</span>'
+    + '<select id="f11CaseSelect" onchange="f11LinkCase(this.value)" style="flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:var(--radius);font-size:11px">'
+    + '<option value="">— Seleccionar expediente —</option>'
+    + cases.map(c => '<option value="'+c.id+'"' + (currentCase && currentCase.id===c.id ? ' selected' : '') + '>' + (c.name||'Sin nombre') + (c.nueva_resolucion?' ('+c.nueva_resolucion+')':'') + '</option>').join('')
+    + '</select>'
+    + '<button class="btn-sm" onclick="renderF11Panel()" style="font-size:10px;padding:3px 8px">Cancelar</button>'
+    + '</div>';
+};
+
 /* ════════════════════════════════════════════
    RENDER PRINCIPAL — F11
    ════════════════════════════════════════════ */
@@ -343,8 +370,15 @@ function _buildF11PanelHTML(){
     <!-- Caso vinculado -->
     <div id="f11CaseInfo" style="margin-bottom:12px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;color:var(--text-muted)">
       ${lnk
-        ? '⚖️ Caso: <strong style="color:var(--gold)">' + (lnk.name || lnk.nueva_resolucion || '—') + '</strong>'
-        : '⚠️ Vincula un caso primero desde el panel de Cuestionarios'}
+        ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">⚖️ Caso: <strong style="color:var(--gold)">' + (lnk.name || lnk.nueva_resolucion || '—') + '</strong>'
+          + '<button class="btn-sm" onclick="f11ShowCaseSelector()" style="font-size:10px;padding:3px 8px" title="Cambiar caso">Cambiar</button></div>'
+        : '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          + '<span>⚠️ Sin caso vinculado</span>'
+          + '<select id="f11CaseSelect" onchange="f11LinkCase(this.value)" style="flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:var(--radius);font-size:11px">'
+          + '<option value="">— Seleccionar expediente —</option>'
+          + (typeof allCases!=='undefined' ? allCases.map(c => '<option value="'+c.id+'">' + (c.name||'Sin nombre') + (c.nueva_resolucion?' ('+c.nueva_resolucion+')':'') + '</option>').join('') : '')
+          + '</select>'
+          + '</div>'}
     </div>
 
     <!-- Sección: Datos del Acta -->
