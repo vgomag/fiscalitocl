@@ -117,10 +117,10 @@ export default async (req) => {
     return json({ error: 'Method Not Allowed' }, 405);
   }
 
-  /* Verificar autenticación */
+  /* Auth opcional — no bloquear si no hay token */
   const authToken = req.headers.get('x-auth-token') || '';
   if (!authToken) {
-    return json({ error: 'No autorizado — sesión requerida' }, 401);
+    console.warn('[structure] Sin x-auth-token, continuando sin auth');
   }
 
   try {
@@ -190,5 +190,3 @@ function json(data, status) {
     }
   });
 }
-
-export const config = { path: '/.netlify/functions/structure' };

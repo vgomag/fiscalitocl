@@ -815,7 +815,15 @@ async function structureTranscripcion(){
       const raw=transcripcion.rawText;
       const hasBaseDoc=!!transcripcion.baseDocText?.trim();
       const mode=hasBaseDoc?'fill_acta':(transcripcion.selectedMode||'directa');
-      const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
+      /* Obtener token de auth de forma robusta */
+      let authToken='';
+      try{
+        if(typeof session!=='undefined'&&session?.access_token){authToken=session.access_token;}
+        else if(typeof sb!=='undefined'){
+          const{data:sessData}=await sb.auth.getSession();
+          authToken=sessData?.session?.access_token||'';
+        }
+      }catch(e){console.warn('[F11] Auth token no disponible:',e);}
 
       /* SHORT TEXT (≤6000 chars): single call */
       if(raw.length<=6000){
