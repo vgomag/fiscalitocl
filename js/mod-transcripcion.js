@@ -1,12 +1,12 @@
 /* =========================================================
    MOD-TRANSCRIPCION.JS — F11 Transcripción de Actas
-   v7.0 · 2026-04-01 · Fiscalito / UMAG
+   v7.1 · 2026-04-01 · Fiscalito / UMAG
    =========================================================
-   v7: Archivos grandes vía Supabase Storage
-   · < 4MB → base64 directo (rápido)
-   · 4-25MB → sube a Supabase Storage, envía URL al backend
-   · Fix endpoint: /.netlify/functions/chat (mode:'transcribe')
-   · Fix respuesta: mapea data.transcript correctamente
+   v7.1: Fix transcripción
+   · Base64 usa _toBase64() chunked (evita stack overflow)
+   · Auth opcional (Edge Function ya no requiere JWT)
+   · Mejor logging de errores del servidor
+   · Edge Function v6 con error handling detallado
    ========================================================= */
 
 /* ── CONSTANTES ── */
@@ -591,30 +591,48 @@ async function transcribeAudio(){
   renderF11Panel();
 
   try{
-    /* ── 1. Leer archivo y convertir a base64 (igual que Lovable) ── */
+    /* ── 1. Leer archivo y convertir a base64 (chunked, seguro) ── */
     setProgress(5,'Leyendo archivo de audio ('+_sz(file.size)+')…');
     const arrayBuffer=await file.arrayBuffer();
 
     setProgress(15,'Codificando audio…');
-    const base64Audio=new Uint8Array(arrayBuffer).reduce(
-      (data,byte)=>data+String.fromCharCode(byte),''
-    );
-    const b64=btoa(base64Audio);
+    const b64=_toBase64(arrayBuffer);
 
     setProgress(25,'Enviando a transcripción…');
 
-    /* ── 2. Llamar Edge Function exactamente como Lovable ── */
-    console.log('[F11] Llamando transcribe-audio vía sb.functions.invoke (con auth), size='+file.size);
-    const{data,error}=await sb.functions.invoke('transcribe-audio',{
-      body:{audio:b64,mimeType:_mime(file)}
+    /* ── 2. Llamar Edge Function ── */
+    const sbUrl=(typeof SB_URL!=='undefined'&&SB_URL)?SB_URL:'https://zgoxrzbkftzulsphmtfk.supabase.co';
+    const sbAnonKey=(typeof SB_KEY!=='undefined'&&SB_KEY)?SB_KEY:'';
+
+    /* Intentar obtener token de auth (opcional, la Edge Function ya no lo requiere) */
+    let authToken='';
+    try{
+      const{data:sessData}=await sb.auth.getSession();
+      authToken=sessData?.session?.access_token||'';
+    }catch(e){console.warn('[F11] No se pudo obtener token de auth:',e);}
+
+    console.log('[F11] Llamando transcribe-audio, size='+file.size+', b64len='+b64.length);
+    const resp=await fetch(sbUrl+'/functions/v1/transcribe-audio',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        ...(authToken?{'Authorization':'Bearer '+authToken}:{}),
+        ...(sbAnonKey?{'apikey':sbAnonKey}:{})
+      },
+      body:JSON.stringify({audio:b64,mimeType:_mime(file)})
     });
 
     setProgress(70,'Procesando respuesta…');
 
-    if(error){
-      throw new Error(error.message||'Error en Edge Function: '+JSON.stringify(error));
+    if(!resp.ok){
+      const errBody=await resp.text();
+      let errMsg='HTTP '+resp.status;
+      try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){errMsg+=' — '+errBody.substring(0,200);}
+      console.error('[F11] Edge Function error:',resp.status,errBody);
+      throw new Error(errMsg);
     }
 
+    const data=await resp.json();
     const transcriptText=data?.text||data?.transcript||'';
     if(!transcriptText){
       throw new Error(data?.error||'Sin texto de transcripción en la respuesta');
@@ -970,5 +988,5 @@ function resetTranscripcion(){
   document.head.appendChild(s);
 })();
 
-console.log("%c🎙 Módulo Transcripción F11 v12 cargado — transcribe-audio con Supabase Auth","color:#7c3aed;font-weight:bold");
+console.log("%c🎙 Módulo Transcripción F11 v14 cargado — transcribe-audio con _toBase64 chunked + auth opcional","color:#7c3aed;font-weight:bold");
 console.log("%c   ✓ ElevenLabs+Whisper  ✓ Límite 25MB  ✓ Reintentos 2x","color:#666");
