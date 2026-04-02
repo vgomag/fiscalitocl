@@ -1,0 +1,17 @@
+{
+  "name": "Fiscalito Grabadora",
+  "short_name": "Grabadora",
+  "description": "Grabadora de actas para diligencias — Fiscalito UMAG",
+  "start_url": "/grabadora.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='50' y='68' font-size='55' text-anchor='middle'>🎙</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest-grabadora.json">
+<title>Fiscalito · Grabadora</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#334155;--border:#475569;
+  --gold:#f59e0b;--gold-dim:#d97706;--green:#22c55e;--red:#ef4444;
+  --text:#f1f5f9;--text-dim:#94a3b8;--text-muted:#64748b;
+  --radius:12px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;-webkit-tap-highlight-color:transparent}
+
+/* ── Layout ── */
+.app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto}
+.header{padding:16px 20px 12px;text-align:center;border-bottom:1px solid var(--border)}
+.header h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.header .sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* ── Sync bar ── */
+.sync-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--surface);font-size:11px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+.sync-dot{width:8px;height:8px;border-radius:50%;margin-right:6px;flex-shrink:0}
+.sync-dot.online{background:var(--green)}
+.sync-dot.offline{background:var(--red)}
+.sync-btn{background:var(--gold);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer}
+
+/* ── Record section ── */
+.record-section{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:20px}
+.timer{font-size:48px;font-weight:300;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:2px}
+.timer.recording{color:var(--red)}
+
+/* Waveform */
+.waveform{width:100%;height:60px;display:flex;align-items:center;justify-content:center;gap:2px}
+.waveform .bar{width:3px;background:var(--gold);border-radius:2px;transition:height .1s;min-height:4px}
+
+/* Record button */
+.rec-btn{width:80px;height:80px;border-radius:50%;border:4px solid var(--text-dim);background:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;position:relative}
+.rec-btn:active{transform:scale(.92)}
+.rec-btn.recording{border-color:var(--red);animation:pulse 1.5s infinite}
+.rec-btn.recording::after{content:'';width:28px;height:28px;background:#fff;border-radius:4px}
+.rec-btn:not(.recording)::after{content:'';width:0;height:0}
+.rec-btn-label{font-size:12px;color:var(--text-muted);margin-top:4px}
+
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 16px rgba(239,68,68,0)}}
+
+/* Metadata form */
+.meta-form{width:100%;padding:0 4px}
+.meta-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.meta-field label{font-size:10px;color:var(--text-muted);display:block;margin-bottom:3px}
+.meta-field input,.meta-field select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;font-family:var(--font)}
+
+/* ── Recordings list ── */
+.recordings-section{border-top:1px solid var(--border);max-height:40dvh;overflow-y:auto}
+.recordings-header{padding:12px 16px 8px;font-size:13px;font-weight:600;color:var(--text-dim);position:sticky;top:0;background:var(--bg);z-index:1}
+.rec-item{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid rgba(71,85,105,.3);gap:12px}
+.rec-item .icon{font-size:20px;flex-shrink:0}
+.rec-item .info{flex:1;min-width:0}
+.rec-item .info .name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-item .info .detail{font-size:10px;color:var(--text-muted)}
+.rec-status{font-size:9px;padding:3px 8px;border-radius:10px;font-weight:600;flex-shrink:0}
+.rec-status.pending{background:var(--surface2);color:var(--gold)}
+.rec-status.synced{background:rgba(34,197,94,.15);color:var(--green)}
+.rec-status.syncing{background:rgba(245,158,11,.15);color:var(--gold)}
+.rec-delete{background:none;border:none;color:var(--text-muted);font-size:16px;padding:4px;cursor:pointer}
+
+/* ── Login overlay ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:100}
+.login-overlay h2{font-size:22px;margin-bottom:8px}
+.login-overlay .sub{font-size:13px;color:var(--text-dim);margin-bottom:24px;text-align:center}
+.login-overlay input{width:100%;max-width:300px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:12px;font-size:14px;margin-bottom:10px;font-family:var(--font)}
+.login-overlay button{width:100%;max-width:300px;background:var(--gold);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.login-overlay .error{color:var(--red);font-size:12px;margin-top:8px}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);color:var(--text);padding:10px 20px;border-radius:10px;font-size:13px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+
+/* Hide when not needed */
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-overlay" id="loginOverlay">
+  <div style="font-size:40px;margin-bottom:16px">🎙</div>
+  <h2>Fiscalito Grabadora</h2>
+  <p class="sub">Inicia sesión para sincronizar tus grabaciones</p>
+  <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+  <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password">
+  <button onclick="doLogin()">Entrar</button>
+  <div class="error" id="loginError"></div>
+</div>
+
+<!-- App -->
+<div class="app" id="mainApp" style="display:none">
+  <div class="header">
+    <h1>🎙 Grabadora de Actas</h1>
+    <div class="sub">Fiscalito · UMAG</div>
+  </div>
+
+  <div class="sync-bar">
+    <div style="display:flex;align-items:center">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncLabel">Conectado</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="pendingCount"></span>
+      <button class="sync-btn" onclick="syncAll()" id="syncBtn">Sincronizar</button>
+    </div>
+  </div>
+
+  <div class="record-section">
+    <!-- Metadata -->
+    <div class="meta-form">
+      <div class="meta-row">
+        <div class="meta-field">
+          <label>Tipo de acta</label>
+          <select id="metaTipo">
+            <option value="testigo">Declaración testigo</option>
+            <option value="denunciante">Ratificación denuncia</option>
+            <option value="denunciado">Declaración denunciado/a</option>
+            <option value="otro">Otra diligencia</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label>Declarante</label>
+          <input type="text" id="metaNombre" placeholder="Nombre completo">
+        </div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-field">
+          <label>Expediente (opcional)</label>
+          <input type="text" id="metaExpediente" placeholder="Ej: 88-G">
+        </div>
+        <div class="meta-field">
+          <label>Lugar</label>
+          <input type="text" id="metaLugar" placeholder="Punta Arenas" value="Punta Arenas">
+        </div>
+      </div>
+    </div>
+
+    <!-- Timer -->
+    <div class="timer" id="timer">00:00</div>
+
+    <!-- Waveform -->
+    <div class="waveform" id="waveform"></div>
+
+    <!-- Record button -->
+    <div style="text-align:center">
+      <button class="rec-btn" id="recBtn" onclick="toggleRecording()"></button>
+      <div class="rec-btn-label" id="recLabel">Toca para grabar</div>
+    </div>
+  </div>
+
+  <!-- Recordings list -->
+  <div class="recordings-section">
+    <div class="recordings-header">
+      Grabaciones <span id="recCount" style="opacity:.5"></span>
+    </div>
+    <div id="recList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   FISCALITO GRABADORA — PWA Móvil
+   v1.0 · 2026-04-01
+   ══════════════════════════════════════════════════════════ */
+
+const SB_URL='https://zgoxrzbkftzulsphmtfk.supabase.co';
+const SB_KEY='sb_publishable_qIWOIFlcCKbtr8_2Gf0FQA_73kSqD9-';
+const BUCKET='transcripcion-audio';
+const DB_NAME='fiscalito_grabadora';
+const DB_VERSION=1;
+const sb=supabase.createClient(SB_URL,SB_KEY);
+
+let session=null;
+let db=null;
+let mediaRecorder=null;
+let audioChunks=[];
+let recordingStart=null;
+let timerInterval=null;
+let analyser=null;
+let animFrame=null;
+
+/* ── IndexedDB ── */
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('recordings')){
+        const store=d.createObjectStore('recordings',{keyPath:'id'});
+        store.createIndex('status','status');
+        store.createIndex('created','created');
+      }
+    };
+    req.onsuccess=e=>{db=e.target.result;resolve(db);};
+    req.onerror=e=>reject(e);
+  });
+}
+
+function dbPut(rec){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('recordings','readwrite');
+    tx.objectStore('recordings').put(rec);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=e=>reject(e);
+  });
+}
+
+function dbDelete(id){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('recordings','readwrite');
+    tx.objectStore('recordings').delete(id);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=e=>reject(e);
+  });
+}
+
+function dbGetAll(){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('recordings','readonly');
+    const req=tx.objectStore('recordings').getAll();
+    req.onsuccess=()=>resolve(req.result.sort((a,b)=>b.created-a.created));
+    req.onerror=e=>reject(e);
+  });
+}
+
+/* ── Auth ── */
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const errEl=document.getElementById('loginError');
+  errEl.textContent='';
+  if(!email||!pass){errEl.textContent='Completa email y contraseña';return;}
+  try{
+    const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
+    if(error)throw error;
+    session=data.session;
+    showApp();
+  }catch(e){
+    errEl.textContent=e.message||'Error de autenticación';
+  }
+}
+
+async function checkSession(){
+  const{data}=await sb.auth.getSession();
+  if(data?.session){
+    session=data.session;
+    showApp();
+  }
+}
+
+function showApp(){
+  document.getElementById('loginOverlay').style.display='none';
+  document.getElementById('mainApp').style.display='flex';
+  updateOnlineStatus();
+  renderRecordings();
+}
+
+/* ── Online status ── */
+function updateOnlineStatus(){
+  const online=navigator.onLine;
+  const dot=document.getElementById('syncDot');
+  const lbl=document.getElementById('syncLabel');
+  dot.className='sync-dot '+(online?'online':'offline');
+  lbl.textContent=online?'Conectado':'Sin conexión';
+}
+window.addEventListener('online',()=>{updateOnlineStatus();autoSync();});
+window.addEventListener('offline',updateOnlineStatus);
+
+/* ── Recording ── */
+async function toggleRecording(){
+  if(mediaRecorder&&mediaRecorder.state==='recording'){
+    stopRecording();
+  }else{
+    await startRecording();
+  }
+}
+
+async function startRecording(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      audio:{echoCancellation:true,noiseSuppression:true,sampleRate:44100}
+    });
+
+    // Choose best format: prefer m4a/mp4, fallback to webm, then wav
+    let mimeType='audio/webm;codecs=opus';
+    if(MediaRecorder.isTypeSupported('audio/mp4'))mimeType='audio/mp4';
+    else if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))mimeType='audio/webm;codecs=opus';
+    else if(MediaRecorder.isTypeSupported('audio/webm'))mimeType='audio/webm';
+
+    mediaRecorder=new MediaRecorder(stream,{mimeType});
+    audioChunks=[];
+
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      cancelAnimationFrame(animFrame);
+      const blob=new Blob(audioChunks,{type:mimeType});
+      await saveRecording(blob,mimeType);
+    };
+
+    // Analyser for waveform
+    const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const source=audioCtx.createMediaStreamSource(stream);
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=64;
+    source.connect(analyser);
+    drawWaveform();
+
+    mediaRecorder.start(1000); // chunks every 1s
+    recordingStart=Date.now();
+    startTimer();
+
+    document.getElementById('recBtn').classList.add('recording');
+    document.getElementById('recLabel').textContent='Toca para detener';
+    document.getElementById('timer').classList.add('recording');
+  }catch(e){
+    showToast('Error al acceder al micrófono: '+e.message);
+  }
+}
+
+function stopRecording(){
+  if(mediaRecorder&&mediaRecorder.state==='recording'){
+    mediaRecorder.stop();
+  }
+  stopTimer();
+  document.getElementById('recBtn').classList.remove('recording');
+  document.getElementById('recLabel').textContent='Toca para grabar';
+  document.getElementById('timer').classList.remove('recording');
+  clearWaveform();
+}
+
+/* ── Timer ── */
+function startTimer(){
+  updateTimer();
+  timerInterval=setInterval(updateTimer,1000);
+}
+function stopTimer(){
+  clearInterval(timerInterval);
+  timerInterval=null;
+}
+function updateTimer(){
+  if(!recordingStart)return;
+  const s=Math.floor((Date.now()-recordingStart)/1000);
+  const m=Math.floor(s/60);
+  const ss=s%60;
+  document.getElementById('timer').textContent=
+    String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+}
+
+/* ── Waveform ── */
+function drawWaveform(){
+  const container=document.getElementById('waveform');
+  if(!container.children.length){
+    container.innerHTML='';
+    for(let i=0;i<32;i++){
+      const bar=document.createElement('div');
+      bar.className='bar';
+      bar.style.height='4px';
+      container.appendChild(bar);
+    }
+  }
+  if(!analyser)return;
+  const data=new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  const bars=container.children;
+  for(let i=0;i<bars.length&&i<data.length;i++){
+    const h=Math.max(4,data[i]/255*56);
+    bars[i].style.height=h+'px';
+  }
+  animFrame=requestAnimationFrame(drawWaveform);
+}
+function clearWaveform(){
+  const bars=document.getElementById('waveform').children;
+  for(let i=0;i<bars.length;i++)bars[i].style.height='4px';
+}
+
+/* ── Save recording to IndexedDB ── */
+async function saveRecording(blob,mimeType){
+  const nombre=document.getElementById('metaNombre').value.trim();
+  const tipo=document.getElementById('metaTipo').value;
+  const expediente=document.getElementById('metaExpediente').value.trim();
+  const lugar=document.getElementById('metaLugar').value.trim();
+
+  const ext=mimeType.includes('mp4')?'m4a':mimeType.includes('webm')?'webm':'wav';
+  const now=new Date();
+  const dateStr=now.toISOString().split('T')[0];
+  const timeStr=now.toTimeString().split(' ')[0].replace(/:/g,'');
+  const label=nombre||'Grabación';
+  const fileName=`${dateStr}_${timeStr}_${label}.${ext}`;
+
+  const duration=recordingStart?Math.floor((Date.now()-recordingStart)/1000):0;
+  recordingStart=null;
+  document.getElementById('timer').textContent='00:00';
+
+  // Read blob as ArrayBuffer to store in IndexedDB
+  const arrayBuffer=await blob.arrayBuffer();
+
+  const recording={
+    id:crypto.randomUUID(),
+    fileName,
+    mimeType,
+    ext,
+    size:blob.size,
+    duration,
+    data:arrayBuffer,
+    meta:{tipo,nombre,expediente,lugar,fecha:dateStr},
+    status:'pending', // pending | syncing | synced
+    created:Date.now(),
+    syncedAt:null,
+    storagePath:null
+  };
+
+  await dbPut(recording);
+  showToast('Grabación guardada ('+formatDuration(duration)+')');
+  renderRecordings();
+
+  // Auto-sync if online
+  if(navigator.onLine)setTimeout(()=>syncAll(),500);
+}
+
+/* ── Render recordings list ── */
+async function renderRecordings(){
+  const recs=await dbGetAll();
+  const list=document.getElementById('recList');
+  const count=document.getElementById('recCount');
+  const pending=recs.filter(r=>r.status==='pending').length;
+  count.textContent=recs.length?`(${recs.length})`:'';
+  document.getElementById('pendingCount').textContent=pending?`${pending} pendiente${pending>1?'s':''}`:'';
+
+  if(!recs.length){
+    list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No hay grabaciones aún</div>';
+    return;
+  }
+
+  list.innerHTML=recs.map(r=>`
+    <div class="rec-item" data-id="${r.id}">
+      <div class="icon">${r.status==='synced'?'☁️':'🎤'}</div>
+      <div class="info">
+        <div class="name">${esc(r.meta.nombre||'Sin nombre')} · ${esc(r.meta.tipo)}</div>
+        <div class="detail">${formatDuration(r.duration)} · ${formatSize(r.size)} · ${formatDate(r.created)}${r.meta.expediente?' · Exp: '+esc(r.meta.expediente):''}</div>
+      </div>
+      <span class="rec-status ${r.status}">${r.status==='synced'?'Sincronizado':r.status==='syncing'?'Subiendo...':'Pendiente'}</span>
+      <button class="rec-delete" onclick="deleteRec('${r.id}')" title="Eliminar">✕</button>
+    </div>
+  `).join('');
+}
+
+/* ── Sync to Supabase Storage ── */
+async function syncAll(){
+  if(!navigator.onLine){showToast('Sin conexión');return;}
+  const recs=await dbGetAll();
+  const pending=recs.filter(r=>r.status==='pending');
+  if(!pending.length){showToast('Todo sincronizado');return;}
+
+  document.getElementById('syncBtn').textContent='Subiendo...';
+
+  let ok=0,fail=0;
+  for(const rec of pending){
+    try{
+      rec.status='syncing';
+      await dbPut(rec);
+      renderRecordings();
+
+      // Upload to Supabase Storage
+      const blob=new Blob([rec.data],{type:rec.mimeType});
+      const path=`grabadora/${session?.user?.id||'anon'}/${rec.fileName}`;
+
+      const{error}=await sb.storage.from(BUCKET).upload(path,blob,{
+        contentType:rec.mimeType,
+        upsert:true
+      });
+
+      if(error)throw error;
+
+      // Save metadata to case_notes table for F11 to pick up
+      await sb.from('case_notes').insert({
+        user_id:session?.user?.id,
+        title:'🎙 '+rec.fileName,
+        content:JSON.stringify({
+          type:'grabadora_audio',
+          fileName:rec.fileName,
+          storagePath:path,
+          mimeType:rec.mimeType,
+          duration:rec.duration,
+          size:rec.size,
+          meta:rec.meta,
+          recordedAt:new Date(rec.created).toISOString()
+        }),
+        source:'grabadora_movil',
+        category:'transcripcion_pendiente'
+      });
+
+      rec.status='synced';
+      rec.syncedAt=Date.now();
+      rec.storagePath=path;
+      // Free memory: remove audio data after sync
+      delete rec.data;
+      await dbPut(rec);
+      ok++;
+    }catch(e){
+      console.error('Sync error:',e);
+      rec.status='pending';
+      await dbPut(rec);
+      fail++;
+    }
+  }
+
+  document.getElementById('syncBtn').textContent='Sincronizar';
+  renderRecordings();
+  if(ok)showToast(`${ok} grabación${ok>1?'es':''} sincronizada${ok>1?'s':''}`);
+  if(fail)showToast(`${fail} error${fail>1?'es':''} al sincronizar`);
+}
+
+async function autoSync(){
+  const recs=await dbGetAll();
+  const pending=recs.filter(r=>r.status==='pending');
+  if(pending.length&&navigator.onLine)syncAll();
+}
+
+async function deleteRec(id){
+  if(!confirm('¿Eliminar esta grabación?'))return;
+  await dbDelete(id);
+  renderRecordings();
+}
+
+/* ── Helpers ── */
+function formatDuration(s){
+  if(!s)return'0:00';
+  const m=Math.floor(s/60),ss=s%60;
+  return m+':'+(ss<10?'0':'')+ss;
+}
+function formatSize(b){
+  if(b<1024)return b+' B';
+  if(b<1048576)return(b/1024).toFixed(1)+' KB';
+  return(b/1048576).toFixed(1)+' MB';
+}
+function formatDate(ts){
+  const d=new Date(ts);
+  return d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+function esc(s){
+  if(!s)return'';
+  const d=document.createElement('div');
+  d.textContent=s;
+  return d.innerHTML;
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+/* ── Init ── */
+(async function init(){
+  await openDB();
+  await checkSession();
+  updateOnlineStatus();
+
+  // Register service worker
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('grabadora-sw.js').catch(e=>console.warn('SW:',e));
+  }
+
+  // Init waveform bars
+  const wf=document.getElementById('waveform');
+  for(let i=0;i<32;i++){
+    const bar=document.createElement('div');
+    bar.className='bar';
+    bar.style.height='4px';
+    wf.appendChild(bar);
+  }
+})();
+</script>
+</body>
+</html>
