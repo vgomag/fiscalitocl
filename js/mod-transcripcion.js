@@ -200,19 +200,6 @@ function _buildF11PanelHTML(){
       </div>
     </div>
 
-    <!-- Sección: Cuestionario Word -->
-    <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-dim)">📄 Cuestionario de Preguntas (Word) — guía para edición</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <label style="flex:1;display:flex;align-items:center;gap:6px;padding:10px;border:2px dashed var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--text-muted);transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
-          <input type="file" accept=".docx,.doc,.pdf,.txt" onchange="f11HandleDocUpload(this.files[0])" style="display:none"/>
-          📎 <span id="f11DocName">Seleccionar archivo de preguntas…</span>
-        </label>
-        <button class="btn-sm" id="f11DocClearBtn" style="display:none" onclick="f11ClearDoc()">✕</button>
-      </div>
-      <div id="f11DocPreview" style="display:none;margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;max-height:150px;overflow-y:auto;white-space:pre-wrap;color:var(--text-dim)"></div>
-    </div>
-
     <!-- Sección: Audio -->
     <div style="margin-bottom:14px">
       <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-dim)">🎙️ Audio de la Entrevista</div>
@@ -247,9 +234,10 @@ function _buildF11PanelHTML(){
     <div id="f11RawResultSection" style="display:none;margin-bottom:14px">
       <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-dim)">🎙️ Paso 1: Transcripción cruda (texto extraído del audio)</div>
       <textarea id="f11RawResult" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font-sans);resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box" readonly></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button class="btn-sm" onclick="f11CopyText(_f11RawText)">📋 Copiar crudo</button>
-        <button class="btn-sm" onclick="f11DownloadText(_f11RawText, 'transcripcion_cruda')">⬇ Descargar .txt</button>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button class="btn-save" onclick="f11SaveRawToCase()" style="flex:1">💾 Guardar transcripción en el caso</button>
+        <button class="btn-sm" onclick="f11CopyText(_f11RawText)">📋 Copiar</button>
+        <button class="btn-sm" onclick="f11DownloadText(_f11RawText, 'transcripcion_cruda')">⬇ .txt</button>
       </div>
     </div>
 
@@ -258,6 +246,18 @@ function _buildF11PanelHTML(){
       <div style="background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:var(--radius);padding:10px;margin-bottom:8px">
         <div style="font-size:11px;color:var(--gold);font-weight:600">✏️ Paso 2: Edición con IA</div>
         <div style="font-size:10.5px;color:var(--text-dim);margin-top:4px">Se usará el cuestionario como guía para estructurar las respuestas en un texto refundido, coordinado y sistematizado.</div>
+      </div>
+      <!-- Cuestionario Word — guía para edición (adjuntar aquí en Paso 2) -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-dim)">📄 Adjuntar Cuestionario (Word/PDF) — opcional, guía para editar</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="flex:1;display:flex;align-items:center;gap:6px;padding:10px;border:2px dashed var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--text-muted);transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <input type="file" accept=".docx,.doc,.pdf,.txt" onchange="f11HandleDocUpload(this.files[0])" style="display:none"/>
+            📎 <span id="f11DocName">Seleccionar archivo de preguntas…</span>
+          </label>
+          <button class="btn-sm" id="f11DocClearBtn" style="display:none" onclick="f11ClearDoc()">✕</button>
+        </div>
+        <div id="f11DocPreview" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;max-height:120px;overflow-y:auto;white-space:pre-wrap;color:var(--text-dim)"></div>
       </div>
       <button class="btn-save" id="f11EditBtn" onclick="f11Paso2_Editar()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px">
         ✏️ Paso 2: Editar y Refundir con IA
@@ -890,6 +890,49 @@ async function f11Paso3_GenerarActa(){
 }
 
 /* ══════════════════ GUARDAR EN CASO ══════════════════ */
+/* ══════════════════ GUARDAR TRANSCRIPCIÓN CRUDA (Paso 1) ══════════════════ */
+async function f11SaveRawToCase(){
+  if(!currentCase || !session) return showToast('⚠ Vincula un caso primero');
+  if(!_f11RawText) return showToast('⚠ Sin transcripción para guardar');
+
+  const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
+  const nombre = (document.getElementById('f11NombreDeclarante')?.value||'').trim();
+  const fecha  = document.getElementById('f11Fecha')?.value || '';
+  const lugar  = (document.getElementById('f11Lugar')?.value||'').trim();
+  const tipoLabel = {testigo:'Declaración testigo',denunciante:'Ratificación denuncia',denunciado:'Declaración denunciado/a',otro:'Diligencia'}[tipo];
+  const label = `${tipoLabel}${nombre ? ': '+nombre : ''} (transcripción cruda)`;
+
+  try {
+    const { error: errDil } = await sb.from('diligencias').insert({
+      case_id: currentCase.id,
+      user_id: session.user.id,
+      diligencia_type: tipo==='testigo'?'declaracion_testigo':tipo==='denunciante'?'ratificacion':tipo==='denunciado'?'declaracion_denunciado':'otro',
+      diligencia_label: label,
+      fecha_diligencia: fecha || null,
+      extracted_text: _f11RawText,
+      ai_summary: `Transcripción cruda de ${tipoLabel.toLowerCase()}${nombre?' de '+nombre:''} realizada en ${lugar||'—'} el ${fecha||'—'}`,
+      is_processed: true,
+      processing_status: 'transcripcion_cruda',
+    });
+    if(errDil) throw errDil;
+
+    const noteContent = `🎙️ ${label}\n📅 ${fecha||'—'} · 📍 ${lugar||'—'}\n\n` +
+      `═══ TRANSCRIPCIÓN CRUDA ═══\n${_f11RawText}`;
+
+    await sb.from('case_notes').insert({
+      case_id: currentCase.id,
+      user_id: session.user.id,
+      content: noteContent,
+    });
+
+    showToast('✅ Transcripción cruda guardada en diligencias y notas del caso');
+  } catch(e){
+    showToast('❌ Error: ' + e.message);
+    console.error('SaveRaw error:', e);
+  }
+}
+
+/* ══════════════════ GUARDAR ACTA FINAL ══════════════════ */
 async function f11SaveToCase(){
   if(!currentCase || !session) return showToast('⚠ Vincula un caso primero');
 
