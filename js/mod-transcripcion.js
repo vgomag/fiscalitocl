@@ -1570,7 +1570,7 @@ async function f11DownloadWord(){
                 children: [
                   new ImageRun({
                     data: logoBuffer,
-                    transformation: { width: 100, height: 38 },
+                    transformation: { width: 280, height: 58 },
                     type: 'png'
                   }),
                   new TextRun({ font:'Arial', size: 16, children: [new Tab()] }),

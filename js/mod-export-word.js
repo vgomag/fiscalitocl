@@ -88,7 +88,7 @@ function makeWordDocHeader(docxLib, logoBuffer) {
         children: [
           new ImageRun({
             data: logoBuffer,
-            transformation: { width: 140, height: 29 },
+            transformation: { width: 280, height: 58 },
             type: 'png',
             altText: { title: 'UMAG', description: 'Logo UMAG Fiscalía Universitaria', name: 'logo-umag' },
           }),
