@@ -604,8 +604,8 @@ async function transcribeAudio(){
     setProgress(25,'Enviando a transcripción…');
 
     /* ── 2. Llamar Edge Function exactamente como Lovable ── */
-    console.log('[F11] Llamando transcribe vía sb.functions.invoke, size='+file.size);
-    const{data,error}=await sb.functions.invoke('transcribe',{
+    console.log('[F11] Llamando transcribe-audio vía sb.functions.invoke (con auth), size='+file.size);
+    const{data,error}=await sb.functions.invoke('transcribe-audio',{
       body:{audio:b64,mimeType:_mime(file)}
     });
 
@@ -970,5 +970,5 @@ function resetTranscripcion(){
   document.head.appendChild(s);
 })();
 
-console.log("%c🎙 Módulo Transcripción F11 v11 cargado — Copia exacta patrón Lovable (sb.functions.invoke)","color:#7c3aed;font-weight:bold");
+console.log("%c🎙 Módulo Transcripción F11 v12 cargado — transcribe-audio con Supabase Auth","color:#7c3aed;font-weight:bold");
 console.log("%c   ✓ ElevenLabs+Whisper  ✓ Límite 25MB  ✓ Reintentos 2x","color:#666");
