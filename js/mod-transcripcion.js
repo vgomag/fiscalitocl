@@ -10,9 +10,9 @@
    ========================================================= */
 
 /* ── CONSTANTES ── */
-const T_MAX_DIRECT_MB = 4;    // Archivos < 4MB → base64 directo
+const T_MAX_DIRECT_MB = 4;    // Archivos < 4MB (legacy, ya no se usa base64)
 const T_MAX_DIRECT    = T_MAX_DIRECT_MB * 1024 * 1024;
-const T_MAX_STORAGE_MB = 25;  // Archivos 4-25MB → vía Supabase Storage
+const T_MAX_STORAGE_MB = 100; // Hasta 100MB para declaraciones largas (1h+)
 const T_MAX_INPUT_MB  = T_MAX_STORAGE_MB;
 const T_MAX_INPUT     = T_MAX_INPUT_MB * 1024 * 1024;
 const T_MAX_RETRIES   = 2;
@@ -164,16 +164,23 @@ function buildF11HTML(){
   const p=transcripcion.progress;
   const durStr=transcripcion.audioDuration?(' · '+_dur(transcripcion.audioDuration)):'';
 
-  /* ── Docs section ── */
+  /* ── Record + Upload section ── */
+  const isRec=transcripcion.isRecording;
+  const recTimerHTML=isRec?`<span id="f11RecTimer" style="font-variant-numeric:tabular-nums;color:#ef4444;font-weight:600;font-size:14px;margin-left:8px">00:00</span>`:'';
   const docsSection=`<div class="f11-section">
-    <div class="f11-row" style="margin-bottom:8px">
+    <div class="f11-row" style="margin-bottom:10px">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      <span class="f11-section-title">Archivos de Transcripción</span>
+      <span class="f11-section-title">Grabar o Subir Audio</span>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
+    ${!transcripcion.audioFile?`
+    <button class="f11-rec-live-btn${isRec?' recording':''}" onclick="${isRec?'stopTransRecording()':'startTransRecording()'}">
+      <span class="f11-rec-dot${isRec?' pulse':''}"></span>
+      ${isRec?'Detener grabación':'Grabar declaración'}${recTimerHTML}
+    </button>`:''}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
       <label class="f11-upload-audio-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Subir audio / video (hasta ${T_MAX_INPUT_MB}MB)
+        Subir archivo de audio (hasta ${T_MAX_INPUT_MB}MB)
         <input type="file" accept="${T_ACCEPT}" style="display:none" onchange="handleTransAudioUpload(this)"/>
       </label>
       <label class="f11-upload-btn" style="font-size:11px;padding:4px 10px" title="Suba el acta/cuestionario con las preguntas para que se llene con las respuestas del audio">
@@ -186,8 +193,7 @@ function buildF11HTML(){
       ?`<div class="f11-file-chip">🔊 ${esc(transcripcion.audioFile.name)} <span style="font-size:10px;opacity:.7;margin-left:4px">(${_sz(transcripcion.audioFile.size)}${durStr})</span>
           <button onclick="transcripcion.audioFile=null;transcripcion.audioUrl=null;transcripcion.audioDuration=null;renderF11Panel()" class="f11-chip-del">✕</button></div>`:''}
     ${transcripcion.baseDocName
-      ?`<div class="f11-file-chip">📄 ${esc(transcripcion.baseDocName)} <span style="font-size:10px;opacity:.7;margin-left:4px">(se llenará con audio)</span> <button onclick="clearTransDoc()" class="f11-chip-del">✕</button></div>`
-      :`<div class="f11-empty-docs">${transcripcion.audioFile?'Opcionalmente suba un acta/cuestionario base para llenar con el audio':'Use el botón de arriba para cargar su archivo de audio'}</div>`}
+      ?`<div class="f11-file-chip">📄 ${esc(transcripcion.baseDocName)} <span style="font-size:10px;opacity:.7;margin-left:4px">(se llenará con audio)</span> <button onclick="clearTransDoc()" class="f11-chip-del">✕</button></div>`:''}
     ${transcripcion.audioUrl?`<audio controls src="${transcripcion.audioUrl}" style="width:100%;margin-top:8px;height:32px"></audio>`:''}
   </div>`;
 
@@ -437,35 +443,66 @@ function handleTransDocUpload(input){
 }
 function clearTransDoc(){transcripcion.baseDocText='';transcripcion.baseDocName='';renderF11Panel();}
 
-/* ── Grabación ── */
+/* ── Grabación en vivo ── */
+let _recTimerInterval=null;
+let _recStartTime=null;
+
 function startTransRecording(){
-  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,sampleRate:44100}}).then(stream=>{
     transcripcion.audioChunks=[];
-    const opts=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'];
+    /* Elegir mejor formato: mp4 > webm > ogg */
+    const opts=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
     let mimeOpt='';for(const m of opts){if(MediaRecorder.isTypeSupported(m)){mimeOpt=m;break;}}
     transcripcion.mediaRecorder=new MediaRecorder(stream,mimeOpt?{mimeType:mimeOpt}:{});
-    transcripcion.mediaRecorder.ondataavailable=e=>transcripcion.audioChunks.push(e.data);
+    transcripcion.mediaRecorder.ondataavailable=e=>{if(e.data.size>0)transcripcion.audioChunks.push(e.data);};
     transcripcion.mediaRecorder.onstop=()=>{
+      /* Limpiar timer */
+      clearInterval(_recTimerInterval);_recTimerInterval=null;
+      const durSecs=_recStartTime?Math.floor((Date.now()-_recStartTime)/1000):0;
+      _recStartTime=null;
+
       const mt=transcripcion.mediaRecorder.mimeType||'audio/webm';
       const ext=mt.includes('mp4')?'m4a':mt.includes('ogg')?'ogg':'webm';
       const blob=new Blob(transcripcion.audioChunks,{type:mt});
+      stream.getTracks().forEach(t=>t.stop());
+
       if(blob.size>T_MAX_INPUT){
         showToast('⚠ Grabación muy larga ('+_sz(blob.size)+'). Máx: '+T_MAX_INPUT_MB+'MB');
-        transcripcion.isRecording=false;
-        stream.getTracks().forEach(t=>t.stop());
-        renderF11Panel();
-        return;
+        transcripcion.isRecording=false;renderF11Panel();return;
       }
-      transcripcion.audioFile=new File([blob],'grabacion.'+ext,{type:mt});
+      if(blob.size<1000){
+        showToast('⚠ Grabación muy corta');
+        transcripcion.isRecording=false;renderF11Panel();return;
+      }
+
+      transcripcion.audioFile=new File([blob],'grabacion_'+new Date().toISOString().slice(0,16).replace(/[T:]/g,'-')+'.'+ext,{type:mt});
       transcripcion.audioUrl=URL.createObjectURL(blob);
+      transcripcion.audioDuration=durSecs;
       transcripcion.isRecording=false;
-      stream.getTracks().forEach(t=>t.stop());
-      renderF11Panel();showToast('✓ Grabado ('+_sz(blob.size)+')');
+      renderF11Panel();
+      showToast('✓ Grabación lista ('+_dur(durSecs)+' · '+_sz(blob.size)+')');
     };
-    transcripcion.mediaRecorder.start();transcripcion.isRecording=true;renderF11Panel();
-  }).catch(err=>showToast('⚠ Micrófono: '+err.message));
+    transcripcion.mediaRecorder.start(1000);
+    transcripcion.isRecording=true;
+    _recStartTime=Date.now();
+    renderF11Panel();
+    /* Timer en vivo */
+    _recTimerInterval=setInterval(()=>{
+      const el=document.getElementById('f11RecTimer');
+      if(!el||!_recStartTime)return;
+      const s=Math.floor((Date.now()-_recStartTime)/1000);
+      el.textContent=_dur(s);
+    },1000);
+  }).catch(err=>{
+    showToast('⚠ No se pudo acceder al micrófono: '+err.message);
+    console.error('[F11] Micrófono error:',err);
+  });
 }
-function stopTransRecording(){if(transcripcion.mediaRecorder&&transcripcion.isRecording)transcripcion.mediaRecorder.stop();}
+function stopTransRecording(){
+  if(transcripcion.mediaRecorder&&transcripcion.isRecording){
+    transcripcion.mediaRecorder.stop();
+  }
+}
 
 /* ════════════════════════════════════════════════════════
    UPLOAD A SUPABASE STORAGE (para archivos > 4MB)
@@ -590,28 +627,26 @@ async function transcribeAudio(){
   startProgressTimer();
   renderF11Panel();
 
+  let storagePath=null;
+
   try{
-    /* ── 1. Leer archivo y convertir a base64 (chunked, seguro) ── */
-    setProgress(5,'Leyendo archivo de audio ('+_sz(file.size)+')…');
-    const arrayBuffer=await file.arrayBuffer();
-
-    setProgress(15,'Codificando audio…');
-    const b64=_toBase64(arrayBuffer);
-
-    setProgress(25,'Enviando a transcripción…');
-
-    /* ── 2. Llamar Edge Function ── */
     const sbUrl=(typeof SB_URL!=='undefined'&&SB_URL)?SB_URL:'https://zgoxrzbkftzulsphmtfk.supabase.co';
     const sbAnonKey=(typeof SB_KEY!=='undefined'&&SB_KEY)?SB_KEY:'';
 
-    /* Intentar obtener token de auth (opcional, la Edge Function ya no lo requiere) */
+    /* ── 1. Siempre subir a Supabase Storage primero ── */
+    setProgress(5,'Subiendo audio a almacenamiento ('+_sz(file.size)+')…');
+    storagePath=await _uploadToStorage(file);
+    setProgress(30,'Audio subido. Enviando a transcripción…');
+
+    console.log('[F11] Audio subido a Storage: '+storagePath+' ('+_sz(file.size)+')');
+
+    /* ── 2. Llamar Edge Function con storagePath (no base64) ── */
     let authToken='';
     try{
       const{data:sessData}=await sb.auth.getSession();
       authToken=sessData?.session?.access_token||'';
     }catch(e){console.warn('[F11] No se pudo obtener token de auth:',e);}
 
-    console.log('[F11] Llamando transcribe-audio, size='+file.size+', b64len='+b64.length);
     const resp=await fetch(sbUrl+'/functions/v1/transcribe-audio',{
       method:'POST',
       headers:{
@@ -619,28 +654,44 @@ async function transcribeAudio(){
         ...(authToken?{'Authorization':'Bearer '+authToken}:{}),
         ...(sbAnonKey?{'apikey':sbAnonKey}:{})
       },
-      body:JSON.stringify({audio:b64,mimeType:_mime(file)})
+      body:JSON.stringify({
+        storagePath:storagePath,
+        mimeType:_mime(file),
+        fileName:file.name,
+        fileSize:file.size
+      })
     });
 
     setProgress(70,'Procesando respuesta…');
 
-    if(!resp.ok){
+    /* Si 504, la Edge Function puede seguir procesando → poll */
+    if(resp.status===504){
+      console.warn('[F11] Gateway timeout 504, intentando poll…');
+      setProgress(55,'Transcripción en proceso, esperando resultado…');
+      const pollResult=await _pollForResult(sbUrl+'/functions/v1/transcribe-audio',sbAnonKey,'poll_'+Date.now());
+      if(pollResult?.text||pollResult?.transcript){
+        transcripcion.rawText=pollResult.text||pollResult.transcript;
+        transcripcion.segments=pollResult.segments||[];
+        transcripcion.transcribeProvider=pollResult.provider||'desconocido';
+      }else{
+        throw new Error('No se obtuvo resultado después de esperar');
+      }
+    }else if(!resp.ok){
       const errBody=await resp.text();
       let errMsg='HTTP '+resp.status;
       try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){errMsg+=' — '+errBody.substring(0,200);}
       console.error('[F11] Edge Function error:',resp.status,errBody);
       throw new Error(errMsg);
+    }else{
+      const data=await resp.json();
+      const transcriptText=data?.text||data?.transcript||'';
+      if(!transcriptText){
+        throw new Error(data?.error||'Sin texto de transcripción en la respuesta');
+      }
+      transcripcion.rawText=transcriptText;
+      transcripcion.segments=data.segments||[];
+      transcripcion.transcribeProvider=data.provider||'desconocido';
     }
-
-    const data=await resp.json();
-    const transcriptText=data?.text||data?.transcript||'';
-    if(!transcriptText){
-      throw new Error(data?.error||'Sin texto de transcripción en la respuesta');
-    }
-
-    transcripcion.rawText=transcriptText;
-    transcripcion.segments=data.segments||[];
-    transcripcion.transcribeProvider=data.provider||'desconocido';
 
     setProgress(100,'✅ Transcripción completa');
     stopProgressTimer();
@@ -658,6 +709,9 @@ async function transcribeAudio(){
     transcripcion.step='upload';
     renderF11Panel();
     showToast('⚠ '+err.message,'error');
+  }finally{
+    /* Limpiar archivo de Storage después de transcribir */
+    if(storagePath)_cleanupStorage(storagePath);
   }
 }
 
@@ -958,6 +1012,13 @@ function resetTranscripcion(){
 .f11-format-label{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--text-muted);margin-bottom:8px}
 .f11-format-body{font-size:12px;color:var(--text-dim);line-height:1.6}
 .f11-note{display:flex;align-items:flex-start;gap:7px;font-size:11px;color:var(--text-muted);padding:8px 12px;background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);border-radius:var(--radius);line-height:1.5}
+.f11-rec-live-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;background:var(--surface2);color:var(--text);border:2px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:15px;font-weight:600;font-family:var(--font-body);transition:all .15s}
+.f11-rec-live-btn:hover{border-color:var(--gold-dim);background:var(--surface)}
+.f11-rec-live-btn.recording{background:rgba(239,68,68,.1);border-color:#ef4444;color:#ef4444;animation:f11recpulse 2s infinite}
+@keyframes f11recpulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+.f11-rec-dot{width:12px;height:12px;border-radius:50%;background:#ef4444;flex-shrink:0}
+.f11-rec-dot.pulse{animation:f11dotpulse 1s infinite}
+@keyframes f11dotpulse{0%,100%{opacity:1}50%{opacity:.3}}
 .f11-transcribe-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;background:var(--gold);color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-size:14px;font-weight:600;font-family:var(--font-body);transition:all .15s;box-shadow:0 2px 8px rgba(79,70,229,.3)}
 .f11-transcribe-btn:hover{background:var(--gold-dim);box-shadow:0 4px 12px rgba(79,70,229,.4)}
 .f11-result-actions{display:flex;gap:6px;flex-wrap:wrap}
