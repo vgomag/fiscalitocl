@@ -1,0 +1,1775 @@
+/* =========================================================
+   MOD-TRANSCRIPCION.JS — F11 Transcripción de Actas
+   v9.1 · 2026-04-02 · Fiscalito / UMAG
+   =========================================================
+   v9.1: Fix grabadora + error handling Paso 2/3
+   · Grabadora: quita sampleRate constraint (OverconstrainedError),
+     pre-checks mediaDevices/MediaRecorder, timeout getUserMedia 15 s,
+     onerror handler, mensajes de error descriptivos con showToast
+   · Paso 2/3: timeout 60 s con AbortController, validación Content-Type
+     antes de parsear JSON, errores descriptivos por código HTTP
+   v9.0: UI unificada estilo Actas-Audio (3 pasos visibles)
+   · Paso 1: Grabar/subir → transcribir con ElevenLabs/Whisper
+   · Paso 2: Edición IA — texto refundido con cuestionario guía
+   · Paso 3: Acta formal lista para firmar
+   · Renderiza en fnPanel (Chat IA → F11)
+   ========================================================= */
+
+/* ══════════════════ CONSTANTES ══════════════════ */
+const T_MAX_INPUT_MB  = 100;
+const T_MAX_INPUT     = T_MAX_INPUT_MB * 1024 * 1024;
+const T_BASE64_LIMIT  = 25 * 1024 * 1024;
+const T_STORAGE_BUCKET = 'transcripcion-audio';
+
+const T_EXTS = [
+  '.mp3','.wav','.m4a','.aac','.ogg','.oga','.opus','.flac',
+  '.wma','.amr','.aiff','.aif','.caf','.webm','.weba','.3gp',
+  '.spx','.ac3','.mka',
+  '.mp4','.m4v','.mov','.avi','.mkv','.wmv','.flv','.ts','.mts',
+];
+const T_ACCEPT = 'audio/*,video/*,' + T_EXTS.join(',');
+
+const T_MIME = {
+  mp3:'audio/mpeg',wav:'audio/wav',wave:'audio/wav',m4a:'audio/mp4',
+  aac:'audio/aac',ogg:'audio/ogg',oga:'audio/ogg',opus:'audio/opus',
+  flac:'audio/flac',wma:'audio/x-ms-wma',amr:'audio/amr',
+  aiff:'audio/aiff',aif:'audio/aiff',caf:'audio/x-caf',
+  webm:'audio/webm',weba:'audio/webm','3gp':'audio/3gpp',
+  mp4:'video/mp4',m4v:'video/mp4',mov:'video/quicktime',
+  avi:'video/x-msvideo',mkv:'video/x-matroska',
+  wmv:'video/x-ms-wmv',flv:'video/x-flv',ts:'video/mp2t',mts:'video/mp2t',
+};
+
+/* ══════════════════ ESTADO ══════════════════ */
+let _f11AudioBlob = null;
+let _f11AudioUrl  = null;
+let _f11DocFile   = null;
+let _f11DocText   = '';
+let _f11RawText   = '';   // Paso 1: texto crudo
+let _f11EditedText = '';  // Paso 2: texto refundido
+let _f11FinalActa  = ''; // Paso 3: acta firmable
+let _f11Recorder   = null;
+let _f11Recording  = false;
+let _f11CurrentStep = 0;  // 0=inicio, 1=transcrito, 2=editado, 3=acta
+let _f11Processing = false;
+
+/* ── Legacy state object (para compatibilidad con index.html) ── */
+const transcripcion = {
+  isRecording:false, mediaRecorder:null, audioChunks:[],
+  audioFile:null, audioUrl:null, audioDuration:null,
+  baseDocText:'', baseDocName:'',
+  rawText:'', structuredText:'', actaFinal:'', summary:'',
+  segments:[], step:'upload',
+  isProcessing:false, linkedCase:null,
+  meta:{ tipoDeclarante:'testigo', nombreDeclarante:'', fecha:'', lugar:'Punta Arenas' },
+};
+
+/* ══════════════════ UTILIDADES ══════════════════ */
+function _f11Ext(n) { if(!n)return''; const p=n.toLowerCase().split('.'); return p.length>1?p.pop():''; }
+function _f11Mime(file) { const e=_f11Ext(file.name); return T_MIME[e]||(file.type&&file.type!=='application/octet-stream'?file.type:'audio/mpeg'); }
+function _f11Sz(b) { if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
+function _f11ToBase64(arrayBuffer) {
+  const bytes = new Uint8Array(arrayBuffer);
+  const CHUNK = 0x8000;
+  let raw = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    raw += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+  }
+  return btoa(raw);
+}
+
+/* ══════════════════ PROMPTS PARA EDICIÓN IA ══════════════════ */
+const _F11_PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
+
+Instrucción de trabajo para incorporación de declaración transcrita al acta:
+
+Elabora un Texto Refundido, Coordinado y Sistematizado que incorpore el contenido de la declaración en audio, integrándolo al acta que se adjuntan. El documento final debe presentarse en formato pregunta-respuesta, respetando la estructura del acta.
+
+La transcripción corresponde a una declaración rendida en el marco de un procedimiento disciplinario instruido por la Universidad de Magallanes, en el cual actúo como Fiscal Investigadora.
+
+La transcripción contiene expresiones propias del lenguaje oral, incluyendo frases coloquiales, repeticiones y muletillas. Es importante que se conserve, en lo posible, la redacción en primera persona y el estilo expresivo del declarante, realizando únicamente correcciones gramaticales menores, tales como concordancia, puntuación y eliminación de repeticiones innecesarias que no alteren el sentido ni el tono del testimonio.
+
+Una vez integradas todas las partes, el documento debe presentar una redacción fluida, coherente y ordenada, que facilite su comprensión sin desvirtuar el contenido ni el contexto de lo declarado.
+
+OBJETIVO:
+- Mejorar la gramática, claridad y coherencia del texto.
+- Eliminar muletillas ("eh", "mmm") y repeticiones innecesarias.
+- Conservar la estructura lógica de los párrafos y la secuencia cronológica de los hechos.
+- Respetar la terminología jurídica y los nombres propios tal como aparecen en la transcripción.
+
+INSTRUCCIONES ESPECÍFICAS:
+- No agregar información nueva ni interpretar intenciones; solo reescribir lo existente.
+- Mantener las palabras originales del declarante siempre que no afecten la corrección gramatical.
+- Unir frases fragmentadas cuando sea necesario para fluidez, sin cambiar el sentido.
+- Conservar comillas, fechas y cifras exactamente como están.
+- Usar un tono formal, claro y preciso, coherente con un documento legal.
+
+REGLAS CRÍTICAS DE FORMATO:
+- NUNCA usar asteriscos (***), guiones bajos (___) ni marcadores de edición.
+- NUNCA dejar campos como [COMPLETAR], [NOMBRE], etc. si el dato está disponible en los metadatos.
+- Todos los datos disponibles deben ser incorporados directamente en el texto.
+- Texto corregido en formato pregunta-respuesta con párrafos separados.
+- Solo la versión final, sin comentarios.`;
+
+const _F11_PROMPTS = {
+  pregunta_respuesta: _F11_PROMPT_BASE + `
+
+FORMATO: Pregunta-Respuesta
+- Estructura como diálogo formal entre Fiscal y declarante
+- Cada pregunta: "FISCAL:" / Cada respuesta: "DECLARANTE:"
+- Párrafos separados, numerados si es posible`,
+
+  fill_acta: _F11_PROMPT_BASE + `
+
+MODO LLENAR ACTA EXISTENTE:
+Se adjunta un DOCUMENTO BASE (plantilla/acta con preguntas).
+LLENA esa plantilla con las respuestas del audio transcrito.
+
+REGLAS:
+1. PRESERVA la estructura del documento base (formato pregunta-respuesta)
+2. Después de cada pregunta del acta, inserta la respuesta correspondiente del audio precedida de "R."
+3. Si no hay respuesta en el audio para una pregunta, escribe: "R. Sin respuesta en el audio."
+4. Información adicional no cubierta por las preguntas va al final como "DECLARACIÓN COMPLEMENTARIA"
+5. NUNCA uses asteriscos (***), guiones bajos (___) ni marcadores de edición
+6. Completa todos los datos disponibles en los metadatos directamente en el texto`,
+
+  con_expediente: _F11_PROMPT_BASE + `
+
+FORMATO: ACTA DE DECLARACIÓN EN PROCEDIMIENTO DISCIPLINARIO — UMAG.
+Usa los METADATOS y DATOS DEL EXPEDIENTE para completar TODOS los campos.
+NUNCA dejes campos vacíos, asteriscos (***) ni marcadores [COMPLETAR].
+
+Genera con EXACTAMENTE esta estructura (sin usar asteriscos ni guiones bajos para líneas):
+
+ACTA DE DECLARACIÓN EN PROCEDIMIENTO DISCIPLINARIO
+
+En Punta Arenas, con fecha [FECHA COMPLETA], siendo aproximadamente las [HORA] horas, en dependencias de la Fiscalía Universitaria, ubicada en Avenida Bulnes 01855, Edificio de Humanidades (Facultad de Educación y Ciencias Sociales y Facultad de Ciencias Económicas y Jurídicas), en Procedimiento Disciplinario instruido por Resolución Exenta N°[NUMERO], de fecha [FECHA RESOLUCIÓN], de Rectoría de la Universidad de Magallanes, ante Verónica Garrido Ortega, fiscal del procedimiento y Alejandra Mayorga Trujillo, actuaria, presta declaración en calidad de [CALIDAD PROCESAL] don/doña [NOMBRE COMPLETO DEL DECLARANTE], cédula de identidad N°[RUT], correo electrónico [EMAIL], quien, para efectos de citaciones y comunicaciones posteriores autoriza notificación al correo electrónico antes señalado, y consultada expone:
+
+CONTEXTO
+
+En el marco del procedimiento disciplinario antes señalado, se le solicita responder las siguientes preguntas en relación a [MATERIA/TEMA].
+
+[PREGUNTAS NUMERADAS CON RESPUESTAS]
+
+1. [Pregunta]
+
+R. [Respuesta del declarante en primera persona, conservando su estilo expresivo]
+
+2. [Siguiente pregunta]
+
+R. [Respuesta]
+
+[...continuar con todas las preguntas y respuestas...]
+
+Sin más que agregar, siendo las [HORA TÉRMINO] horas, del mismo día, se da por terminada la presente declaración, la que se lee, ratifica y firma para constancia.
+
+
+Declarante                                     Verónica Garrido Ortega
+C.I. N° [RUT DECLARANTE]                       Fiscal
+
+                    Alejandra Mayorga Trujillo
+                    Actuaria
+
+IMPORTANTE: Completa TODOS los datos disponibles. Si un dato no está disponible, déjalo tal cual sin marcadores.
+Las preguntas van en NEGRITA (usa **pregunta**), las respuestas van en texto normal precedidas de R.
+NUNCA uses *** ni ___ en el documento.`
+};
+
+/* ══════════════════ STREAMING HELPER ══════════════════ */
+/**
+ * Llama a /api/chat-stream (edge function) con streaming SSE.
+ * Evita el timeout de 26 s de Netlify Functions.
+ * @param {Object} opts - { systemPrompt, userMsg, maxTokens, onProgress(text) }
+ * @returns {Promise<string>} Texto completo generado
+ */
+async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgress }){
+  let authToken = '';
+  try {
+    if(typeof session!=='undefined' && session?.access_token){ authToken = session.access_token; }
+    else if(typeof sb!=='undefined'){
+      const {data:sessData} = await sb.auth.getSession();
+      authToken = sessData?.session?.access_token || '';
+    }
+  } catch(e){}
+
+  if(!authToken) throw new Error('Sesión no activa. Inicia sesión para usar esta función.');
+
+  const resp = await fetch('/api/chat-stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens || 5000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMsg }]
+    })
+  });
+
+  if(!resp.ok){
+    const ct = resp.headers.get('content-type') || '';
+    let errMsg = 'HTTP ' + resp.status;
+    try {
+      if(ct.includes('json')){ const d = await resp.json(); errMsg = d.error || errMsg; }
+      else { const t = await resp.text(); errMsg = t.substring(0,200) || errMsg; }
+    } catch(e){}
+    if(resp.status===401) throw new Error('Sesión expirada. Recarga la página e inicia sesión.');
+    if(resp.status===500) throw new Error('Error en el servidor: ' + errMsg);
+    throw new Error('Error: ' + errMsg);
+  }
+
+  /* ── Parsear stream SSE de Anthropic ── */
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = '';
+  let buffer = '';
+
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || ''; // guardar línea incompleta
+
+    for(const line of lines){
+      if(!line.startsWith('data: ')) continue;
+      const jsonStr = line.slice(6).trim();
+      if(jsonStr === '[DONE]') continue;
+      try {
+        const evt = JSON.parse(jsonStr);
+        if(evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta'){
+          accumulated += evt.delta.text;
+          if(onProgress) onProgress(accumulated);
+        }
+      } catch(e){ /* ignorar líneas no-JSON */ }
+    }
+  }
+
+  if(!accumulated.trim()) throw new Error('La IA no generó texto. Verifica que ANTHROPIC_API_KEY esté configurada en Netlify.');
+  return accumulated;
+}
+
+/* ══════════════════ MONKEY-PATCH showFnPanel ══════════════════ */
+(function patchShowFnPanel(){
+  const tryP=()=>{
+    if(typeof window.showFnPanel!=='function'){setTimeout(tryP,50);return;}
+    if(window.__f11Patched)return; window.__f11Patched=true;
+    const orig=window.showFnPanel;
+    window.showFnPanel=function(code){
+      if(code==='F11'){renderF11Panel();return;} orig.call(this,code);
+    };
+  }; tryP();
+})();
+
+/* ══════════════════ CSS ══════════════════ */
+(function(){
+  if(document.getElementById('f11-steps-css'))return;
+  const s=document.createElement('style');
+  s.id='f11-steps-css';
+  s.textContent=`
+.f11-step-indicator { opacity:0.5; }
+.f11-step-active {
+  opacity:1;
+  background:var(--gold-glow) !important;
+  border-color:var(--gold-dim) !important;
+  box-shadow:0 0 8px rgba(79,70,229,.15);
+}
+.f11-step-done {
+  opacity:1;
+  background:rgba(5,150,105,.08) !important;
+  border-color:rgba(5,150,105,.25) !important;
+  color:var(--green);
+}
+.f11-step-done::after {
+  content:' ✓';
+  color:var(--green);
+  font-weight:bold;
+}
+.form-field label {
+  display:block; font-size:10px; text-transform:uppercase;
+  letter-spacing:.4px; color:var(--text-muted); margin-bottom:3px;
+}
+`;
+  document.head.appendChild(s);
+})();
+
+/* ════════════════════════════════════════════
+   RENDER PRINCIPAL — F11
+   ════════════════════════════════════════════ */
+function renderF11Panel(){
+  const panel = document.getElementById('fnPanel');
+  const msgs  = document.getElementById('msgs');
+  const ragBar = document.getElementById('ragBar');
+  if(!panel) return;
+  if(msgs) msgs.style.display='none';
+  if(ragBar) ragBar.style.display='none';
+  panel.style.cssText='display:flex;flex-direction:column;padding:0;overflow:hidden;flex:1;';
+  panel.innerHTML = _buildF11PanelHTML();
+  _initF11Panel();
+  buildF11Chips();
+}
+
+function updateTransPanel(){ renderF11Panel(); }
+
+/* ══════════════════ BUILD HTML ══════════════════ */
+function _buildF11PanelHTML(){
+  const stepLabels = ['Transcribir Audio', 'Editar con IA', 'Acta para Firmar'];
+  const stepIcons  = ['🎙️', '✏️', '📝'];
+  const lnk = (typeof currentCase !== 'undefined' ? currentCase : null);
+
+  return `
+  <div style="flex:1;overflow-y:auto;padding:16px 20px;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box">
+
+    <!-- Título -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:16px">🎙️</span>
+      <div>
+        <div style="font-size:14px;font-weight:600">Audio y Transcripción de Acta</div>
+        <div style="font-size:10.5px;color:var(--text-muted)">3 pasos: Transcribir → Editar → Acta lista</div>
+      </div>
+    </div>
+
+    <!-- Indicador de pasos -->
+    <div id="f11StepsIndicator" style="display:flex;gap:4px;margin-bottom:14px">
+      ${stepLabels.map((label, i) => `
+        <div class="f11-step-indicator ${i === 0 ? 'f11-step-active' : ''}" id="f11StepInd${i}" style="flex:1;text-align:center;padding:8px 6px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface2);transition:all .2s">
+          <div style="font-size:14px">${stepIcons[i]}</div>
+          <div style="font-size:10px;font-weight:600;margin-top:2px">Paso ${i + 1}</div>
+          <div style="font-size:9.5px;color:var(--text-muted)">${label}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Caso vinculado -->
+    <div id="f11CaseInfo" style="margin-bottom:12px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;color:var(--text-muted)">
+      ${lnk
+        ? '⚖️ Caso: <strong style="color:var(--gold)">' + (lnk.name || lnk.nueva_resolucion || '—') + '</strong>'
+        : '⚠️ Vincula un caso primero desde el panel de Cuestionarios'}
+    </div>
+
+    <!-- Sección: Datos del Acta -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-dim)">📋 Datos del Acta</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="form-field">
+          <label>Tipo de acta</label>
+          <select id="f11Tipo" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:12px;width:100%">
+            <option value="testigo">Declaración de testigo</option>
+            <option value="denunciante">Ratificación de denuncia</option>
+            <option value="denunciado">Declaración persona denunciada</option>
+            <option value="otro">Otra diligencia</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Nombre del declarante</label>
+          <input id="f11NombreDeclarante" placeholder="Nombre completo" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:12px;width:100%;box-sizing:border-box"/>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <div class="form-field">
+          <label>Fecha de la diligencia</label>
+          <input id="f11Fecha" type="date" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:12px;width:100%;box-sizing:border-box"/>
+        </div>
+        <div class="form-field">
+          <label>Lugar</label>
+          <input id="f11Lugar" value="Punta Arenas" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:12px;width:100%;box-sizing:border-box"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección: Audio -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-dim)">🎙️ Audio de la Entrevista</div>
+
+      <!-- Selector de dispositivo de audio -->
+      <div style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <select id="f11AudioDevice" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:var(--radius);font-size:11px">
+            <option value="">Micrófono predeterminado</option>
+          </select>
+          <button class="btn-sm" onclick="f11RefreshDevices()" title="Actualizar dispositivos" style="padding:6px 8px;font-size:12px">🔄</button>
+        </div>
+        <div id="f11DeviceStatus" style="font-size:9.5px;color:var(--text-muted);margin-top:3px"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--text);transition:background .15s" onmouseover="this.style.background='var(--gold-glow)'" onmouseout="this.style.background='var(--surface2)'">
+          <input type="file" accept="${T_ACCEPT}" onchange="f11HandleAudioUpload(this.files[0])" style="display:none"/>
+          📁 Cargar audio
+        </label>
+        <button class="btn-sm" id="f11RecordBtn" onclick="f11ToggleRecording()" style="display:flex;align-items:center;gap:4px">
+          <span id="f11RecordIcon">⏺</span> <span id="f11RecordLabel">Grabar</span>
+        </button>
+        <button class="btn-sm" id="f11AudioClearBtn" style="display:none" onclick="f11ClearAudio()">✕ Quitar audio</button>
+      </div>
+      <div id="f11AudioPreview" style="display:none;margin-top:8px">
+        <audio id="f11AudioPlayer" controls style="width:100%;height:36px"></audio>
+        <div id="f11AudioInfo" style="font-size:10px;color:var(--text-muted);margin-top:4px"></div>
+      </div>
+    </div>
+
+    <!-- CARGAR TRANSCRIPCIÓN PREVIA -->
+    <div id="f11LoadPrevSection" style="margin-bottom:14px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-sm" onclick="f11LoadPrevTranscriptions()" style="display:flex;align-items:center;gap:4px;font-size:11px">
+          📂 Cargar transcripción guardada
+        </button>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--text)">
+          <input type="file" accept=".txt,.md,.text" onchange="f11LoadTranscriptionFile(this.files[0])" style="display:none"/>
+          📄 Cargar desde archivo .txt
+        </label>
+      </div>
+      <div id="f11PrevTransList" style="display:none;margin-top:8px;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)"></div>
+    </div>
+
+    <!-- PASO 1: Botón Transcribir -->
+    <div id="f11Step1Section" style="margin-bottom:14px">
+      <button class="btn-save" id="f11TranscribeBtn" onclick="f11Paso1_Transcribir()" disabled style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px">
+        🎙️ Paso 1: Transcribir Audio (ElevenLabs/Whisper)
+      </button>
+      <div id="f11TransProgress" style="display:none;margin-top:8px">
+        <div style="background:var(--surface2);border-radius:8px;height:8px;overflow:hidden"><div id="f11TransBar" style="height:100%;background:var(--gold);width:0%;transition:width .5s"></div></div>
+        <div id="f11TransStatus" style="font-size:10.5px;color:var(--text-muted);margin-top:4px">Procesando...</div>
+      </div>
+    </div>
+
+    <!-- PASO 1 Resultado -->
+    <div id="f11RawResultSection" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-dim)">🎙️ Paso 1: Transcripción cruda (texto extraído del audio)</div>
+      <textarea id="f11RawResult" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font-sans);resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box" readonly></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button class="btn-save" onclick="f11SaveRawToCase()" style="flex:1">💾 Guardar transcripción en el caso</button>
+        <button class="btn-sm" onclick="f11CopyText(_f11RawText)">📋 Copiar</button>
+        <button class="btn-sm" onclick="f11DownloadText(_f11RawText, 'transcripcion_cruda')">⬇ .txt</button>
+      </div>
+    </div>
+
+    <!-- PASO 2: Botón Editar -->
+    <div id="f11Step2Section" style="display:none;margin-bottom:14px">
+      <div style="background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:var(--radius);padding:10px;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--gold);font-weight:600">✏️ Paso 2: Edición con IA</div>
+        <div style="font-size:10.5px;color:var(--text-dim);margin-top:4px">Se usará el cuestionario como guía para estructurar las respuestas en un texto refundido, coordinado y sistematizado.</div>
+      </div>
+      <!-- Cuestionario Word — guía para edición (adjuntar aquí en Paso 2) -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-dim)">📄 Adjuntar Cuestionario (Word/PDF) — opcional, guía para editar</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="flex:1;display:flex;align-items:center;gap:6px;padding:10px;border:2px dashed var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--text-muted);transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <input type="file" accept=".docx,.doc,.pdf,.txt" onchange="f11HandleDocUpload(this.files[0])" style="display:none"/>
+            📎 <span id="f11DocName">Seleccionar archivo de preguntas…</span>
+          </label>
+          <button class="btn-sm" id="f11DocClearBtn" style="display:none" onclick="f11ClearDoc()">✕</button>
+        </div>
+        <div id="f11DocPreview" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;max-height:120px;overflow-y:auto;white-space:pre-wrap;color:var(--text-dim)"></div>
+      </div>
+      <button class="btn-save" id="f11EditBtn" onclick="f11Paso2_Editar()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px">
+        ✏️ Paso 2: Editar y Refundir con IA
+      </button>
+      <div id="f11EditProgress" style="display:none;margin-top:8px">
+        <div style="background:var(--surface2);border-radius:8px;height:8px;overflow:hidden"><div id="f11EditBar" style="height:100%;background:#818cf8;width:0%;transition:width .5s"></div></div>
+        <div id="f11EditStatus" style="font-size:10.5px;color:var(--text-muted);margin-top:4px">Editando...</div>
+      </div>
+    </div>
+
+    <!-- PASO 2 Resultado -->
+    <div id="f11EditedResultSection" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-dim)">✏️ Paso 2: Texto Refundido (editado con IA)</div>
+      <textarea id="f11EditedResult" style="width:100%;min-height:150px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font-sans);resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn-sm" onclick="f11CopyText(_f11EditedText)">📋 Copiar editado</button>
+        <button class="btn-sm" onclick="f11DownloadText(_f11EditedText, 'texto_refundido')">⬇ Descargar .txt</button>
+      </div>
+    </div>
+
+    <!-- PASO 3: Botón Generar Acta -->
+    <div id="f11Step3Section" style="display:none;margin-bottom:14px">
+      <div style="background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.25);border-radius:var(--radius);padding:10px;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--green);font-weight:600">📝 Paso 3: Acta Lista para Firmar</div>
+        <div style="font-size:10.5px;color:var(--text-dim);margin-top:4px">Se generará el acta formal con encabezado UMAG, advertencias legales y espacios para firmas.</div>
+      </div>
+      <button class="btn-save" id="f11GenerateBtn" onclick="f11Paso3_GenerarActa()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:var(--green);border-color:var(--green)">
+        📝 Paso 3: Generar Acta para Firmar
+      </button>
+      <div id="f11GenerateProgress" style="display:none;margin-top:8px">
+        <div style="background:var(--surface2);border-radius:8px;height:8px;overflow:hidden"><div id="f11GenerateBar" style="height:100%;background:var(--green);width:0%;transition:width .5s"></div></div>
+        <div id="f11GenerateStatus" style="font-size:10.5px;color:var(--text-muted);margin-top:4px">Generando acta...</div>
+      </div>
+    </div>
+
+    <!-- PASO 3 Resultado: Acta final -->
+    <div id="f11FinalSection" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--green)">📝 Acta Lista para Firmar</div>
+      <div id="f11FinalPreview" style="background:#fff;color:#111;border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;font-size:13px;line-height:1.8;max-height:400px;overflow-y:auto;font-family:'EB Garamond',Georgia,serif"></div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn-save" onclick="f11SaveToCase()" style="flex:1">💾 Guardar en el caso</button>
+        <button class="btn-sm" onclick="f11DownloadWord()" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600">📄 Descargar Word</button>
+        <button class="btn-sm" onclick="f11CopyText(_f11FinalActa)">📋 Copiar</button>
+        <button class="btn-sm" onclick="f11Reset()">↺ Nueva</button>
+      </div>
+    </div>
+
+  </div>
+  `;
+}
+
+/* ══════════════════ INIT AFTER RENDER ══════════════════ */
+function _initF11Panel(){
+  /* Fecha de hoy */
+  const today = new Date().toISOString().split('T')[0];
+  const fechaEl = document.getElementById('f11Fecha');
+  if(fechaEl) fechaEl.value = today;
+
+  /* Cargar dispositivos de audio disponibles */
+  f11RefreshDevices();
+
+  /* Restaurar estado si hay datos previos */
+  if(_f11AudioBlob){
+    const player = document.getElementById('f11AudioPlayer');
+    if(player && _f11AudioUrl) player.src = _f11AudioUrl;
+    const prev = document.getElementById('f11AudioPreview');
+    if(prev) prev.style.display = 'block';
+    const clearBtn = document.getElementById('f11AudioClearBtn');
+    if(clearBtn) clearBtn.style.display = 'inline-block';
+    const info = document.getElementById('f11AudioInfo');
+    if(info) info.textContent = `${_f11AudioBlob.name || 'Grabación'} · ${_f11Sz(_f11AudioBlob.size)}`;
+    const btn = document.getElementById('f11TranscribeBtn');
+    if(btn) btn.disabled = false;
+  }
+  if(_f11DocText){
+    const nameEl = document.getElementById('f11DocName');
+    if(nameEl) nameEl.textContent = _f11DocFile?.name || 'Documento cargado';
+    const clearBtn = document.getElementById('f11DocClearBtn');
+    if(clearBtn) clearBtn.style.display = 'inline-block';
+  }
+  if(_f11RawText){
+    const raw = document.getElementById('f11RawResult');
+    if(raw) raw.value = _f11RawText;
+    const sec = document.getElementById('f11RawResultSection');
+    if(sec) sec.style.display = 'block';
+    const s2 = document.getElementById('f11Step2Section');
+    if(s2) s2.style.display = 'block';
+  }
+  if(_f11EditedText){
+    const edited = document.getElementById('f11EditedResult');
+    if(edited) edited.value = _f11EditedText;
+    const sec = document.getElementById('f11EditedResultSection');
+    if(sec) sec.style.display = 'block';
+    const s3 = document.getElementById('f11Step3Section');
+    if(s3) s3.style.display = 'block';
+  }
+  if(_f11FinalActa){
+    const preview = document.getElementById('f11FinalPreview');
+    if(preview){
+      preview.innerHTML = _f11FinalActa
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/_{30,}/g, '<div style="border-bottom:1px solid #333;width:60%;margin:12px auto 4px"></div>')
+        .replace(/\n/g, '<br>');
+    }
+    const sec = document.getElementById('f11FinalSection');
+    if(sec) sec.style.display = 'block';
+  }
+  _f11UpdateSteps();
+}
+
+/* ══════════════════ STEP INDICATORS ══════════════════ */
+function _f11UpdateSteps(){
+  for(let i=0;i<3;i++){
+    const el = document.getElementById('f11StepInd'+i);
+    if(!el)continue;
+    el.classList.remove('f11-step-active','f11-step-done');
+    if(i < _f11CurrentStep)      el.classList.add('f11-step-done');
+    else if(i === _f11CurrentStep) el.classList.add('f11-step-active');
+  }
+}
+
+/* ══════════════════ DOCUMENT UPLOAD ══════════════════ */
+async function f11HandleDocUpload(file){
+  if(!file) return;
+  if(file.size > 50*1024*1024){ showToast('⚠ El archivo excede 50 MB'); return; }
+  const ok = /\.(txt|pdf|doc|docx)$/i.test(file.name);
+  if(!ok){ showToast('⚠ Solo se aceptan TXT, PDF o Word'); return; }
+
+  _f11DocFile = file;
+  document.getElementById('f11DocName').textContent = file.name;
+  document.getElementById('f11DocClearBtn').style.display = 'inline-block';
+  const preview = document.getElementById('f11DocPreview');
+
+  try {
+    if(file.name.endsWith('.txt')){
+      _f11DocText = await file.text();
+    } else {
+      const reader = new FileReader();
+      const base64 = await new Promise((res,rej)=>{
+        reader.onload=()=>res(reader.result.split(',')[1]);
+        reader.onerror=rej;
+        reader.readAsDataURL(file);
+      });
+      const r = await authFetch(CHAT_ENDPOINT, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:4000,
+          messages:[{
+            role:'user',
+            content:[
+              {type:'document', source:{type:'base64', media_type:file.type||'application/octet-stream', data:base64}},
+              {type:'text', text:'Extrae el texto completo de este documento. Incluye todas las preguntas. Responde SOLO con el texto extraído, sin comentarios.'}
+            ]
+          }]
+        })
+      });
+      if(r.ok){
+        const data = await r.json();
+        _f11DocText = (data.content||[]).map(b=>b.text||'').join('');
+      }
+    }
+    if(_f11DocText){
+      preview.textContent = _f11DocText.substring(0,2000) + (_f11DocText.length>2000?'\n...(continúa)':'');
+      preview.style.display = 'block';
+    }
+  } catch(e){
+    console.error('Error reading doc:',e);
+    preview.textContent = '⚠ No se pudo leer el archivo.';
+    preview.style.display = 'block';
+  }
+}
+
+function f11ClearDoc(){
+  _f11DocFile = null;
+  _f11DocText = '';
+  document.getElementById('f11DocName').textContent = 'Seleccionar archivo de preguntas…';
+  document.getElementById('f11DocClearBtn').style.display = 'none';
+  document.getElementById('f11DocPreview').style.display = 'none';
+}
+
+/* ══════════════════ AUDIO UPLOAD ══════════════════ */
+function f11HandleAudioUpload(file){
+  if(!file)return;
+  if(file.size > T_MAX_INPUT){ showToast('⚠ El audio excede '+T_MAX_INPUT_MB+' MB'); return; }
+
+  _f11AudioBlob = file;
+  if(_f11AudioUrl) URL.revokeObjectURL(_f11AudioUrl);
+  _f11AudioUrl = URL.createObjectURL(file);
+
+  /* Sync legacy state */
+  transcripcion.audioFile = file;
+  transcripcion.audioUrl = _f11AudioUrl;
+
+  const player = document.getElementById('f11AudioPlayer');
+  if(player) player.src = _f11AudioUrl;
+  const prev = document.getElementById('f11AudioPreview');
+  if(prev) prev.style.display = 'block';
+  const clearBtn = document.getElementById('f11AudioClearBtn');
+  if(clearBtn) clearBtn.style.display = 'inline-block';
+  const info = document.getElementById('f11AudioInfo');
+  if(info) info.textContent = `${file.name} · ${_f11Sz(file.size)}`;
+  const btn = document.getElementById('f11TranscribeBtn');
+  if(btn) btn.disabled = false;
+}
+
+function f11ClearAudio(){
+  _f11AudioBlob = null;
+  if(_f11AudioUrl) URL.revokeObjectURL(_f11AudioUrl);
+  _f11AudioUrl = null;
+  transcripcion.audioFile = null;
+  transcripcion.audioUrl = null;
+
+  const prev = document.getElementById('f11AudioPreview');
+  if(prev) prev.style.display = 'none';
+  const clearBtn = document.getElementById('f11AudioClearBtn');
+  if(clearBtn) clearBtn.style.display = 'none';
+  const btn = document.getElementById('f11TranscribeBtn');
+  if(btn) btn.disabled = true;
+  if(_f11Recording) f11StopRecording();
+}
+
+/* ══════════════════ AUDIO DEVICE ENUMERATION ══════════════════ */
+let _f11SelectedDeviceId = '';  // '' = default
+
+/**
+ * Enumera dispositivos de audio de entrada y puebla el selector.
+ * Detecta micrófonos internos, 3.5mm TRS, USB, Bluetooth, etc.
+ */
+async function f11RefreshDevices(){
+  const select = document.getElementById('f11AudioDevice');
+  const statusEl = document.getElementById('f11DeviceStatus');
+  if(!select) return;
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices){
+    if(statusEl) statusEl.textContent = '⚠ Tu navegador no soporta enumeración de dispositivos';
+    return;
+  }
+
+  try {
+    /* Pedir permiso de micrófono primero (necesario para ver nombres reales) */
+    try {
+      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tempStream.getTracks().forEach(t => t.stop());
+    } catch(e){
+      if(statusEl) statusEl.textContent = '⚠ Permite acceso al micrófono para ver dispositivos';
+      return;
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+
+    /* Guardar selección actual */
+    const prevId = select.value || _f11SelectedDeviceId;
+
+    select.innerHTML = '<option value="">Micrófono predeterminado del sistema</option>';
+
+    audioInputs.forEach((dev, i) => {
+      const opt = document.createElement('option');
+      opt.value = dev.deviceId;
+      /* Nombre amigable: los dispositivos 3.5mm suelen llamarse "Line In", "External", "Headset" */
+      let label = dev.label || ('Micrófono ' + (i + 1));
+      /* Indicar tipo si se reconoce */
+      const lo = label.toLowerCase();
+      if(lo.includes('line') || lo.includes('external') || lo.includes('externo'))
+        label += ' (Entrada externa / 3.5mm)';
+      else if(lo.includes('headset') || lo.includes('auricular'))
+        label += ' (Auricular)';
+      else if(lo.includes('usb'))
+        label += ' (USB)';
+      else if(lo.includes('bluetooth') || lo.includes('bt'))
+        label += ' (Bluetooth)';
+      else if(lo.includes('default') || lo.includes('predeterminado'))
+        label += ' (Predeterminado)';
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+
+    /* Restaurar selección previa si aún existe */
+    if(prevId){
+      const exists = Array.from(select.options).some(o => o.value === prevId);
+      if(exists) select.value = prevId;
+    }
+
+    _f11SelectedDeviceId = select.value;
+    select.onchange = () => { _f11SelectedDeviceId = select.value; };
+
+    if(statusEl){
+      statusEl.textContent = audioInputs.length
+        ? `✅ ${audioInputs.length} dispositivo(s) detectado(s). Conecta tu micrófono 3.5mm y pulsa 🔄 si no aparece.`
+        : '⚠ No se detectaron dispositivos de audio';
+    }
+  } catch(e){
+    console.error('[F11] Error enumerando dispositivos:', e);
+    if(statusEl) statusEl.textContent = '⚠ Error al buscar dispositivos: ' + e.message;
+  }
+}
+
+/* Escuchar conexión/desconexión de dispositivos */
+if(navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function'){
+  navigator.mediaDevices.addEventListener('devicechange', () => {
+    const select = document.getElementById('f11AudioDevice');
+    if(select) f11RefreshDevices();
+  });
+}
+
+/* ══════════════════ AUDIO RECORDING ══════════════════ */
+function f11ToggleRecording(){
+  if(_f11Recording) f11StopRecording();
+  else f11StartRecording();
+}
+
+async function f11StartRecording(){
+  /* ── Pre-checks ── */
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    showToast('⚠ Tu navegador no soporta grabación de audio. Usa Chrome o Edge en HTTPS.');
+    return;
+  }
+  if(typeof MediaRecorder==='undefined'){
+    showToast('⚠ MediaRecorder no disponible. Actualiza tu navegador.');
+    return;
+  }
+
+  /* Mostrar estado "solicitando micrófono" inmediatamente */
+  const icon = document.getElementById('f11RecordIcon');
+  const label = document.getElementById('f11RecordLabel');
+  const recBtn = document.getElementById('f11RecordBtn');
+  if(icon) icon.textContent = '🎤';
+  if(label) label.textContent = 'Permiso…';
+  if(recBtn){ recBtn.disabled = true; }
+
+  try {
+    /* ── Construir constraints con dispositivo seleccionado ── */
+    const selectedId = _f11SelectedDeviceId || (document.getElementById('f11AudioDevice')?.value) || '';
+    const audioConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    };
+    if(selectedId){
+      audioConstraints.deviceId = { exact: selectedId };
+    }
+
+    /* getUserMedia con timeout de 15 s por si el diálogo de permisos queda colgado */
+    const stream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({ audio: audioConstraints }),
+      new Promise((_,rej) => setTimeout(()=>rej(new Error('Tiempo agotado esperando permiso de micrófono')),15000))
+    ]);
+
+    /* Mostrar qué dispositivo se está usando */
+    const activeTrack = stream.getAudioTracks()[0];
+    const trackLabel = activeTrack?.label || 'Desconocido';
+    console.log('[F11] Grabando desde:', trackLabel);
+    const devStatus = document.getElementById('f11DeviceStatus');
+    if(devStatus) devStatus.textContent = '🔴 Grabando desde: ' + trackLabel;
+
+    const chunks = [];
+    const mimeOptions = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'];
+    let selectedMime = '';
+    for(const m of mimeOptions){
+      if(MediaRecorder.isTypeSupported(m)){ selectedMime = m; break; }
+    }
+
+    _f11Recorder = new MediaRecorder(stream, selectedMime ? {mimeType:selectedMime} : {});
+    _f11Recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    _f11Recorder.onerror = e => {
+      console.error('[F11] MediaRecorder error:', e);
+      showToast('❌ Error en grabación: '+(e.error?.message||'desconocido'));
+      f11StopRecording();
+    };
+    _f11Recorder.onstop = () => {
+      stream.getTracks().forEach(t=>t.stop());
+      const mimeType = _f11Recorder.mimeType || selectedMime || 'audio/webm';
+      const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+      _f11AudioBlob = new Blob(chunks, {type:mimeType});
+
+      if(_f11AudioUrl) URL.revokeObjectURL(_f11AudioUrl);
+      _f11AudioUrl = URL.createObjectURL(_f11AudioBlob);
+
+      const fileName = 'grabacion_' + new Date().toISOString().slice(0,16).replace(/[T:]/g,'-') + '.' + ext;
+      _f11AudioBlob = new File([_f11AudioBlob], fileName, {type:mimeType});
+
+      transcripcion.audioFile = _f11AudioBlob;
+      transcripcion.audioUrl = _f11AudioUrl;
+
+      const player = document.getElementById('f11AudioPlayer');
+      if(player) player.src = _f11AudioUrl;
+      const prev = document.getElementById('f11AudioPreview');
+      if(prev) prev.style.display = 'block';
+      const clearBtn = document.getElementById('f11AudioClearBtn');
+      if(clearBtn) clearBtn.style.display = 'inline-block';
+      const info = document.getElementById('f11AudioInfo');
+      if(info) info.textContent = `Grabación (${trackLabel}) · ${_f11Sz(_f11AudioBlob.size)}`;
+      const btn = document.getElementById('f11TranscribeBtn');
+      if(btn) btn.disabled = false;
+      const dSt = document.getElementById('f11DeviceStatus');
+      if(dSt) dSt.textContent = `✅ Grabado desde: ${trackLabel}`;
+    };
+    _f11Recorder.start(1000);
+    _f11Recording = true;
+    transcripcion.isRecording = true;
+
+    if(icon) icon.textContent = '⏹';
+    if(label) label.textContent = 'Detener';
+    if(recBtn){ recBtn.disabled = false; recBtn.style.background='var(--red)'; recBtn.style.color='#fff'; }
+    showToast('🎙️ Grabando…');
+  } catch(e){
+    console.error('[F11] Error al iniciar grabación:', e);
+    _f11Recording = false;
+    transcripcion.isRecording = false;
+    if(icon) icon.textContent = '⏺';
+    if(label) label.textContent = 'Grabar';
+    if(recBtn){ recBtn.disabled = false; recBtn.style.background=''; recBtn.style.color=''; }
+
+    let msg = e.message || String(e);
+    if(e.name==='NotAllowedError' || msg.includes('Permission'))
+      msg = 'Permiso de micrófono denegado. Habilítalo en la configuración del navegador.';
+    else if(e.name==='NotFoundError' || msg.includes('not found'))
+      msg = 'No se detectó micrófono conectado.';
+    else if(e.name==='OverconstrainedError')
+      msg = 'El micrófono no soporta la configuración solicitada.';
+    showToast('❌ Micrófono: ' + msg);
+  }
+}
+
+function f11StopRecording(){
+  if(_f11Recorder && _f11Recorder.state !== 'inactive') _f11Recorder.stop();
+  _f11Recording = false;
+  transcripcion.isRecording = false;
+
+  const icon = document.getElementById('f11RecordIcon');
+  const label = document.getElementById('f11RecordLabel');
+  const recBtn = document.getElementById('f11RecordBtn');
+  if(icon) icon.textContent = '⏺';
+  if(label) label.textContent = 'Grabar';
+  if(recBtn){ recBtn.style.background=''; recBtn.style.color=''; }
+}
+
+/* ════════════════════════════════════════════════════════
+   PASO 1: TRANSCRIBIR AUDIO — ElevenLabs/Whisper
+   sb.functions.invoke('transcribe-audio')
+   ════════════════════════════════════════════════════════ */
+async function f11Paso1_Transcribir(){
+  if(!_f11AudioBlob || _f11Processing) return;
+
+  const btn = document.getElementById('f11TranscribeBtn');
+  const progress = document.getElementById('f11TransProgress');
+  const bar = document.getElementById('f11TransBar');
+  const status = document.getElementById('f11TransStatus');
+
+  _f11Processing = true;
+  transcripcion.isProcessing = true;
+  btn.disabled = true;
+  btn.textContent = '⏳ Transcribiendo con ElevenLabs/Whisper…';
+  progress.style.display = 'block';
+  bar.style.width = '5%';
+  bar.style.background = 'var(--gold)';
+  status.textContent = 'Preparando audio…';
+
+  let storagePath = null;
+
+  try {
+    const file = _f11AudioBlob;
+    const useStorage = file.size > T_BASE64_LIMIT;
+    let invokeBody;
+
+    if(useStorage){
+      bar.style.width = '10%';
+      status.textContent = 'Subiendo audio a almacenamiento (' + _f11Sz(file.size) + ')…';
+
+      const userId = (typeof session!=='undefined' && session?.user?.id) || 'anon';
+      const ts = Date.now();
+      const ext = _f11Ext(file.name) || 'bin';
+      const path = `${userId}/${ts}.${ext}`;
+
+      const { data, error } = await sb.storage.from(T_STORAGE_BUCKET).upload(path, file, {
+        contentType: _f11Mime(file), upsert: true
+      });
+
+      if(error){
+        if(error.message?.includes('not found') || error.statusCode === 404){
+          await sb.storage.createBucket(T_STORAGE_BUCKET, {public:false});
+          const retry = await sb.storage.from(T_STORAGE_BUCKET).upload(path, file, {contentType:_f11Mime(file), upsert:true});
+          if(retry.error) throw new Error(retry.error.message);
+        } else {
+          throw new Error('Error subiendo audio: ' + error.message);
+        }
+      }
+      storagePath = path;
+      invokeBody = { storagePath: storagePath, mimeType: _f11Mime(file) };
+      bar.style.width = '25%';
+      status.textContent = 'Audio subido. Enviando a transcripción…';
+    } else {
+      bar.style.width = '10%';
+      status.textContent = 'Codificando audio (' + _f11Sz(file.size) + ')…';
+      const arrayBuffer = await file.arrayBuffer();
+      const base64Audio = _f11ToBase64(arrayBuffer);
+      invokeBody = { audio: base64Audio, mimeType: _f11Mime(file) };
+      bar.style.width = '25%';
+      status.textContent = 'Enviando a transcripción…';
+    }
+
+    bar.style.width = '35%';
+    status.textContent = 'Transcribiendo con ElevenLabs/Whisper…';
+
+    const { data, error } = await sb.functions.invoke('transcribe-audio', { body: invokeBody });
+
+    bar.style.width = '85%';
+    status.textContent = 'Procesando resultado…';
+
+    if(error){
+      let errMsg = error.message || String(error);
+      try {
+        if(error.context){
+          const body = await error.context.json();
+          errMsg = body.error || errMsg;
+        }
+      } catch(e){}
+      throw new Error(errMsg);
+    }
+
+    const transcriptText = data?.text || data?.transcript || '';
+    if(!transcriptText){
+      throw new Error(data?.error || 'Sin texto de transcripción en la respuesta');
+    }
+
+    /* Éxito */
+    _f11RawText = transcriptText;
+    transcripcion.rawText = transcriptText;
+    _f11CurrentStep = 1;
+
+    bar.style.width = '100%';
+    bar.style.background = 'var(--green)';
+    status.textContent = '✅ Transcripción completada — texto crudo guardado';
+
+    document.getElementById('f11RawResult').value = _f11RawText;
+    document.getElementById('f11RawResultSection').style.display = 'block';
+    document.getElementById('f11Step2Section').style.display = 'block';
+
+    _f11UpdateSteps();
+    showToast('✅ Paso 1 completado: transcripción cruda guardada');
+
+  } catch(e){
+    bar.style.background = 'var(--red)';
+    status.textContent = '❌ Error: ' + e.message;
+    console.error('[F11] Paso 1 error:', e);
+    showToast('❌ Error en transcripción: ' + e.message);
+  } finally {
+    _f11Processing = false;
+    transcripcion.isProcessing = false;
+    btn.textContent = '🎙️ Paso 1: Transcribir Audio (ElevenLabs/Whisper)';
+    btn.disabled = !_f11AudioBlob;
+    if(storagePath){
+      try { await sb.storage.from(T_STORAGE_BUCKET).remove([storagePath]); } catch(e){}
+    }
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   PASO 2: EDITAR con IA — Texto Refundido
+   /api/chat-stream (Edge Function — streaming, sin timeout)
+   ════════════════════════════════════════════════════════ */
+async function f11Paso2_Editar(){
+  if(!_f11RawText) return showToast('⚠ Primero completa el Paso 1');
+  if(_f11Processing) return;
+
+  const btn = document.getElementById('f11EditBtn');
+  const progress = document.getElementById('f11EditProgress');
+  const bar = document.getElementById('f11EditBar');
+  const status = document.getElementById('f11EditStatus');
+
+  _f11Processing = true;
+  btn.disabled = true;
+  btn.textContent = '⏳ Editando con IA…';
+  progress.style.display = 'block';
+  bar.style.width = '5%';
+  bar.style.background = '#818cf8';
+  status.textContent = 'Preparando contexto…';
+
+  try {
+    const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
+    const nombre = document.getElementById('f11NombreDeclarante')?.value || '';
+    const fecha  = document.getElementById('f11Fecha')?.value || '';
+    const lugar  = document.getElementById('f11Lugar')?.value || 'Punta Arenas';
+    const tipoLabel = {testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[tipo]||'declarante';
+    const tipoActaLabel = {testigo:'DECLARACIÓN DE TESTIGO',denunciante:'RATIFICACIÓN DE DENUNCIA',denunciado:'DECLARACIÓN DE PERSONA DENUNCIADA',otro:'DILIGENCIA'}[tipo]||'DECLARACIÓN';
+
+    const fechaStr = fecha
+      ? new Date(fecha+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})
+      : new Date().toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+    const lnk = (typeof currentCase !== 'undefined' ? currentCase : null);
+    let caseCtx = `\nMETADATOS DEL ACTA:\n- Tipo: ${tipoActaLabel}\n- Declarante: ${nombre||'[COMPLETAR NOMBRE]'}\n- Calidad procesal: ${tipoLabel}\n- Fecha: ${fechaStr}\n- Lugar: ${lugar||'[COMPLETAR]'}`;
+
+    if(lnk){
+      const fmtArr = v => { if(!v)return''; if(Array.isArray(v))return v.join(', '); try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);} };
+      caseCtx += `\n\nDATOS DEL EXPEDIENTE:\n- Expediente: ${lnk.name||'[EXPEDIENTE]'}\n- ROL: ${lnk.rol||'[ROL]'}\n- Tipo: ${lnk.tipo_procedimiento||'[TIPO]'}\n- Materia: ${lnk.materia||'[MATERIA]'}\n- Denunciante(s): ${fmtArr(lnk.denunciantes)||'[DENUNCIANTE]'}\n- Denunciado/a(s): ${fmtArr(lnk.denunciados)||'[DENUNCIADO/A]'}`;
+    }
+
+    const hasBaseDoc = !!_f11DocText?.trim();
+    const mode = hasBaseDoc ? 'fill_acta' : 'pregunta_respuesta';
+
+    /* ── Construir prompt para streaming ── */
+    let sysPrompt = _F11_PROMPTS[mode] || _F11_PROMPTS.pregunta_respuesta;
+    if(caseCtx) sysPrompt += '\n' + caseCtx;
+    if(hasBaseDoc) sysPrompt += '\n\nDOCUMENTO BASE (preservar estructura y llenar con audio):\n' + _f11DocText.substring(0,5000);
+
+    const rawText = _f11RawText.substring(0,14000);
+    const userMsg = mode === 'fill_acta'
+      ? 'Llena el acta adjunta (DOCUMENTO BASE) con las respuestas de esta transcripción:\n\n' + rawText
+      : 'Elabora el Texto Refundido de esta declaración transcrita:\n\n' + rawText;
+
+    const maxTok = mode === 'fill_acta' ? 8000 : 5000;
+
+    bar.style.width = '15%';
+    status.textContent = hasBaseDoc ? 'Aplicando cuestionario como guía (streaming)…' : 'Estructurando pregunta-respuesta (streaming)…';
+
+    /* Mostrar sección de resultado para vista previa en tiempo real */
+    const editedSec = document.getElementById('f11EditedResultSection');
+    if(editedSec) editedSec.style.display = 'block';
+
+    /* ── Llamar con streaming — sin timeout ── */
+    const resultText = await _f11StreamStructure({
+      systemPrompt: sysPrompt,
+      userMsg: userMsg,
+      maxTokens: maxTok,
+      onProgress: (partial) => {
+        const pct = Math.min(15 + (partial.length / (maxTok * 3)) * 80, 95);
+        bar.style.width = pct + '%';
+        status.textContent = `Recibiendo texto… (${partial.length} caracteres)`;
+        /* Vista previa en tiempo real */
+        const editedEl = document.getElementById('f11EditedResult');
+        if(editedEl) editedEl.value = partial;
+      }
+    });
+
+    _f11EditedText = resultText;
+    transcripcion.structuredText = resultText;
+    _f11CurrentStep = 2;
+
+    bar.style.width = '100%';
+    bar.style.background = 'var(--green)';
+    status.textContent = `✅ Texto refundido generado (${resultText.length} caracteres)`;
+
+    document.getElementById('f11EditedResult').value = _f11EditedText;
+    document.getElementById('f11EditedResultSection').style.display = 'block';
+    document.getElementById('f11Step3Section').style.display = 'block';
+
+    _f11UpdateSteps();
+    showToast('✅ Paso 2 completado: texto refundido listo');
+
+  } catch(e){
+    bar.style.background = 'var(--red)';
+    status.textContent = '❌ Error: ' + e.message;
+    console.error('[F11] Paso 2 error:', e);
+    showToast('❌ Error en edición: ' + e.message);
+  } finally {
+    _f11Processing = false;
+    btn.textContent = '✏️ Paso 2: Editar y Refundir con IA';
+    btn.disabled = false;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   PASO 3: GENERAR ACTA LISTA PARA FIRMAR
+   /api/chat-stream (Edge Function — streaming, sin timeout)
+   ════════════════════════════════════════════════════════ */
+async function f11Paso3_GenerarActa(){
+  const editedTextArea = document.getElementById('f11EditedResult');
+  const textoBase = editedTextArea ? editedTextArea.value.trim() : _f11EditedText;
+  if(!textoBase) return showToast('⚠ Primero completa el Paso 2');
+  if(_f11Processing) return;
+
+  const btn = document.getElementById('f11GenerateBtn');
+  const progress = document.getElementById('f11GenerateProgress');
+  const bar = document.getElementById('f11GenerateBar');
+  const status = document.getElementById('f11GenerateStatus');
+
+  _f11Processing = true;
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando acta formal…';
+  progress.style.display = 'block';
+  bar.style.width = '5%';
+  status.textContent = 'Preparando acta formal…';
+
+  try {
+    const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
+    const nombre = document.getElementById('f11NombreDeclarante')?.value || '[COMPLETAR NOMBRE]';
+    const fecha  = document.getElementById('f11Fecha')?.value || '';
+    const lugar  = document.getElementById('f11Lugar')?.value || 'Punta Arenas';
+    const tipoLabel = {testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[tipo]||'declarante';
+    const tipoActaLabel = {testigo:'DECLARACIÓN DE TESTIGO',denunciante:'RATIFICACIÓN DE DENUNCIA',denunciado:'DECLARACIÓN DE PERSONA DENUNCIADA',otro:'DILIGENCIA'}[tipo]||'DECLARACIÓN';
+
+    const fechaStr = fecha
+      ? new Date(fecha+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})
+      : new Date().toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+    const lnk = (typeof currentCase!=='undefined' ? currentCase : null);
+    const rolStr = lnk?.rol || '[ROL]';
+    const tipoProcStr = lnk?.tipo_procedimiento || '[TIPO DE PROCEDIMIENTO]';
+
+    let caseCtx = `\nMETADATOS DEL ACTA:\n- Tipo: ${tipoActaLabel}\n- Declarante: ${nombre}\n- Calidad procesal: ${tipoLabel}\n- Fecha: ${fechaStr}\n- Lugar: ${lugar}\n- Rol: ${rolStr}\n- Procedimiento: ${tipoProcStr}`;
+
+    if(lnk){
+      const fmtArr = v => { if(!v)return''; if(Array.isArray(v))return v.join(', '); try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);} };
+      caseCtx += `\n- Denunciante(s): ${fmtArr(lnk.denunciantes)||'[DENUNCIANTE]'}\n- Denunciado/a(s): ${fmtArr(lnk.denunciados)||'[DENUNCIADO/A]'}`;
+    }
+
+    /* ── Construir prompt para streaming ── */
+    let sysPrompt = _F11_PROMPTS.con_expediente + '\n' + caseCtx;
+
+    const userMsg = 'Genera el acta formal a partir de este texto refundido de la declaración:\n\n' + textoBase.substring(0,14000);
+
+    bar.style.width = '15%';
+    status.textContent = 'Generando acta formal con IA (streaming)…';
+
+    /* Mostrar sección final para vista previa en tiempo real */
+    const finalSec = document.getElementById('f11FinalSection');
+    if(finalSec) finalSec.style.display = 'block';
+
+    /* ── Llamar con streaming — sin timeout ── */
+    const resultText = await _f11StreamStructure({
+      systemPrompt: sysPrompt,
+      userMsg: userMsg,
+      maxTokens: 8000,
+      onProgress: (partial) => {
+        const pct = Math.min(15 + (partial.length / 24000) * 80, 95);
+        bar.style.width = pct + '%';
+        status.textContent = `Generando acta… (${partial.length} caracteres)`;
+        /* Vista previa en tiempo real */
+        const preview = document.getElementById('f11FinalPreview');
+        if(preview){
+          preview.innerHTML = partial
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/_{30,}/g, '<div style="border-bottom:1px solid #333;width:60%;margin:12px auto 4px"></div>')
+            .replace(/\n/g, '<br>');
+        }
+      }
+    });
+
+    _f11FinalActa = resultText;
+    transcripcion.actaFinal = resultText;
+    _f11CurrentStep = 3;
+
+    bar.style.width = '100%';
+    bar.style.background = 'var(--green)';
+    status.textContent = '✅ Acta lista para firmar';
+
+    const preview = document.getElementById('f11FinalPreview');
+    if(preview){
+      preview.innerHTML = _f11FinalActa
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/_{30,}/g, '<div style="border-bottom:1px solid #333;width:60%;margin:12px auto 4px"></div>')
+        .replace(/\n/g, '<br>');
+    }
+    document.getElementById('f11FinalSection').style.display = 'block';
+
+    _f11UpdateSteps();
+    showToast('✅ Paso 3 completado: acta lista para firmar');
+
+  } catch(e){
+    bar.style.background = 'var(--red)';
+    status.textContent = '❌ Error: ' + e.message;
+    console.error('[F11] Paso 3 error:', e);
+    showToast('❌ Error generando acta: ' + e.message);
+  } finally {
+    _f11Processing = false;
+    btn.textContent = '📝 Paso 3: Generar Acta para Firmar';
+    btn.disabled = false;
+  }
+}
+
+/* ══════════════════ GUARDAR EN CASO ══════════════════ */
+/* ══════════════════ GUARDAR TRANSCRIPCIÓN CRUDA (Paso 1) ══════════════════ */
+async function f11SaveRawToCase(){
+  if(!currentCase || !session) return showToast('⚠ Vincula un caso primero');
+  if(!_f11RawText) return showToast('⚠ Sin transcripción para guardar');
+
+  const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
+  const nombre = (document.getElementById('f11NombreDeclarante')?.value||'').trim();
+  const fecha  = document.getElementById('f11Fecha')?.value || '';
+  const lugar  = (document.getElementById('f11Lugar')?.value||'').trim();
+  const tipoLabel = {testigo:'Declaración testigo',denunciante:'Ratificación denuncia',denunciado:'Declaración denunciado/a',otro:'Diligencia'}[tipo];
+  const label = `${tipoLabel}${nombre ? ': '+nombre : ''} (transcripción cruda)`;
+
+  try {
+    const { error: errDil } = await sb.from('diligencias').insert({
+      case_id: currentCase.id,
+      user_id: session.user.id,
+      diligencia_type: tipo==='testigo'?'declaracion_testigo':tipo==='denunciante'?'ratificacion':tipo==='denunciado'?'declaracion_denunciado':'otro',
+      diligencia_label: label,
+      fecha_diligencia: fecha || null,
+      extracted_text: _f11RawText,
+      ai_summary: `Transcripción cruda de ${tipoLabel.toLowerCase()}${nombre?' de '+nombre:''} realizada en ${lugar||'—'} el ${fecha||'—'}`,
+      is_processed: true,
+      processing_status: 'transcripcion_cruda',
+    });
+    if(errDil) throw errDil;
+
+    const noteContent = `🎙️ ${label}\n📅 ${fecha||'—'} · 📍 ${lugar||'—'}\n\n` +
+      `═══ TRANSCRIPCIÓN CRUDA ═══\n${_f11RawText}`;
+
+    await sb.from('case_notes').insert({
+      case_id: currentCase.id,
+      user_id: session.user.id,
+      content: noteContent,
+    });
+
+    showToast('✅ Transcripción cruda guardada en diligencias y notas del caso');
+  } catch(e){
+    showToast('❌ Error: ' + e.message);
+    console.error('SaveRaw error:', e);
+  }
+}
+
+/* ══════════════════ GUARDAR ACTA FINAL ══════════════════ */
+async function f11SaveToCase(){
+  if(!currentCase || !session) return showToast('⚠ Vincula un caso primero');
+
+  const actaText = _f11FinalActa || _f11EditedText || _f11RawText;
+  if(!actaText) return showToast('⚠ Sin texto para guardar');
+
+  const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
+  const nombre = (document.getElementById('f11NombreDeclarante')?.value||'').trim();
+  const fecha  = document.getElementById('f11Fecha')?.value || '';
+  const lugar  = (document.getElementById('f11Lugar')?.value||'').trim();
+  const tipoLabel = {testigo:'Declaración testigo',denunciante:'Ratificación denuncia',denunciado:'Declaración denunciado/a',otro:'Diligencia'}[tipo];
+  const label = `${tipoLabel}${nombre ? ': '+nombre : ''}`;
+
+  try {
+    const { error: errDil } = await sb.from('diligencias').insert({
+      case_id: currentCase.id,
+      user_id: session.user.id,
+      diligencia_type: tipo==='testigo'?'declaracion_testigo':tipo==='denunciante'?'ratificacion':tipo==='denunciado'?'declaracion_denunciado':'otro',
+      diligencia_label: label,
+      fecha_diligencia: fecha || null,
+      extracted_text: actaText,
+      ai_summary: `Acta de ${tipoLabel.toLowerCase()}${nombre?' de '+nombre:''} realizada en ${lugar||'—'} el ${fecha||'—'}`,
+      is_processed: true,
+      processing_status: 'acta_firmable',
+    });
+    if(errDil) throw errDil;
+
+    const noteContent = `📝 ${label}\n📅 ${fecha||'—'} · 📍 ${lugar||'—'}\n\n` +
+      `═══ ACTA FINAL ═══\n${actaText}` +
+      (_f11RawText ? `\n\n═══ TRANSCRIPCIÓN CRUDA (referencia) ═══\n${_f11RawText}` : '');
+
+    await sb.from('case_notes').insert({
+      case_id: currentCase.id,
+      user_id: session.user.id,
+      content: noteContent,
+    });
+
+    showToast('✅ Acta guardada en diligencias y notas del caso');
+  } catch(e){
+    showToast('❌ Error: ' + e.message);
+    console.error('Save error:', e);
+  }
+}
+
+/* ══════════════════ DESCARGAR WORD (.docx real) ══════════════════ */
+/* Carga docx-js desde CDN si no está disponible */
+let _f11DocxLib = null;
+async function _f11LoadDocxLib(){
+  if(_f11DocxLib) return _f11DocxLib;
+  if(typeof docx !== 'undefined'){ _f11DocxLib = docx; return docx; }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js';
+    s.onload = () => { _f11DocxLib = window.docx; resolve(window.docx); };
+    s.onerror = () => reject(new Error('No se pudo cargar la librería docx'));
+    document.head.appendChild(s);
+  });
+}
+
+/**
+ * Parsea el texto del acta en bloques estructurados para Word.
+ * Devuelve array de { type: 'title'|'heading'|'paragraph'|'question'|'answer'|'signature', text, bold }
+ */
+function _f11ParseActaBlocks(text){
+  /* Limpiar asteriscos residuales y guiones bajos */
+  text = text.replace(/\*{3,}/g, '').replace(/_{5,}/g, '');
+
+  const lines = text.split('\n');
+  const blocks = [];
+  let i = 0;
+
+  while(i < lines.length){
+    let line = lines[i].trim();
+
+    /* Líneas vacías → saltar */
+    if(!line){ i++; continue; }
+
+    /* Título principal */
+    if(line.match(/^ACTA DE DECLARACI[OÓ]N/i)){
+      blocks.push({ type:'title', text: line.replace(/\*\*/g,'') });
+      i++; continue;
+    }
+
+    /* Encabezados de sección (CONTEXTO, etc.) */
+    if(line.match(/^(CONTEXTO|DECLARACI[OÓ]N COMPLEMENTARIA|OBSERVACIONES)$/i)){
+      blocks.push({ type:'heading', text: line.replace(/\*\*/g,'') });
+      i++; continue;
+    }
+
+    /* Preguntas numeradas: "1. Texto..." o "**1. Texto**" */
+    const qMatch = line.match(/^\*{0,2}(\d+)\.\s*(.+?)\*{0,2}$/);
+    if(qMatch){
+      blocks.push({ type:'question', text: `${qMatch[1]}. ${qMatch[2].replace(/\*\*/g,'')}` });
+      i++; continue;
+    }
+
+    /* Respuestas: "R." o "R:" */
+    if(line.match(/^R[\.\:]\s*/i)){
+      let answer = line.replace(/^R[\.\:]\s*/i, '').replace(/\*\*/g,'');
+      /* Juntar líneas siguientes que son continuación */
+      while(i+1 < lines.length && lines[i+1].trim() && !lines[i+1].trim().match(/^\*{0,2}\d+\./) && !lines[i+1].trim().match(/^R[\.\:]/i) && !lines[i+1].trim().match(/^(CONTEXTO|Sin más|Declarante|C\.I\.|Actuaria|Fiscal)/i)){
+        i++;
+        answer += ' ' + lines[i].trim().replace(/\*\*/g,'');
+      }
+      blocks.push({ type:'answer', text: answer.trim() });
+      i++; continue;
+    }
+
+    /* Bloque de firmas — solo líneas cortas (< 100 chars) con nombres de firmantes */
+    if(line.length < 100 && (line.match(/^(Declarante\s|C\.I\.\s*N°|Fiscal$|Actuaria$)/i) || line.match(/^(Verónica Garrido|Alejandra Mayorga)/i))){
+      blocks.push({ type:'signature', text: line.replace(/\*\*/g,'') });
+      i++; continue;
+    }
+
+    /* "Sin más que agregar..." → cierre */
+    if(line.match(/^Sin más que agregar/i)){
+      let closing = line.replace(/\*\*/g,'');
+      while(i+1 < lines.length && lines[i+1].trim() && !lines[i+1].trim().match(/^(Declarante|C\.I\.|Fiscal|Actuaria|Verónica|Alejandra)/i)){
+        i++;
+        closing += ' ' + lines[i].trim().replace(/\*\*/g,'');
+      }
+      blocks.push({ type:'paragraph', text: closing.trim() });
+      i++; continue;
+    }
+
+    /* Párrafo normal — juntar líneas consecutivas */
+    let para = line.replace(/\*\*/g,'');
+    while(i+1 < lines.length && lines[i+1].trim() && !lines[i+1].trim().match(/^\*{0,2}\d+\./) && !lines[i+1].trim().match(/^R[\.\:]/i) && !lines[i+1].trim().match(/^(CONTEXTO|Sin más|Declarante|ACTA DE)/i)){
+      i++;
+      para += ' ' + lines[i].trim().replace(/\*\*/g,'');
+    }
+    blocks.push({ type:'paragraph', text: para.trim() });
+    i++;
+  }
+
+  return blocks;
+}
+
+async function f11DownloadWord(){
+  const actaText = _f11FinalActa || _f11EditedText;
+  if(!actaText) return showToast('⚠ Sin acta para descargar');
+
+  showToast('⏳ Generando documento Word…');
+
+  try {
+    const lib = await _f11LoadDocxLib();
+    const { Document, Packer, Paragraph, TextRun, AlignmentType, Header, Footer, PageNumber } = lib;
+
+    const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
+    const nombre = (document.getElementById('f11NombreDeclarante')?.value||'').trim();
+    const fecha  = document.getElementById('f11Fecha')?.value || '';
+    const tipoLabel = {testigo:'Declaracion_testigo',denunciante:'Ratificacion_denuncia',denunciado:'Declaracion_denunciado',otro:'Diligencia'}[tipo]||'Acta';
+
+    /* Parsear bloques */
+    const blocks = _f11ParseActaBlocks(actaText);
+    const children = [];
+
+    /* Fuente base: Arial 11pt = size 22 (half-points) */
+    const baseRun = { font:'Arial', size: 22 };
+    /* Espaciado 1.5 = 360 twips (line rule auto) */
+    const baseSpacing = { line: 360, lineRule: 'auto' };
+
+    for(const block of blocks){
+      switch(block.type){
+        case 'title':
+          children.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { ...baseSpacing, after: 200 },
+            children: [new TextRun({ ...baseRun, bold: true, text: block.text })]
+          }));
+          /* Línea vacía después del título */
+          children.push(new Paragraph({ spacing: baseSpacing, children: [] }));
+          break;
+
+        case 'heading':
+          children.push(new Paragraph({ spacing: baseSpacing, children: [] }));
+          children.push(new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { ...baseSpacing, after: 0 },
+            children: [new TextRun({ ...baseRun, bold: true, text: block.text })]
+          }));
+          break;
+
+        case 'question':
+          children.push(new Paragraph({ spacing: baseSpacing, children: [] }));
+          children.push(new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { ...baseSpacing, after: 0 },
+            children: [new TextRun({ ...baseRun, bold: true, text: block.text })]
+          }));
+          break;
+
+        case 'answer':
+          children.push(new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { ...baseSpacing, after: 0 },
+            children: [
+              new TextRun({ ...baseRun, bold: true, text: 'R. ' }),
+              new TextRun({ ...baseRun, text: block.text })
+            ]
+          }));
+          break;
+
+        case 'signature':
+          children.push(new Paragraph({
+            alignment: AlignmentType.LEFT,
+            spacing: { ...baseSpacing, before: 0, after: 0 },
+            children: [new TextRun({ ...baseRun, bold: true, text: block.text })]
+          }));
+          break;
+
+        default: /* paragraph */
+          children.push(new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: baseSpacing,
+            children: [new TextRun({ ...baseRun, text: block.text })]
+          }));
+      }
+    }
+
+    /* Crear documento: Folio (8.5 x 13 pulgadas), Arial 11, 1.5 espaciado, justificado */
+    const doc = new Document({
+      styles: {
+        default: {
+          document: {
+            run: { font: 'Arial', size: 22 } /* 11pt */
+          }
+        }
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: {
+              width: 12240,   /* 8.5 pulgadas en DXA */
+              height: 18720   /* 13 pulgadas en DXA (tamaño folio/oficio) */
+            },
+            margin: {
+              top: 1417,      /* ~1 pulgada */
+              right: 1701,    /* ~1.18 pulgadas */
+              bottom: 1417,
+              left: 1701
+            }
+          }
+        },
+        headers: {
+          default: new Header({
+            children: [new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [new TextRun({ font:'Arial', size: 16, color:'888888', text:'Universidad de Magallanes — Fiscalía Universitaria' })]
+            })]
+          })
+        },
+        footers: {
+          default: new Footer({
+            children: [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ font:'Arial', size: 16, color:'888888', text:'Página ' }),
+                new TextRun({ font:'Arial', size: 16, color:'888888', children: [PageNumber.CURRENT] })
+              ]
+            })]
+          })
+        },
+        children
+      }]
+    });
+
+    const buffer = await Packer.toBlob(doc);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(buffer);
+    const safeName = (nombre || 'declarante').replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ0-9\s_-]/g,'').replace(/\s+/g,'_');
+    a.download = `Acta_${tipoLabel}_${safeName}_${fecha||new Date().toISOString().split('T')[0]}.docx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('📥 Acta descargada como Word (.docx)');
+
+  } catch(e){
+    console.error('[F11] Error generando Word:', e);
+    showToast('❌ Error generando Word: ' + e.message);
+    /* Fallback: descargar como texto */
+    const blob = new Blob([actaText], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Acta_${nombre||'declarante'}_${fecha||'sin_fecha'}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}
+
+/* ══════════════════ UTILIDADES UI ══════════════════ */
+function f11CopyText(text){
+  if(text){ navigator.clipboard.writeText(text); showToast('📋 Texto copiado'); }
+}
+
+/* ══════════════════ CARGAR TRANSCRIPCIÓN PREVIA ══════════════════ */
+
+/**
+ * Busca transcripciones crudas guardadas previamente en el caso actual
+ * y las muestra como lista seleccionable.
+ */
+async function f11LoadPrevTranscriptions(){
+  const listEl = document.getElementById('f11PrevTransList');
+  if(!listEl) return;
+
+  if(!currentCase || !session){
+    showToast('⚠ Vincula un caso primero para ver transcripciones guardadas');
+    listEl.style.display = 'none';
+    return;
+  }
+
+  listEl.style.display = 'block';
+  listEl.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">Buscando transcripciones guardadas…</div>';
+
+  try {
+    const sbClient = typeof supabaseClient !== 'undefined' ? supabaseClient : sb;
+
+    /* Buscar en diligencias con transcripción cruda */
+    const { data: diligencias, error } = await sbClient
+      .from('diligencias')
+      .select('id, diligencia_label, fecha_diligencia, extracted_text, processing_status, created_at')
+      .eq('case_id', currentCase.id)
+      .in('processing_status', ['transcripcion_cruda', 'acta_firmable'])
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if(error) throw error;
+
+    if(!diligencias || !diligencias.length){
+      listEl.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">No hay transcripciones guardadas en este caso.</div>';
+      return;
+    }
+
+    listEl.innerHTML = diligencias.map((d, idx) => {
+      const fecha = d.fecha_diligencia ? new Date(d.fecha_diligencia+'T12:00:00').toLocaleDateString('es-CL') : '';
+      const isCruda = d.processing_status === 'transcripcion_cruda';
+      const tag = isCruda ? '🎙️ Cruda' : '📝 Acta';
+      const tagColor = isCruda ? 'var(--gold)' : 'var(--green)';
+      const charCount = (d.extracted_text||'').length;
+      return `<div class="f11-prev-item" onclick="f11SelectPrevTranscription(${idx})" style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--gold-glow)'" onmouseout="this.style.background=''">
+        <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+          <div style="font-size:11.5px;font-weight:500;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.diligencia_label||'Sin título'}</div>
+          <span style="font-size:9.5px;padding:1px 6px;border-radius:8px;background:${tagColor}22;color:${tagColor};font-weight:600;white-space:nowrap">${tag}</span>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${fecha ? fecha+' · ' : ''}${charCount.toLocaleString()} caracteres</div>
+      </div>`;
+    }).join('');
+
+    /* Guardar datos para selección */
+    window._f11PrevTranscriptions = diligencias;
+
+  } catch(e){
+    listEl.innerHTML = `<div style="padding:10px;font-size:11px;color:var(--red)">Error: ${e.message}</div>`;
+    console.error('LoadPrev error:', e);
+  }
+}
+
+/**
+ * Selecciona una transcripción previa y la carga en F11 como texto base.
+ */
+function f11SelectPrevTranscription(idx){
+  const d = window._f11PrevTranscriptions?.[idx];
+  if(!d || !d.extracted_text) return showToast('⚠ Sin texto en esta transcripción');
+
+  /* Cargar en el flujo */
+  _f11RawText = d.extracted_text;
+  transcripcion.rawText = d.extracted_text;
+  _f11CurrentStep = 1;
+
+  /* Mostrar en la UI */
+  const rawSection = document.getElementById('f11RawResultSection');
+  const rawResult = document.getElementById('f11RawResult');
+  if(rawSection) rawSection.style.display = 'block';
+  if(rawResult) rawResult.value = _f11RawText;
+
+  /* Mostrar Paso 2 */
+  const editSection = document.getElementById('f11EditedResultSection');
+  const step2Section = document.querySelector('#f11EditBtn')?.closest('div[style]');
+
+  /* Habilitar Paso 2 */
+  const editBtn = document.getElementById('f11EditBtn');
+  if(editBtn) editBtn.disabled = false;
+
+  /* Mostrar Paso 3 habilitado */
+  const step3 = document.getElementById('f11Step3Section');
+  if(step3) step3.style.display = 'block';
+
+  /* Ocultar lista */
+  const listEl = document.getElementById('f11PrevTransList');
+  if(listEl) listEl.style.display = 'none';
+
+  /* Extraer metadatos del label si están disponibles */
+  if(d.diligencia_label){
+    const nameMatch = d.diligencia_label.match(/:\s*(.+?)(?:\s*\(|$)/);
+    if(nameMatch){
+      const nameInput = document.getElementById('f11NombreDeclarante');
+      if(nameInput && !nameInput.value) nameInput.value = nameMatch[1].trim();
+    }
+  }
+  if(d.fecha_diligencia){
+    const fechaInput = document.getElementById('f11Fecha');
+    if(fechaInput && !fechaInput.value) fechaInput.value = d.fecha_diligencia;
+  }
+
+  _f11UpdateSteps();
+  const isCruda = d.processing_status === 'transcripcion_cruda';
+  showToast(`✅ Transcripción${isCruda?' cruda':''} cargada (${_f11RawText.length.toLocaleString()} caracteres). Puedes ir al Paso 2.`);
+}
+
+/**
+ * Carga una transcripción desde un archivo .txt local.
+ */
+function f11LoadTranscriptionFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    if(!text || text.trim().length < 10) return showToast('⚠ El archivo está vacío o es muy corto');
+
+    _f11RawText = text.trim();
+    transcripcion.rawText = _f11RawText;
+    _f11CurrentStep = 1;
+
+    const rawSection = document.getElementById('f11RawResultSection');
+    const rawResult = document.getElementById('f11RawResult');
+    if(rawSection) rawSection.style.display = 'block';
+    if(rawResult) rawResult.value = _f11RawText;
+
+    const step3 = document.getElementById('f11Step3Section');
+    if(step3) step3.style.display = 'block';
+
+    _f11UpdateSteps();
+    showToast(`✅ Transcripción cargada desde archivo (${_f11RawText.length.toLocaleString()} caracteres). Puedes ir al Paso 2.`);
+  };
+  reader.readAsText(file);
+}
+
+function f11DownloadText(text, prefix){
+  if(!text)return;
+  const nombre = (document.getElementById('f11NombreDeclarante')?.value||'').trim().replace(/\s+/g,'_') || 'declarante';
+  const fecha = document.getElementById('f11Fecha')?.value || new Date().toISOString().split('T')[0];
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${prefix}_${nombre}_${fecha}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('⬇ Archivo descargado');
+}
+
+function f11Reset(){
+  _f11AudioBlob = null;
+  if(_f11AudioUrl) URL.revokeObjectURL(_f11AudioUrl);
+  _f11AudioUrl = null;
+  _f11DocFile = null;
+  _f11DocText = '';
+  _f11RawText = '';
+  _f11EditedText = '';
+  _f11FinalActa = '';
+  _f11CurrentStep = 0;
+  _f11Processing = false;
+
+  transcripcion.audioFile = null;
+  transcripcion.audioUrl = null;
+  transcripcion.rawText = '';
+  transcripcion.structuredText = '';
+  transcripcion.actaFinal = '';
+  transcripcion.step = 'upload';
+
+  renderF11Panel();
+}
+
+/* ══════════════════ CHIPS ══════════════════ */
+function buildF11Chips(){
+  const row = document.getElementById('fnChipsRow');
+  if(!row) return;
+  row.innerHTML = '';
+}
+
+/* ══════════════════ INPUT BAR ══════════════════ */
+function updateTransInputBar(){
+  const input = document.getElementById('inputBox');
+  if(input && activeFn === 'F11'){
+    input.placeholder = 'Sube audio/video para transcribir';
+  }
+}
+
+/* ── Compatibilidad: funciones que index.html puede llamar ── */
+function handleTransAudioUpload(input){
+  if(input && input.files && input.files[0]) f11HandleAudioUpload(input.files[0]);
+}
+function startTransRecording(){ f11StartRecording(); }
+function stopTransRecording(){ f11StopRecording(); }
+function resetTranscripcion(){ f11Reset(); }
+
+/* ══════════════════ LOG ══════════════════ */
+console.log('%c🎙️ Módulo F11 Transcripción v9.1 — Fix grabadora + error handling', 'color:#7c3aed;font-weight:bold');
+console.log('%c   ✓ ElevenLabs/Whisper  ✓ Edición IA  ✓ Acta firmable  ✓ Diagnósticos mejorados', 'color:#666');
