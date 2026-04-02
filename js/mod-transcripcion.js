@@ -1566,15 +1566,12 @@ async function f11DownloadWord(){
           default: new Header({
             children: logoBuffer ? [
               new Paragraph({
-                tabStops: [{ type: TabStopType.RIGHT, position: 8838 }], /* ancho página - márgenes: 12240-1701-1701 */
                 children: [
                   new ImageRun({
                     data: logoBuffer,
                     transformation: { width: 280, height: 58 },
                     type: 'png'
-                  }),
-                  new TextRun({ font:'Arial', size: 16, children: [new Tab()] }),
-                  new TextRun({ font:'Arial', size: 16, color:'888888', text:'Fiscalía Universitaria' })
+                  })
                 ]
               })
             ] : [

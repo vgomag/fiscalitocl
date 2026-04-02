@@ -84,7 +84,6 @@ function makeWordDocHeader(docxLib, logoBuffer) {
   if (logoBuffer) {
     return new Header({
       children: [new Paragraph({
-        tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
         children: [
           new ImageRun({
             data: logoBuffer,
@@ -92,8 +91,6 @@ function makeWordDocHeader(docxLib, logoBuffer) {
             type: 'png',
             altText: { title: 'UMAG', description: 'Logo UMAG Fiscalía Universitaria', name: 'logo-umag' },
           }),
-          new TextRun({ font: WORD_FORMAT.font, size: 16, children: [new Tab()] }),
-          new TextRun({ font: WORD_FORMAT.font, size: 16, color: '888888', text: 'Fiscalía Universitaria — UMAG' }),
         ],
       })],
     });
