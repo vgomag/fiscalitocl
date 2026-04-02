@@ -2872,7 +2872,8 @@ async function sendMessage(){
     /* ── QDRANT: Buscar en biblioteca de libros, normas y jurisprudencia ── */
     try{
       const ragFolder=document.getElementById('ragFolder')?.value||'';
-      const shouldSearchLibrary=ragFolder==='todos'||(activeFn&&['F0','F2','F3','F4','F7','F8','F9','F10'].includes(activeFn))||!activeFn;
+      /* Todas las funciones consultan la biblioteca (Qdrant + libros + normas) */
+      const shouldSearchLibrary=true;
 
       if(shouldSearchLibrary){
         const ragBody={query:text,folder:ragFolder==='expediente'?'':ragFolder||'todos'};
@@ -2912,8 +2913,7 @@ async function sendMessage(){
     }catch(libErr){console.warn('Qdrant library search error:',libErr);}
 
     /* ── BIBLIOTECA SUPABASE: Buscar en libros de referencia + normativa interna ── */
-    /* Skip for F5 (IRAC analiza el expediente, no necesita doctrina) */
-    if(activeFn!=='F5'){
+    {
     try{
       const libKeywords=text.substring(0,200);
       const{data:libResults}=await _withTimeout(sb.rpc('search_library',{
@@ -2932,8 +2932,7 @@ async function sendMessage(){
     }
 
     /* ── NORMAS BCN: Cargar tabla de normas con enlaces Ley Chile ── */
-    /* Skip for F5 (IRAC ya tiene normativa en su instrucción) */
-    if(activeFn!=='F5'){
+    {
     try{
       const{data:normas}=await sb.from('normas_custom').select('id,label,url_bcn,descripcion').order('label');
       const{data:normInt}=await sb.from('normativa_interna').select('name,tipo,descripcion').order('name');
