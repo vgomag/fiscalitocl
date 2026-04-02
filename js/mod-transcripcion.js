@@ -1,12 +1,12 @@
 /* =========================================================
    MOD-TRANSCRIPCION.JS — F11 Transcripción de Actas
-   v7.1 · 2026-04-01 · Fiscalito / UMAG
+   v8.0 · 2026-04-01 · Fiscalito / UMAG
    =========================================================
-   v7.1: Fix transcripción
-   · Base64 usa _toBase64() chunked (evita stack overflow)
-   · Auth opcional (Edge Function ya no requiere JWT)
-   · Mejor logging de errores del servidor
-   · Edge Function v6 con error handling detallado
+   v8.0: Réplica patrón Lovable (sb.functions.invoke)
+   · Archivos ≤ 25MB: base64 directo via sb.functions.invoke
+   · Archivos > 25MB: Storage + storagePath
+   · Edge Function v10 simplificada (solo ElevenLabs)
+   · Grabadora en vivo con timer integrada
    ========================================================= */
 
 /* ── CONSTANTES ── */
@@ -608,10 +608,12 @@ async function _pollForResult(endpoint,anonKey,jobId){
 }
 
 /* ════════════════════════════════════════════════════════
-   TRANSCRIBIR — Copia exacta del patrón Lovable
-   Usa sb.functions.invoke('transcribe-audio') igual que
-   la app Lovable que funciona perfectamente.
+   TRANSCRIBIR — Patrón Lovable (sb.functions.invoke)
+   · Archivos ≤ 25MB: base64 directo (como Lovable)
+   · Archivos > 25MB: subir a Storage, enviar storagePath
    ════════════════════════════════════════════════════════ */
+const T_BASE64_LIMIT = 25 * 1024 * 1024; // 25MB — por encima usa Storage
+
 async function transcribeAudio(){
   if(!transcripcion.audioFile){showToast('⚠ Carga un archivo de audio primero');return;}
   if(transcripcion.isProcessing){showToast('⚠ Ya hay una transcripción en proceso');return;}
@@ -628,70 +630,55 @@ async function transcribeAudio(){
   renderF11Panel();
 
   let storagePath=null;
+  const useStorage = file.size > T_BASE64_LIMIT;
 
   try{
-    const sbUrl=(typeof SB_URL!=='undefined'&&SB_URL)?SB_URL:'https://zgoxrzbkftzulsphmtfk.supabase.co';
-    const sbAnonKey=(typeof SB_KEY!=='undefined'&&SB_KEY)?SB_KEY:'';
+    let invokeBody;
 
-    /* ── 1. Siempre subir a Supabase Storage primero ── */
-    setProgress(5,'Subiendo audio a almacenamiento ('+_sz(file.size)+')…');
-    storagePath=await _uploadToStorage(file);
-    setProgress(30,'Audio subido. Enviando a transcripción…');
-
-    console.log('[F11] Audio subido a Storage: '+storagePath+' ('+_sz(file.size)+')');
-
-    /* ── 2. Llamar Edge Function con storagePath (no base64) ── */
-    let authToken='';
-    try{
-      const{data:sessData}=await sb.auth.getSession();
-      authToken=sessData?.session?.access_token||'';
-    }catch(e){console.warn('[F11] No se pudo obtener token de auth:',e);}
-
-    const resp=await fetch(sbUrl+'/functions/v1/transcribe-audio',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        ...(authToken?{'Authorization':'Bearer '+authToken}:{}),
-        ...(sbAnonKey?{'apikey':sbAnonKey}:{})
-      },
-      body:JSON.stringify({
-        storagePath:storagePath,
-        mimeType:_mime(file),
-        fileName:file.name,
-        fileSize:file.size
-      })
-    });
-
-    setProgress(70,'Procesando respuesta…');
-
-    /* Si 504, la Edge Function puede seguir procesando → poll */
-    if(resp.status===504){
-      console.warn('[F11] Gateway timeout 504, intentando poll…');
-      setProgress(55,'Transcripción en proceso, esperando resultado…');
-      const pollResult=await _pollForResult(sbUrl+'/functions/v1/transcribe-audio',sbAnonKey,'poll_'+Date.now());
-      if(pollResult?.text||pollResult?.transcript){
-        transcripcion.rawText=pollResult.text||pollResult.transcript;
-        transcripcion.segments=pollResult.segments||[];
-        transcripcion.transcribeProvider=pollResult.provider||'desconocido';
-      }else{
-        throw new Error('No se obtuvo resultado después de esperar');
-      }
-    }else if(!resp.ok){
-      const errBody=await resp.text();
-      let errMsg='HTTP '+resp.status;
-      try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){errMsg+=' — '+errBody.substring(0,200);}
-      console.error('[F11] Edge Function error:',resp.status,errBody);
-      throw new Error(errMsg);
+    if(useStorage){
+      /* ── Archivo grande: subir a Storage primero ── */
+      setProgress(5,'Subiendo audio a almacenamiento ('+_sz(file.size)+')…');
+      storagePath=await _uploadToStorage(file);
+      setProgress(25,'Audio subido. Enviando a transcripción…');
+      console.log('[F11] Storage upload OK:',storagePath,'('+_sz(file.size)+')');
+      invokeBody={storagePath:storagePath, mimeType:_mime(file)};
     }else{
-      const data=await resp.json();
-      const transcriptText=data?.text||data?.transcript||'';
-      if(!transcriptText){
-        throw new Error(data?.error||'Sin texto de transcripción en la respuesta');
-      }
-      transcripcion.rawText=transcriptText;
-      transcripcion.segments=data.segments||[];
-      transcripcion.transcribeProvider=data.provider||'desconocido';
+      /* ── Archivo normal: base64 directo (patrón Lovable) ── */
+      setProgress(10,'Codificando audio ('+_sz(file.size)+')…');
+      const arrayBuffer=await file.arrayBuffer();
+      const base64Audio=_toBase64(arrayBuffer);
+      setProgress(25,'Enviando a transcripción…');
+      console.log('[F11] Base64 OK, length:',base64Audio.length,'('+_sz(file.size)+')');
+      invokeBody={audio:base64Audio, mimeType:_mime(file)};
     }
+
+    /* ── Llamar Edge Function con sb.functions.invoke (como Lovable) ── */
+    setProgress(30,'Transcribiendo con ElevenLabs…');
+    const{data,error}=await sb.functions.invoke('transcribe-audio',{body:invokeBody});
+
+    setProgress(85,'Procesando respuesta…');
+
+    if(error){
+      console.error('[F11] sb.functions.invoke error:',error);
+      /* Extraer mensaje de error legible */
+      let errMsg=error.message||String(error);
+      try{
+        if(error.context){
+          const body=await error.context.json();
+          errMsg=body.error||errMsg;
+        }
+      }catch(e){}
+      throw new Error(errMsg);
+    }
+
+    const transcriptText=data?.text||data?.transcript||'';
+    if(!transcriptText){
+      throw new Error(data?.error||'Sin texto de transcripción en la respuesta');
+    }
+
+    transcripcion.rawText=transcriptText;
+    transcripcion.segments=data.segments||[];
+    transcripcion.transcribeProvider=data.provider||'elevenlabs';
 
     setProgress(100,'✅ Transcripción completa');
     stopProgressTimer();
@@ -710,7 +697,6 @@ async function transcribeAudio(){
     renderF11Panel();
     showToast('⚠ '+err.message,'error');
   }finally{
-    /* Limpiar archivo de Storage después de transcribir */
     if(storagePath)_cleanupStorage(storagePath);
   }
 }
