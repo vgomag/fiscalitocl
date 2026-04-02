@@ -253,14 +253,23 @@ function buildF11HTML(){
       </div>`).join('')}
   </div>`;
 
-  /* ── Result ── */
-  if(transcripcion.step==='result'&&(transcripcion.structuredText||transcripcion.rawText)){
-    const text=transcripcion.structuredText||transcripcion.rawText;
+  /* ── Paso 2 Result: texto refundido/editado ── */
+  if(transcripcion.step==='result'&&transcripcion.structuredText){
     return`<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:12px;gap:8px">
+      ${_f11StepsIndicator(2)}
       ${docsSection}${metaSection}${caseSection}
+      <div class="f11-section" style="background:rgba(129,140,248,.06);border-color:rgba(129,140,248,.25)">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#818cf8;margin-bottom:6px">✏️ PASO 2: Texto Refundido (editado con IA)</div>
+        <textarea id="f11EditedTextArea" style="width:100%;min-height:180px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font-sans);resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box;line-height:1.65">${esc(transcripcion.structuredText)}</textarea>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${transcripcion.structuredText.length} caracteres · Puedes editar antes de generar el acta</div>
+      </div>
+      <div class="f11-section" style="background:rgba(5,150,105,.06);border-color:rgba(5,150,105,.25);padding:12px 14px">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--green);margin-bottom:6px">📝 PASO 3: Generar Acta para Firmar</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Genera acta formal con encabezado UMAG, advertencias legales y espacios para firmas.</div>
+        <button class="btn-save" style="width:100%;background:var(--green);border-color:var(--green);padding:10px;font-size:13px" onclick="generateActaFinal()">📝 Paso 3: Generar Acta Lista para Firmar</button>
+      </div>
       <div class="f11-result-actions">
-        <button class="btn-save" onclick="saveTranscripcionToCase()" style="font-size:11.5px">💾 Guardar al expediente</button>
-        <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar</button>
+        <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar editado</button>
         <button class="btn-sm" onclick="downloadTransTxt()">⬇ TXT</button>
         <button class="btn-sm" onclick="exportActaToWord()" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600">📄 Word</button>
         ${!transcripcion.summary?'<button class="btn-sm" onclick="generateTransSummary()">📊 Resumen IA</button>':''}
@@ -268,7 +277,25 @@ function buildF11HTML(){
       </div>
       ${transcripcion.transcribeProvider?`<div style="font-size:10px;color:var(--text-muted);text-align:right">Transcrito con: ${esc(transcripcion.transcribeProvider)}</div>`:''}
       ${transcripcion.summary?`<div class="trans-summary-box"><strong style="font-size:11px;color:var(--gold)">📊 Resumen</strong><div style="font-size:12px;margin-top:5px;line-height:1.6">${md(transcripcion.summary)}</div></div>`:''}
-      <div class="trans-result-box">${md(text)}</div>
+    </div>`;
+  }
+
+  /* ── Paso 3 Result: Acta final lista para firmar ── */
+  if(transcripcion.step==='acta_final'&&transcripcion.actaFinal){
+    return`<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:12px;gap:8px">
+      ${_f11StepsIndicator(3)}
+      ${docsSection}${metaSection}${caseSection}
+      <div class="f11-section" style="background:rgba(5,150,105,.06);border-color:rgba(5,150,105,.25)">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--green);margin-bottom:6px">📝 ACTA LISTA PARA FIRMAR</div>
+      </div>
+      <div class="f11-result-actions">
+        <button class="btn-save" onclick="saveTranscripcionToCase()" style="font-size:11.5px">💾 Guardar al expediente</button>
+        <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar</button>
+        <button class="btn-sm" onclick="downloadTransTxt()">⬇ TXT</button>
+        <button class="btn-sm" onclick="exportActaToWord()" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600">📄 Word</button>
+        <button class="btn-cancel" style="margin-left:auto" onclick="resetTranscripcion()">↺ Nueva</button>
+      </div>
+      <div class="trans-result-box" style="background:#fff;color:#111;font-family:'EB Garamond',Georgia,serif;line-height:1.85;font-size:13.5px">${md(transcripcion.actaFinal)}</div>
     </div>`;
   }
 
@@ -686,8 +713,8 @@ async function transcribeAudio(){
     transcripcion.isProcessing=false;
     renderF11Panel();
 
-    showToast('✓ Transcripción completa ('+transcripcion.transcribeProvider+')');
-    setTimeout(()=>structureTranscripcion(),300);
+    showToast('✓ Paso 1 completo: transcripción cruda guardada ('+transcripcion.transcribeProvider+')');
+    /* NO auto-estructurar — el usuario decide cuándo pasar al Paso 2 */
 
   }catch(err){
     console.error('[F11] Transcripción error:',err);
