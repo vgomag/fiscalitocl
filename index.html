@@ -1840,6 +1840,57 @@ window.getCaseCat=function(c){
   return 'no_genero';
 };
 
+/* ── Casos activos: solo genero, no_genero, cargos, finalizacion ── */
+const ACTIVE_CATS=new Set(['genero','no_genero','cargos','finalizacion']);
+window.getActiveCases=function(){
+  return (typeof allCases!=='undefined'?allCases:[]).filter(c=>ACTIVE_CATS.has(getCaseCat(c)));
+};
+
+/**
+ * Genera HTML de un selector dropdown de casos activos.
+ * @param {string} onchangeFn — nombre de función global a llamar con el id, ej. 'fnLinkCase'
+ * @param {string} [selectedId] — id del caso preseleccionado
+ */
+window.buildCaseSelectorHTML=function(onchangeFn, selectedId){
+  const cases=getActiveCases();
+  if(!cases.length) return '<span style="color:var(--red);font-size:11px">No hay expedientes activos</span>';
+  const catIcons={genero:'👥',no_genero:'📋',cargos:'⚖️',finalizacion:'✅'};
+  const opts=cases.map(c=>{
+    const cat=getCaseCat(c);
+    const icon=catIcons[cat]||'📁';
+    const sel=selectedId&&c.id===selectedId?' selected':'';
+    return `<option value="${c.id}"${sel}>${icon} ${c.name||'Sin nombre'}${c.nueva_resolucion?' ('+c.nueva_resolucion+')':''}</option>`;
+  }).join('');
+  return `<select onchange="${onchangeFn}(this.value)" style="flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:var(--radius);font-size:11px">
+    <option value="">— Seleccionar expediente —</option>${opts}</select>`;
+};
+
+/**
+ * Vincular caso desde cualquier panel de función (F0-F12).
+ * Actualiza currentCase y re-renderiza el panel activo.
+ */
+window.fnLinkCase=function(caseId){
+  if(!caseId)return;
+  const c=(typeof allCases!=='undefined'?allCases:[]).find(x=>x.id===caseId);
+  if(!c){showToast('⚠ Caso no encontrado');return;}
+  currentCase=c;
+  renderCaseHeader();
+  showToast('✅ Caso vinculado: '+(c.name||c.nueva_resolucion||'—'));
+  /* Re-renderizar panel de la función activa */
+  if(activeFn==='F11'&&typeof renderF11Panel==='function'){renderF11Panel();return;}
+  if(activeFn==='F12'&&typeof renderF12Panel==='function'){renderF12Panel();return;}
+  showFnPanel(activeFn);
+};
+
+/** Mostrar selector de caso en el panel de cualquier función */
+window.fnShowCaseSelector=function(){
+  const el=document.getElementById('fnCaseInfo');
+  if(!el)return;
+  el.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>⚖️ Vincular caso:</span>'
+    +buildCaseSelectorHTML('fnLinkCase',currentCase?.id)
+    +'<button class="btn-sm" onclick="showFnPanel(activeFn)" style="font-size:10px;padding:3px 8px">Cancelar</button></div>';
+};
+
 function updateCatCounts(){
   ['genero','no_genero','cargos','finalizacion','terminado'].forEach(cat=>{
     const el=document.getElementById('cnt-'+cat);
@@ -2431,7 +2482,20 @@ function showFnPanel(code){
   if(panel)panel.style.display='flex';
   if(!panel)return;
   if(!p){panel.innerHTML='';return;}
-  const caseLink=currentCase?`<div style="display:flex;align-items:center;gap:5px;margin-top:8px;font-size:11px;color:var(--gold)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/></svg> Caso activo: <strong>${esc(currentCase.name)}</strong>${currentCase.nueva_resolucion?' · '+esc(currentCase.nueva_resolucion):''}</div>`:'';
+  const caseLink=currentCase
+    ?`<div id="fnCaseInfo" style="display:flex;align-items:center;justify-content:space-between;gap:5px;margin-top:8px;font-size:11px;color:var(--gold)">
+        <div style="display:flex;align-items:center;gap:5px">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/></svg>
+          Caso activo: <strong>${esc(currentCase.name)}</strong>${currentCase.nueva_resolucion?' · '+esc(currentCase.nueva_resolucion):''}
+        </div>
+        <button class="btn-sm" onclick="fnShowCaseSelector()" style="font-size:10px;padding:3px 8px">Cambiar</button>
+      </div>`
+    :`<div id="fnCaseInfo" style="margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;color:var(--text-muted)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>⚠️ Sin caso vinculado</span>
+          ${buildCaseSelectorHTML('fnLinkCase')}
+        </div>
+      </div>`;
   panel.innerHTML=`
     <div class="fn-panel-link" style="cursor:default;background:var(--surface2);">
       <div style="display:flex;flex-direction:column;gap:5px;width:100%">

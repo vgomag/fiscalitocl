@@ -396,6 +396,13 @@ async function renderF12Panel() {
         </div>
       </div>
 
+      <!-- Caso vinculado -->
+      <div id="fnCaseInfo" style="margin-bottom:12px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;color:var(--text-muted)">
+        ${currentCase
+          ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">⚖️ Caso: <strong style="color:var(--gold)">'+(currentCase.name||currentCase.nueva_resolucion||'—')+'</strong><button class="btn-sm" onclick="fnShowCaseSelector()" style="font-size:10px;padding:3px 8px">Cambiar</button></div>'
+          : '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>⚠️ Sin caso vinculado</span>'+(typeof buildCaseSelectorHTML==='function'?buildCaseSelectorHTML('fnLinkCase'):'')+'</div>'}
+      </div>
+
       <!-- Formulario rápido -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px" id="oficioFormArea">
         <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">📝 Datos del documento <span style="font-size:11px;color:var(--text-muted);font-weight:400">(opcional — también puedes escribir directamente en el chat)</span></div>
