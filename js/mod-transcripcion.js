@@ -44,7 +44,7 @@ const transcripcion = {
   isRecording:false, mediaRecorder:null, audioChunks:[],
   audioFile:null, audioUrl:null, audioDuration:null,
   baseDocText:'', baseDocName:'',
-  rawText:'', structuredText:'', summary:'',
+  rawText:'', structuredText:'', actaFinal:'', summary:'',
   segments:[], step:'upload',
   isProcessing:false, isGeneratingSummary:false,
   selectedMode:null, linkedCase:null,
@@ -140,6 +140,28 @@ function startProgressTimer(){
 }
 function stopProgressTimer(){
   if(_progressTimer){clearInterval(_progressTimer);_progressTimer=null;}
+}
+
+/* ── Indicador visual de 3 pasos ── */
+function _f11StepsIndicator(currentStep){
+  const steps=[
+    {icon:'🎙️',label:'Transcribir',desc:'Audio → texto crudo'},
+    {icon:'✏️',label:'Editar con IA',desc:'Texto refundido'},
+    {icon:'📝',label:'Acta para Firmar',desc:'Documento final'}
+  ];
+  return `<div style="display:flex;gap:4px;margin-bottom:8px">${steps.map((s,i)=>{
+    const num=i+1;
+    const isDone=num<currentStep;
+    const isActive=num===currentStep;
+    const bg=isDone?'rgba(5,150,105,.08)':isActive?'var(--gold-glow)':'var(--surface2)';
+    const border=isDone?'rgba(5,150,105,.25)':isActive?'var(--gold-dim)':'var(--border)';
+    const color=isDone?'var(--green)':isActive?'var(--gold)':'var(--text-muted)';
+    return `<div style="flex:1;text-align:center;padding:6px 4px;border-radius:var(--radius);border:1px solid ${border};background:${bg};transition:all .2s">
+      <div style="font-size:13px">${s.icon}</div>
+      <div style="font-size:9.5px;font-weight:600;color:${color}">Paso ${num}${isDone?' ✓':''}</div>
+      <div style="font-size:8.5px;color:var(--text-muted)">${s.label}</div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 /* ────────────────────────────────────────────────────────
@@ -322,35 +344,40 @@ function buildF11HTML(){
         <div class="f11-progress-label" id="f11ProgressLabel">${esc(p.stepLabel||'Preparando…')}</div>
         <div style="margin-top:6px;text-align:center">${retryBadge}</div>
         <div class="f11-progress-steps">
-          <div class="f11-pstep ${pct>=5?'done':''}${pct>0&&pct<30?' active':''}">📥 Preparar</div>
-          <div class="f11-pstep ${pct>=30?'done':''}${pct>=20&&pct<80?' active':''}">🎙 Transcribir</div>
-          <div class="f11-pstep ${pct>=80?'done':''}${pct>=80&&pct<100?' active':''}">📋 Estructurar</div>
+          <div class="f11-pstep ${pct>=5?'done':''}${pct>0&&pct<30?' active':''}">🎙️ Paso 1</div>
+          <div class="f11-pstep ${pct>=30?'done':''}${pct>=20&&pct<80?' active':''}">✏️ Paso 2</div>
+          <div class="f11-pstep ${pct>=80?'done':''}${pct>=80&&pct<100?' active':''}">📝 Paso 3</div>
           <div class="f11-pstep ${pct>=100?'done':''}">✅ Listo</div>
         </div>
       </div>
     </div>`;
   }
 
-  /* ── After transcription (raw text obtained) ── */
+  /* ── Paso 1 completado: texto crudo obtenido ── */
   if(transcripcion.step==='structure'&&transcripcion.rawText){
     return`<div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:8px">
+      ${_f11StepsIndicator(1)}
       ${docsSection}${metaSection}${caseSection}
-      <div class="f11-section">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Transcripción obtenida</div>
-        <div class="trans-raw-box">${esc(transcripcion.rawText.substring(0,600))}${transcripcion.rawText.length>600?'…':''}</div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${transcripcion.rawText.length} caracteres</div>
+      <div class="f11-section" style="background:rgba(79,70,229,.04);border-color:rgba(79,70,229,.2)">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--gold);margin-bottom:6px">🎙️ PASO 1: Transcripción cruda (texto extraído del audio)</div>
+        <textarea id="f11RawTextArea" style="width:100%;min-height:150px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font-sans);resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box;line-height:1.65" readonly>${esc(transcripcion.rawText)}</textarea>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${transcripcion.rawText.length} caracteres · Transcrito con: ${esc(transcripcion.transcribeProvider||'IA')}</div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar crudo</button>
+          <button class="btn-sm" onclick="downloadTransTxt()">⬇ Descargar .txt</button>
+        </div>
       </div>
-      <div class="f11-section" style="padding:10px 14px">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Estructurar como acta</div>
+      <div class="f11-section" style="background:rgba(129,140,248,.06);border-color:rgba(129,140,248,.25);padding:12px 14px">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#818cf8;margin-bottom:6px">✏️ PASO 2: Editar con IA — Texto Refundido</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">${transcripcion.baseDocText?'Se usará el cuestionario como guía para llenar el acta con las respuestas del audio.':'Elige cómo estructurar la transcripción. El cuestionario (si lo subiste) se usará como guía.'}</div>
         <div class="f11-action-row">
-          <button class="btn-save" style="flex:1" onclick="transcripcion.selectedMode='pregunta_respuesta';structureTranscripcion()">📋 Pregunta-Respuesta</button>
-          <button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='directa';structureTranscripcion()">📄 Acta directa</button>
-          <button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='con_expediente';structureTranscripcion()">📁 Con expediente</button>
+          <button class="btn-save" style="flex:1" onclick="transcripcion.selectedMode='${transcripcion.baseDocText?'fill_acta':'pregunta_respuesta'}';structureTranscripcion()">${transcripcion.baseDocText?'📄 Llenar acta con audio':'📋 Pregunta-Respuesta'}</button>
+          ${!transcripcion.baseDocText?`<button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='directa';structureTranscripcion()">📄 Acta directa</button>
+          <button class="btn-sm" style="flex:1" onclick="transcripcion.selectedMode='con_expediente';structureTranscripcion()">📁 Con expediente</button>`:''}
         </div>
       </div>
       <div class="f11-action-row">
         <button class="btn-sm" onclick="generateTransSummary()">📊 Resumen</button>
-        <button class="btn-sm" onclick="copyTranscripcion()">📋 Copiar texto crudo</button>
         <button class="btn-cancel" onclick="resetTranscripcion()">↺ Reiniciar</button>
       </div>
     </div>`;
@@ -932,6 +959,94 @@ async function structureTranscripcion(){
   showToast('⚠ Falló tras '+(T_MAX_RETRIES+1)+' intentos: '+lastError?.message,'error');
 }
 
+/* ════════════════════════════════════════════════════════
+   PASO 3: GENERAR ACTA FINAL LISTA PARA FIRMAR
+   Toma el texto refundido (editado) y genera acta formal
+   con encabezado UMAG, advertencias legales y firmas.
+   ════════════════════════════════════════════════════════ */
+async function generateActaFinal(){
+  /* Tomar texto del textarea (por si el usuario lo editó) */
+  const textArea=document.getElementById('f11EditedTextArea');
+  const textoBase=textArea?textArea.value.trim():transcripcion.structuredText;
+  if(!textoBase){showToast('⚠ Primero completa el Paso 2');return;}
+  if(transcripcion.isProcessing)return;
+
+  transcripcion.isProcessing=true;
+  transcripcion.step='generating_acta';
+  transcripcion.progress={pct:0,stepLabel:'',startTime:0,retryCount:0};
+  startProgressTimer();
+  renderF11Panel();
+
+  try{
+    const mt=transcripcion.meta;
+    const lnk=transcripcion.linkedCase||(typeof currentCase!=='undefined'?currentCase:null);
+
+    /* Sync metadata from DOM */
+    const _f=id=>document.getElementById(id);
+    const v=el=>el?el.value:'';
+    if(_f('f11TipoDeclarante'))mt.tipoDeclarante=v(_f('f11TipoDeclarante'));
+    if(_f('f11NombreDeclarante'))mt.nombreDeclarante=v(_f('f11NombreDeclarante'));
+    if(_f('f11Fecha'))mt.fecha=v(_f('f11Fecha'));
+    if(_f('f11Lugar'))mt.lugar=v(_f('f11Lugar'));
+
+    const fechaStr=mt.fecha?new Date(mt.fecha+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):new Date().toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const tipoLabel={testigo:'testigo',denunciante:'denunciante',denunciado:'persona denunciada',otro:'compareciente'}[mt.tipoDeclarante]||'declarante';
+    const tipoActaLabel={testigo:'DECLARACIÓN DE TESTIGO',denunciante:'RATIFICACIÓN DE DENUNCIA',denunciado:'DECLARACIÓN DE PERSONA DENUNCIADA',otro:'DILIGENCIA'}[mt.tipoDeclarante]||'DECLARACIÓN';
+
+    setProgress(15,'Preparando acta formal…');
+
+    let caseCtx=`\nMETADATOS DEL ACTA:\n- Tipo: ${tipoActaLabel}\n- Declarante: ${mt.nombreDeclarante||'[COMPLETAR NOMBRE]'}\n- Calidad procesal: ${tipoLabel}\n- Fecha: ${fechaStr}\n- Lugar: ${mt.lugar||'[COMPLETAR]'}`;
+    if(lnk){
+      caseCtx+=`\n\nDATOS DEL EXPEDIENTE:\n- Expediente: ${lnk.name||'[EXPEDIENTE]'}\n- ROL: ${lnk.rol||'[ROL]'}\n- Tipo: ${lnk.tipo_procedimiento||'[TIPO]'}\n- Materia: ${lnk.materia||'[MATERIA]'}\n- Denunciante(s): ${_fmtArr(lnk.denunciantes)||'[DENUNCIANTE]'}\n- Denunciado/a(s): ${_fmtArr(lnk.denunciados)||'[DENUNCIADO/A]'}`;
+    }
+
+    let authToken='';
+    try{
+      if(typeof session!=='undefined'&&session?.access_token){authToken=session.access_token;}
+      else if(typeof sb!=='undefined'){const{data:sessData}=await sb.auth.getSession();authToken=sessData?.session?.access_token||'';}
+    }catch(e){}
+
+    setProgress(40,'Generando acta formal con IA…');
+
+    const resp=await fetch('/.netlify/functions/structure',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-auth-token':authToken},
+      body:JSON.stringify({
+        rawText:textoBase.substring(0,14000),
+        mode:'con_expediente',
+        caseContext:caseCtx
+      })
+    });
+
+    setProgress(85,'Finalizando acta…');
+
+    if(!resp.ok){
+      const errData=await resp.json().catch(()=>({}));
+      throw new Error(errData.error||'HTTP '+resp.status);
+    }
+    const data=await resp.json();
+    if(!data.ok)throw new Error(data.error||'Sin respuesta');
+
+    transcripcion.actaFinal=data.structuredText;
+
+    setProgress(100,'✅ Acta lista para firmar');
+    await _sleep(200);
+    stopProgressTimer();
+    transcripcion.step='acta_final';
+    transcripcion.isProcessing=false;
+    renderF11Panel();
+    showToast('✅ Paso 3 completo: acta lista para firmar');
+
+  }catch(err){
+    console.error('[F11] Acta final error:',err.message);
+    stopProgressTimer();
+    transcripcion.isProcessing=false;
+    transcripcion.step='result'; /* volver al paso 2 */
+    renderF11Panel();
+    showToast('⚠ Error generando acta: '+err.message,'error');
+  }
+}
+
 /* ── Resumen ── */
 async function generateTransSummary(){
   if(!transcripcion.rawText)return;
@@ -955,7 +1070,7 @@ async function saveTranscripcionToCase(){
   const caseRef=transcripcion.linkedCase||(typeof currentCase!=='undefined'?currentCase:null);
   if(!caseRef||!caseRef.id){showToast('⚠ Vincula un expediente primero');return;}
   if(typeof session==='undefined'||!session?.user?.id){showToast('⚠ Inicia sesión');return;}
-  const text=transcripcion.structuredText||transcripcion.rawText;
+  const text=transcripcion.actaFinal||transcripcion.structuredText||transcripcion.rawText;
   if(!text?.trim()){showToast('⚠ Sin texto');return;}
 
   try{
@@ -993,9 +1108,9 @@ async function saveTranscripcionToCase(){
   }catch(err){showToast('⚠ Error: '+err.message);}
 }
 
-function copyTranscripcion(){navigator.clipboard.writeText(transcripcion.structuredText||transcripcion.rawText);showToast('✓ Copiado');}
+function copyTranscripcion(){navigator.clipboard.writeText(transcripcion.actaFinal||transcripcion.structuredText||transcripcion.rawText);showToast('✓ Copiado');}
 function downloadTransTxt(){
-  const b=new Blob([transcripcion.structuredText||transcripcion.rawText],{type:'text/plain;charset=utf-8'});
+  const b=new Blob([transcripcion.actaFinal||transcripcion.structuredText||transcripcion.rawText],{type:'text/plain;charset=utf-8'});
   const mt=transcripcion.meta;
   const declName=(mt.nombreDeclarante||'').replace(/\s+/g,'_')||'declarante';
   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Acta_'+declName+'_'+(mt.fecha||new Date().toISOString().split('T')[0])+'.txt';a.click();URL.revokeObjectURL(a.href);
@@ -1003,7 +1118,7 @@ function downloadTransTxt(){
 function resetTranscripcion(){
   stopProgressTimer();
   if(transcripcion.audioUrl)URL.revokeObjectURL(transcripcion.audioUrl);
-  Object.assign(transcripcion,{isRecording:false,audioChunks:[],audioFile:null,audioUrl:null,audioDuration:null,baseDocText:'',baseDocName:'',rawText:'',structuredText:'',summary:'',segments:[],step:'upload',isProcessing:false,isGeneratingSummary:false,selectedMode:null,transcribeProvider:null,progress:{pct:0,stepLabel:'',startTime:0,retryCount:0},meta:{tipoDeclarante:'testigo',nombreDeclarante:'',fecha:'',lugar:'Punta Arenas'}});
+  Object.assign(transcripcion,{isRecording:false,audioChunks:[],audioFile:null,audioUrl:null,audioDuration:null,baseDocText:'',baseDocName:'',rawText:'',structuredText:'',actaFinal:'',summary:'',segments:[],step:'upload',isProcessing:false,isGeneratingSummary:false,selectedMode:null,transcribeProvider:null,progress:{pct:0,stepLabel:'',startTime:0,retryCount:0},meta:{tipoDeclarante:'testigo',nombreDeclarante:'',fecha:'',lugar:'Punta Arenas'}});
   renderF11Panel();buildF11Chips();
 }
 
