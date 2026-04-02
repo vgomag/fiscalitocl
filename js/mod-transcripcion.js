@@ -571,15 +571,15 @@ async function _pollForResult(endpoint,anonKey,jobId){
 }
 
 /* ════════════════════════════════════════════════════════
-   TRANSCRIBIR — con reintentos automáticos (2x)
-   < 4MB → base64 directo | 4-25MB → Supabase Storage
+   TRANSCRIBIR — Copia exacta del patrón Lovable
+   Usa sb.functions.invoke('transcribe-audio') igual que
+   la app Lovable que funciona perfectamente.
    ════════════════════════════════════════════════════════ */
 async function transcribeAudio(){
   if(!transcripcion.audioFile){showToast('⚠ Carga un archivo de audio primero');return;}
   if(transcripcion.isProcessing){showToast('⚠ Ya hay una transcripción en proceso');return;}
 
   const file=transcripcion.audioFile;
-  const useStorage=file.size>T_MAX_DIRECT;
   const inputBox=document.getElementById('inputBox');
   if(inputBox)inputBox.value='';
 
@@ -590,139 +590,57 @@ async function transcribeAudio(){
   startProgressTimer();
   renderF11Panel();
 
-  let lastError=null;
-  let storagePath=null;
+  try{
+    /* ── 1. Leer archivo y convertir a base64 (igual que Lovable) ── */
+    setProgress(5,'Leyendo archivo de audio ('+_sz(file.size)+')…');
+    const arrayBuffer=await file.arrayBuffer();
 
-  for(let attempt=0;attempt<=T_MAX_RETRIES;attempt++){
-    try{
-      transcripcion.progress.retryCount=attempt;
-      const authToken=(typeof session!=='undefined'&&session?.access_token)?session.access_token:'';
+    setProgress(15,'Codificando audio…');
+    const base64Audio=new Uint8Array(arrayBuffer).reduce(
+      (data,byte)=>data+String.fromCharCode(byte),''
+    );
+    const b64=btoa(base64Audio);
 
-      /* ── URL de la Edge Function de Supabase (sin timeout de Netlify) ── */
-      const sbUrl=(typeof SB_URL!=='undefined'&&SB_URL)?SB_URL:'https://zgoxrzbkftzulsphmtfk.supabase.co';
-      const transcribeEndpoint=sbUrl+'/functions/v1/transcribe';
-      const sbAnonKey=(typeof SB_KEY!=='undefined'&&SB_KEY)?SB_KEY:'';
+    setProgress(25,'Enviando a transcripción…');
 
-      /* ── Generar jobId único para esta transcripción ── */
-      const jobId=crypto.randomUUID();
-      let requestBody;
+    /* ── 2. Llamar Edge Function exactamente como Lovable ── */
+    console.log('[F11] Llamando transcribe vía sb.functions.invoke, size='+file.size);
+    const{data,error}=await sb.functions.invoke('transcribe',{
+      body:{audio:b64,mimeType:_mime(file)}
+    });
 
-      if(useStorage){
-        // ── Archivo grande: subir a Supabase Storage ──
-        setProgress(5,'Preparando archivo grande ('+_sz(file.size)+')…');
-        if(!storagePath){
-          storagePath=await _uploadToStorage(file);
-        }
-        setProgress(25,'Audio subido. Generando URL…');
-        const{data:signedData,error:signedErr}=await sb.storage.from(T_STORAGE_BUCKET).createSignedUrl(storagePath,600);
-        if(signedErr||!signedData?.signedUrl) throw new Error('No se pudo crear URL firmada: '+(signedErr?.message||'sin URL'));
-        setProgress(30,'Enviando a transcripción…');
-        requestBody={
-          signedUrl:signedData.signedUrl,
-          fileName:file.name,
-          mimeType:_mime(file),
-          jobId:jobId
-        };
-      } else {
-        // ── Archivo pequeño: base64 directo ──
-        setProgress(5,'Leyendo archivo de audio…');
-        const arrayBuffer=await file.arrayBuffer();
-        setProgress(15,'Codificando audio ('+_sz(file.size)+')…');
-        const base64Audio=_toBase64(arrayBuffer);
-        setProgress(25,'Enviando a transcripción…');
-        requestBody={
-          audioBase64:base64Audio,
-          fileName:file.name,
-          mimeType:_mime(file),
-          jobId:jobId
-        };
-      }
+    setProgress(70,'Procesando respuesta…');
 
-      /* ── Llamar Edge Function de Supabase ── */
-      let data=null;
-      try{
-        const resp=await fetch(transcribeEndpoint,{
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'Authorization':'Bearer '+authToken,
-            'apikey':sbAnonKey
-          },
-          body:JSON.stringify(requestBody)
-        });
-
-        setProgress(40,'Esperando transcripción…');
-
-        if(resp.ok){
-          data=await resp.json();
-        } else if(resp.status===504||resp.status===502){
-          /* Gateway timeout — la función sigue ejecutándose en background.
-             Hacemos polling a la DB hasta que el resultado aparezca. */
-          console.log('⏳ Gateway timeout '+resp.status+', polling DB para jobId='+jobId);
-          setProgress(50,'Transcripción en progreso… (esperando resultado)');
-          data=await _pollForResult(transcribeEndpoint,sbAnonKey,jobId);
-        } else {
-          const errBody=await resp.text();
-          let errMsg='HTTP '+resp.status;
-          try{const j=JSON.parse(errBody);errMsg=j.error||errMsg;}catch(e){}
-          throw new Error(errMsg);
-        }
-      }catch(fetchErr){
-        /* Network error / timeout — también intentar polling */
-        if(fetchErr.message&&(fetchErr.message.includes('Failed to fetch')||fetchErr.message.includes('network')||fetchErr.message.includes('timeout'))){
-          console.log('⏳ Network error, polling DB para jobId='+jobId);
-          setProgress(50,'Reconectando… (esperando resultado)');
-          data=await _pollForResult(transcribeEndpoint,sbAnonKey,jobId);
-        } else throw fetchErr;
-      }
-
-      setProgress(70,'Procesando respuesta…');
-
-      const transcriptText=data.transcript||data.text||'';
-      if(!transcriptText){
-        throw new Error(data.error||'Sin texto de transcripción en la respuesta');
-      }
-
-      transcripcion.rawText=transcriptText;
-      transcripcion.segments=data.segments||[];
-      transcripcion.transcribeProvider=data.provider||'desconocido';
-
-      setProgress(100,'✅ Transcripción completa');
-      stopProgressTimer();
-      transcripcion.step='structure';
-      transcripcion.isProcessing=false;
-      renderF11Panel();
-
-      // Limpiar archivo de Storage
-      if(storagePath)_cleanupStorage(storagePath);
-
-      showToast('✓ Transcripción completa ('+transcripcion.transcribeProvider+')');
-      setTimeout(()=>structureTranscripcion(),300);
-      return;
-
-    }catch(err){
-      lastError=err;
-      console.error('Transcripción intento '+(attempt+1)+':',err.message);
-
-      if(attempt<T_MAX_RETRIES){
-        const waitSecs=(attempt+1)*3;
-        setProgress(20,'⚠ '+err.message+' — reintentando en '+waitSecs+'s…');
-        transcripcion.progress.retryCount=attempt+1;
-        updateProgressUI();
-        showToast('⚠ '+err.message+'. Reintentando…','warning');
-        await _sleep(waitSecs*1000);
-      }
+    if(error){
+      throw new Error(error.message||'Error en Edge Function: '+JSON.stringify(error));
     }
+
+    const transcriptText=data?.text||data?.transcript||'';
+    if(!transcriptText){
+      throw new Error(data?.error||'Sin texto de transcripción en la respuesta');
+    }
+
+    transcripcion.rawText=transcriptText;
+    transcripcion.segments=data.segments||[];
+    transcripcion.transcribeProvider=data.provider||'desconocido';
+
+    setProgress(100,'✅ Transcripción completa');
+    stopProgressTimer();
+    transcripcion.step='structure';
+    transcripcion.isProcessing=false;
+    renderF11Panel();
+
+    showToast('✓ Transcripción completa ('+transcripcion.transcribeProvider+')');
+    setTimeout(()=>structureTranscripcion(),300);
+
+  }catch(err){
+    console.error('[F11] Transcripción error:',err);
+    stopProgressTimer();
+    transcripcion.isProcessing=false;
+    transcripcion.step='upload';
+    renderF11Panel();
+    showToast('⚠ '+err.message,'error');
   }
-
-  // Limpiar storage si falló
-  if(storagePath)_cleanupStorage(storagePath);
-
-  stopProgressTimer();
-  transcripcion.isProcessing=false;
-  transcripcion.step='upload';
-  renderF11Panel();
-  showToast('⚠ Falló tras '+(T_MAX_RETRIES+1)+' intentos: '+lastError?.message,'error');
 }
 
 /* ── Prompts de estructuración ── */
@@ -1052,5 +970,5 @@ function resetTranscripcion(){
   document.head.appendChild(s);
 })();
 
-console.log("%c🎙 Módulo Transcripción F11 v10 cargado — Two-phase polling (504→DB)","color:#7c3aed;font-weight:bold");
+console.log("%c🎙 Módulo Transcripción F11 v11 cargado — Copia exacta patrón Lovable (sb.functions.invoke)","color:#7c3aed;font-weight:bold");
 console.log("%c   ✓ ElevenLabs+Whisper  ✓ Límite 25MB  ✓ Reintentos 2x","color:#666");
