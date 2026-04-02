@@ -122,12 +122,18 @@ async function exportToWord(text, filename, options={}){
       alignment:D.AlignmentType.CENTER,
     }));
 
+    /* Usar propiedades de sección con logo si están disponibles */
+    let sProps;
+    if(typeof getWordSectionProps === 'function'){
+      sProps = await getWordSectionProps(D);
+    } else {
+      sProps = { properties:{ page:{ size:{ width:12240, height:18720 }, margin:{top:1440,right:1701,bottom:1440,left:1701} } } };
+    }
+
     const doc=new D.Document({
-      styles:{default:{document:{run:{font:"Calibri",size:22}}}},
+      styles:{default:{document:{run:{font:"Arial",size:22}}}},
       sections:[{
-        properties:{
-          page:{margin:{top:1440,right:1080,bottom:1440,left:1440}},
-        },
+        ...sProps,
         children,
       }],
     });

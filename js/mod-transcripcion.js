@@ -1424,11 +1424,12 @@ async function f11DownloadWord(){
     const lib = await _f11LoadDocxLib();
     const { Document, Packer, Paragraph, TextRun, AlignmentType, Header, Footer, PageNumber, ImageRun, TabStopType, Tab } = lib;
 
-    /* Cargar logo UMAG */
+    /* Cargar logo UMAG — usa función centralizada si está disponible */
     let logoBuffer = null;
     try {
-      const logoResp = await fetch('/img/logo-umag.png');
-      if(logoResp.ok) logoBuffer = await logoResp.arrayBuffer();
+      logoBuffer = typeof getWordDocLogo === 'function'
+        ? await getWordDocLogo()
+        : await fetch('/img/logo-umag.png').then(r => r.ok ? r.arrayBuffer() : null);
     } catch(e){ console.warn('[F11] No se pudo cargar logo:', e); }
 
     const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';

@@ -42,6 +42,121 @@ const WORD_FORMAT = {
 };
 
 /* ══════════════════════════════════════════
+   LOGO Y HEADER CENTRALIZADO
+   ══════════════════════════════════════════ */
+
+/**
+ * Carga el logo UMAG. Intenta:
+ * 1. localStorage (subido por el usuario)
+ * 2. /img/logo-umag.png (archivo estático)
+ * Retorna ArrayBuffer o null.
+ */
+async function getWordDocLogo() {
+  /* 1. Intentar desde localStorage (data URL → ArrayBuffer) */
+  try {
+    const dataUrl = localStorage.getItem('fiscalito_logo');
+    if (dataUrl) {
+      const resp = await fetch(dataUrl);
+      if (resp.ok) return await resp.arrayBuffer();
+    }
+  } catch(e) { console.warn('[Logo] localStorage fallback:', e); }
+
+  /* 2. Intentar archivo estático */
+  try {
+    const resp = await fetch('/img/logo-umag.png');
+    if (resp.ok) return await resp.arrayBuffer();
+  } catch(e) { console.warn('[Logo] static file fallback:', e); }
+
+  return null;
+}
+
+/**
+ * Crea un Header para documentos Word con el logo UMAG a la izquierda
+ * y "Fiscalía Universitaria" alineado a la derecha.
+ * @param {Object} docxLib - Librería docx (window.docx)
+ * @param {ArrayBuffer|null} logoBuffer - Logo en ArrayBuffer
+ * @returns {Header} Header listo para usar en sections
+ */
+function makeWordDocHeader(docxLib, logoBuffer) {
+  const { Header, Paragraph, TextRun, ImageRun, AlignmentType, TabStopType, Tab } = docxLib;
+  const contentWidth = WORD_FORMAT.pageWidth - WORD_FORMAT.marginLeft - WORD_FORMAT.marginRight; // ~8838 DXA
+
+  if (logoBuffer) {
+    return new Header({
+      children: [new Paragraph({
+        tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
+        children: [
+          new ImageRun({
+            data: logoBuffer,
+            transformation: { width: 140, height: 29 },
+            type: 'png',
+            altText: { title: 'UMAG', description: 'Logo UMAG Fiscalía Universitaria', name: 'logo-umag' },
+          }),
+          new TextRun({ font: WORD_FORMAT.font, size: 16, children: [new Tab()] }),
+          new TextRun({ font: WORD_FORMAT.font, size: 16, color: '888888', text: 'Fiscalía Universitaria — UMAG' }),
+        ],
+      })],
+    });
+  }
+
+  /* Fallback sin imagen */
+  return new Header({
+    children: [new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      children: [new TextRun({
+        font: WORD_FORMAT.font, size: 16, color: '888888',
+        text: 'Universidad de Magallanes — Fiscalía Universitaria',
+      })],
+    })],
+  });
+}
+
+/**
+ * Crea el Footer estándar con número de página.
+ */
+function makeWordDocFooter(docxLib) {
+  const { Footer, Paragraph, TextRun, AlignmentType, PageNumber } = docxLib;
+  return new Footer({
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [
+        new TextRun({ text: 'Página ', font: WORD_FORMAT.font, size: 16, color: '999999' }),
+        new TextRun({ children: [PageNumber.CURRENT], font: WORD_FORMAT.font, size: 16, color: '999999' }),
+        new TextRun({ text: ' de ', font: WORD_FORMAT.font, size: 16, color: '999999' }),
+        new TextRun({ children: [PageNumber.TOTAL_PAGES], font: WORD_FORMAT.font, size: 16, color: '999999' }),
+      ],
+    })],
+  });
+}
+
+/**
+ * Retorna las propiedades de sección estándar (tamaño folio, márgenes, header con logo, footer).
+ */
+async function getWordSectionProps(docxLib) {
+  const logoBuffer = await getWordDocLogo();
+  return {
+    properties: {
+      page: {
+        size: { width: WORD_FORMAT.pageWidth, height: WORD_FORMAT.pageHeight },
+        margin: {
+          top: WORD_FORMAT.marginTop, bottom: WORD_FORMAT.marginBottom,
+          left: WORD_FORMAT.marginLeft, right: WORD_FORMAT.marginRight,
+        },
+      },
+    },
+    headers: { default: makeWordDocHeader(docxLib, logoBuffer) },
+    footers: { default: makeWordDocFooter(docxLib) },
+  };
+}
+
+/* Exportar funciones para uso desde otros módulos */
+window.getWordDocLogo = getWordDocLogo;
+window.makeWordDocHeader = makeWordDocHeader;
+window.makeWordDocFooter = makeWordDocFooter;
+window.getWordSectionProps = getWordSectionProps;
+window.WORD_FORMAT = WORD_FORMAT;
+
+/* ══════════════════════════════════════════
    HELPERS
    ══════════════════════════════════════════ */
 
@@ -149,7 +264,10 @@ async function exportActaToWord() {
   showToast('📄 Generando Word…');
   try {
     const d = await _waitDocx();
-    const { Document, Packer, Paragraph, TextRun, AlignmentType, Footer, PageNumber } = d;
+    const { Document, Packer, Paragraph, TextRun, AlignmentType } = d;
+
+    /* Cargar propiedades de sección con logo */
+    const sectionProps = await getWordSectionProps(d);
 
     const caseRef = transcripcion.linkedCase || (typeof currentCase !== 'undefined' ? currentCase : null);
     const mt = transcripcion.meta || {};
@@ -222,28 +340,7 @@ async function exportActaToWord() {
         },
       },
       sections: [{
-        properties: {
-          page: {
-            size: { width: WORD_FORMAT.pageWidth, height: WORD_FORMAT.pageHeight },
-            margin: {
-              top: WORD_FORMAT.marginTop, bottom: WORD_FORMAT.marginBottom,
-              left: WORD_FORMAT.marginLeft, right: WORD_FORMAT.marginRight,
-            },
-          },
-        },
-        footers: {
-          default: new Footer({
-            children: [new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({ text: 'Página ', font: WORD_FORMAT.font, size: 16, color: '999999' }),
-                new TextRun({ children: [PageNumber.CURRENT], font: WORD_FORMAT.font, size: 16, color: '999999' }),
-                new TextRun({ text: ' de ', font: WORD_FORMAT.font, size: 16, color: '999999' }),
-                new TextRun({ children: [PageNumber.TOTAL_PAGES], font: WORD_FORMAT.font, size: 16, color: '999999' }),
-              ],
-            })],
-          }),
-        },
+        ...sectionProps,
         children,
       }],
     });
@@ -274,7 +371,10 @@ async function exportVistaFiscalToWord(text, title) {
   showToast('📄 Generando Word…');
   try {
     const d = await _waitDocx();
-    const { Document, Packer, Paragraph, TextRun, AlignmentType, Footer, PageNumber } = d;
+    const { Document, Packer, Paragraph, TextRun, AlignmentType } = d;
+
+    /* Cargar propiedades de sección con logo */
+    const sectionProps = await getWordSectionProps(d);
 
     const caseRef = typeof currentCase !== 'undefined' ? currentCase : null;
     const docTitle = title || 'VISTA FISCAL';
@@ -328,28 +428,7 @@ async function exportVistaFiscalToWord(text, title) {
         },
       },
       sections: [{
-        properties: {
-          page: {
-            size: { width: WORD_FORMAT.pageWidth, height: WORD_FORMAT.pageHeight },
-            margin: {
-              top: WORD_FORMAT.marginTop, bottom: WORD_FORMAT.marginBottom,
-              left: WORD_FORMAT.marginLeft, right: WORD_FORMAT.marginRight,
-            },
-          },
-        },
-        footers: {
-          default: new Footer({
-            children: [new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({ text: 'Página ', font: WORD_FORMAT.font, size: 16, color: '999999' }),
-                new TextRun({ children: [PageNumber.CURRENT], font: WORD_FORMAT.font, size: 16, color: '999999' }),
-                new TextRun({ text: ' de ', font: WORD_FORMAT.font, size: 16, color: '999999' }),
-                new TextRun({ children: [PageNumber.TOTAL_PAGES], font: WORD_FORMAT.font, size: 16, color: '999999' }),
-              ],
-            })],
-          }),
-        },
+        ...sectionProps,
         children,
       }],
     });

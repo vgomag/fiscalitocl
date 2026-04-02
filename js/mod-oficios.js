@@ -859,26 +859,18 @@ window.exportOficioToWord = async function(buttonEl) {
       children: [new TextRun({ text: 'Universidad de Magallanes', font: 'Arial', size: 20, color: '444444' })],
     }));
 
+    /* Usar propiedades de sección centralizadas (logo + formato estándar) */
+    const sectionProps = typeof getWordSectionProps === 'function'
+      ? await getWordSectionProps(docxLib)
+      : {
+          properties: { page: { size: { width: 12240, height: 18720 }, margin: { top: 1440, bottom: 1440, left: 1701, right: 1701 } } },
+          footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Página ', font: 'Arial', size: 16, color: '999999' }), new TextRun({ children: [PageNumber.CURRENT], font: 'Arial', size: 16, color: '999999' })] })] }) },
+        };
+
     const doc = new Document({
       sections: [{
-        properties: {
-          page: {
-            size: { width: 12240, height: 18720 },
-            margin: { top: 1440, bottom: 1440, left: 1701, right: 1701 },
-          },
-        },
+        ...sectionProps,
         children: children,
-        footers: {
-          default: new Footer({
-            children: [new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({ text: 'Página ', font: 'Arial', size: 16, color: '999999' }),
-                new TextRun({ children: [PageNumber.CURRENT], font: 'Arial', size: 16, color: '999999' }),
-              ],
-            })],
-          }),
-        },
       }],
     });
 

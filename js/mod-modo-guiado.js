@@ -401,18 +401,27 @@ window.wizardSendToChat = function(){
     }
   }
 };
-window.wizardExportWord = function(){
+window.wizardExportWord = async function(){
   if(!wizardState.generatedDoc) return;
   if(typeof exportToWord === 'function'){
     exportToWord(wizardState.generatedDoc, (wizardState.template?.name || 'documento') + '.docx');
   } else if(typeof window.docx !== 'undefined'){
+    // Note: uses async for logo loading
     // Fallback: exportar con docx
     try {
       const { Document, Packer, Paragraph, TextRun } = window.docx;
       const paragraphs = wizardState.generatedDoc.split('\n').map(line =>
-        new Paragraph({ children: [new TextRun({ text: line, font: 'Arial', size: 24 })] })
+        new Paragraph({
+          alignment: window.docx.AlignmentType?.JUSTIFIED || 'both',
+          spacing: { line: 360 },
+          children: [new TextRun({ text: line, font: 'Arial', size: 22 })]
+        })
       );
-      const doc = new Document({ sections: [{ children: paragraphs }] });
+      /* Usar propiedades de sección con logo si están disponibles */
+      const sectionProps = typeof getWordSectionProps === 'function'
+        ? await getWordSectionProps(window.docx)
+        : { properties: { page: { size: { width: 12240, height: 18720 }, margin: { top: 1440, bottom: 1440, left: 1701, right: 1701 } } } };
+      const doc = new Document({ sections: [{ ...sectionProps, children: paragraphs }] });
       Packer.toBlob(doc).then(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
