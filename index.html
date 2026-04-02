@@ -1505,7 +1505,8 @@ async function initApp(){
 
 function buildFnList(){
   const list=document.getElementById('fnList');
-  list.innerHTML=FNS.map(fn=>{
+  /* F11 ya tiene su propio botón dedicado en el sidebar, no duplicar */
+  list.innerHTML=FNS.filter(fn=>fn.code!=='F11').map(fn=>{
     const panel=FN_PANELS[fn.code];
     const icon=panel?.icon||'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/></svg>';
     return `<div class="sidebar-nav-item" onclick="pickFnAndChat('${fn.code}')"><span class="nav-icon">${icon}</span>${fn.name}</div>`;
