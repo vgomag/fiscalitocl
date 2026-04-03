@@ -228,6 +228,8 @@ async function renderUsersTab(body) {
       sb.from('profiles').select('*').order('created_at'),
       sb.from('user_roles').select('*'),
     ]);
+    if(profilesRes.error) { console.error('Error loading profiles:', profilesRes.error); }
+    if(rolesRes.error) { console.error('Error loading roles:', rolesRes.error); }
     const profiles = profilesRes.data || [];
     const rolesMap = {};
     (rolesRes.data || []).forEach(r => { rolesMap[r.user_id] = r.role; });

@@ -63,10 +63,16 @@ async function ocrWithRetry(apiKey, base64Data, mimeType, fileName, maxRetries =
 }
 
 exports.handler = async (event) => {
+  const CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }, body: '' };
+    return { statusCode: 204, headers: CORS, body: '' };
   }
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const authToken = event.headers['x-auth-token'] || '';
   if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
@@ -86,9 +92,15 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { files, caseId } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return { statusCode: 413, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'Payload too large' }) };
+    }
+
+    const { files, caseId } = body;
     if (!files || !Array.isArray(files) || !files.length) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'files array requerido' }) };
+      return { statusCode: 400, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'files array requerido' }) };
     }
 
     // Limitar a 10 archivos por batch (timeout de Netlify)
@@ -148,7 +160,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
       body: JSON.stringify({
         results,
         caseId,
@@ -163,7 +175,7 @@ exports.handler = async (event) => {
     console.error('ocr-batch error:', err);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
       body: JSON.stringify({ error: err.message })
     };
   }

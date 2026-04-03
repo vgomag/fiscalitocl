@@ -90,16 +90,26 @@ async function extractTextViaClaude(apiKey, base64Data, mediaType) {
 
 /* ── Handler ── */
 export default async (req) => {
-  const headers = {
+  const CORS = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  if (req.method === 'OPTIONS') return new Response('', { headers });
+  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers: CORS });
+
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers: CORS });
+
+  const authToken = req.headers.get('x-auth-token') || '';
+  if (!authToken) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: CORS });
 
   try {
     const body = await req.json();
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: CORS });
+    }
     const { fileId } = body;
     if (!fileId) throw new Error('fileId is required');
 
@@ -132,9 +142,9 @@ export default async (req) => {
       text = await extractTextViaClaude(apiKey, base64Data, mediaType);
     }
 
-    return new Response(JSON.stringify({ success: true, text, fileName, mimeType: meta.mimeType, chars: text.length }), { headers });
+    return new Response(JSON.stringify({ success: true, text, fileName, mimeType: meta.mimeType, chars: text.length }), { headers: CORS });
   } catch (err) {
     console.error('drive-extract error:', err);
-    return new Response(JSON.stringify({ error: err.message, success: false }), { status: 400, headers });
+    return new Response(JSON.stringify({ error: err.message, success: false }), { status: 400, headers: CORS });
   }
 };

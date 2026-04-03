@@ -6,6 +6,9 @@
 (function(){
 "use strict";
 
+// ── Fallback para CHAT_ENDPOINT ────────────────────────────────────────────
+const _CHAT_EP = typeof CHAT_ENDPOINT !== 'undefined' ? CHAT_ENDPOINT : '/.netlify/functions/chat';
+
 // ── Secciones SES ──────────────────────────────────────────────────────────
 const SECCIONES=[
   {id:"politica_integral",num:1,label:"Política Integral (Art. 4 Ley 21.369)",icon:"📋",
@@ -807,7 +810,7 @@ ${secs.map(sec=>`${sec.num}) ${sec.label}: ${sec.cumple}/${sec.total} cumple, ${
     const _tout=setTimeout(()=>_ctrl.abort(),30000);
     try{
       const token=typeof session!=="undefined"?session?.access_token||"":"";
-      const res=await fetch(CHAT_ENDPOINT,{
+      const res=await fetch(_CHAT_EP,{
         method:"POST",
         headers:{"Content-Type":"application/json","x-auth-token":token},
         body:JSON.stringify(body),
@@ -874,7 +877,7 @@ Fecha: ${new Date().toLocaleDateString("es-CL",{year:"numeric",month:"long",day:
     const _tout=setTimeout(()=>_ctrl.abort(),60000);
     try{
       const token=typeof session!=="undefined"?session?.access_token||"":"";
-      const res=await fetch(CHAT_ENDPOINT,{
+      const res=await fetch(_CHAT_EP,{
         method:"POST",
         headers:{"Content-Type":"application/json","x-auth-token":token},
         body:JSON.stringify(body),

@@ -129,10 +129,16 @@ REGLAS:
 };
 
 exports.handler = async (event) => {
+  const CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }, body: '' };
+    return { statusCode: 204, headers: CORS, body: '' };
   }
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const authToken = event.headers['x-auth-token'] || '';
   if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
@@ -142,12 +148,17 @@ exports.handler = async (event) => {
 
   try {
     const data = JSON.parse(event.body);
+    const bodyStr = JSON.stringify(data);
+    if (bodyStr.length > 1000000) {
+      return { statusCode: 413, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'Payload too large' }) };
+    }
+
     const { mode } = data;
 
     if (!mode || !SYSTEM_PROMPTS[mode]) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json', ...CORS },
         body: JSON.stringify({ error: 'mode inválido. Use: sancion, sobreseimiento, art129' })
       };
     }
@@ -161,7 +172,7 @@ exports.handler = async (event) => {
     if (inputTokens > 30000) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json', ...CORS },
         body: JSON.stringify({ error: 'Contexto demasiado extenso. Reduzca la cantidad de diligencias.' })
       };
     }
@@ -171,7 +182,7 @@ exports.handler = async (event) => {
     if (res.error) {
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json', ...CORS },
         body: JSON.stringify({ error: res.error.message || 'Error de API' })
       };
     }
@@ -181,7 +192,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
       body: JSON.stringify({
         vista: generatedText,
         mode,
@@ -197,7 +208,7 @@ exports.handler = async (event) => {
     console.error('generate-vista error:', err);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
       body: JSON.stringify({ error: err.message })
     };
   }

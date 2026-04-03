@@ -1,16 +1,30 @@
 export default async (req) => {
+  const CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  if (req.method === 'OPTIONS') {
+    return new Response('', { status: 204, headers: CORS });
+  }
+
   if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers: { 'Content-Type': 'application/json', ...CORS } });
   }
 
   /* ── Verificar autenticación via Supabase token ── */
   const authToken = req.headers.get('x-auth-token') || '';
   if (!authToken) {
-    return json({ error: 'No autorizado — sesión requerida' }, 401);
+    return json({ error: 'No autorizado — sesión requerida' }, 401, CORS);
   }
 
   try {
     const body = await req.json();
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return json({ error: 'Payload too large' }, 413, CORS);
+    }
 
     /* ═══ MODO TRANSCRIPCIÓN ═══ */
     if (body.mode === 'transcribe') {
@@ -118,6 +132,7 @@ export default async (req) => {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
+          ...CORS
         },
       });
     }
@@ -134,14 +149,14 @@ export default async (req) => {
       }),
     });
     const data = await res.json();
-    return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS } });
   } catch (e) {
-    return json({ error: e.message }, 500);
+    return json({ error: e.message }, 500, CORS);
   }
 };
 
 function addField(p, b, n, v) { p.push(Buffer.from('--'+b+'\r\nContent-Disposition: form-data; name="'+n+'"\r\n\r\n'+v+'\r\n')); }
 function addFile(p, b, n, f, m, d) { p.push(Buffer.from('--'+b+'\r\nContent-Disposition: form-data; name="'+n+'"; filename="'+f+'"\r\nContent-Type: '+m+'\r\n\r\n')); p.push(d); p.push(Buffer.from('\r\n')); }
-function json(d, s) { return new Response(JSON.stringify(d), { status: s||200, headers: { 'Content-Type': 'application/json' } }); }
+function json(d, s, cors = {}) { return new Response(JSON.stringify(d), { status: s||200, headers: { 'Content-Type': 'application/json', ...cors } }); }
 
 export const config = { path: '/.netlify/functions/chat' };

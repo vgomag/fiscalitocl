@@ -128,11 +128,26 @@ exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+
+  const authToken = event.headers['x-auth-token'] || '';
+  if (!authToken) return { statusCode: 401, headers, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch (parseErr) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+    }
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return { statusCode: 413, headers, body: JSON.stringify({ error: 'Payload too large' }) };
+    }
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
     let sa;
@@ -142,12 +157,6 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY is malformed JSON' }) };
     }
     const token = await getAccessToken(sa);
-    let body;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch (parseErr) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
-    }
     const { action } = body;
 
     if (action === 'list') {

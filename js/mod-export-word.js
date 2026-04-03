@@ -255,6 +255,7 @@ function makeSignatureLine(name, role, docxLib) {
    EXPORTAR ACTA DE TRANSCRIPCIÓN
    ══════════════════════════════════════════ */
 async function exportActaToWord() {
+  if (typeof transcripcion === 'undefined' || !transcripcion) { showToast('⚠ Sin datos de transcripción'); return; }
   const text = transcripcion.structuredText || transcripcion.rawText;
   if (!text) { showToast('⚠ Sin texto para exportar'); return; }
 

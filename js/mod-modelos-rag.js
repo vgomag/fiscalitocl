@@ -95,16 +95,19 @@ async function loadRAGDocs() {
         .select('id, case_id, diligencia_label, diligencia_type, file_name, extracted_text, ai_summary, fecha_diligencia, created_at')
         .or('extracted_text.not.is.null,ai_summary.not.is.null')
         .order('created_at', { ascending: false })
-        .limit(200),
+        .limit(200)
+        .catch(e => ({data:null,error:e})),
       sb.from('resoluciones')
         .select('id, case_id, resolution_type, resolution_number, resolution_date, facts_description, notes, authority, fiscal_designado, created_at')
         .not('facts_description', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(100),
+        .limit(100)
+        .catch(e => ({data:null,error:e})),
       sb.from('cases')
         .select('id, name, rol, tipo_procedimiento, protocolo, materia, status, caratula')
         .is('deleted_at', null)
-        .order('updated_at', { ascending: false }),
+        .order('updated_at', { ascending: false })
+        .catch(e => ({data:null,error:e})),
     ]);
 
     rag.cases = casesRes.data || [];

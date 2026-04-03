@@ -8,6 +8,14 @@
  * Tabla: ley21369_ses_documents (Supabase)
  */
 
+const _authFetch = typeof authFetch === 'function' ? authFetch : async function(url, opts) {
+  if (typeof session !== 'undefined' && session?.access_token) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, { 'Authorization': 'Bearer ' + session.access_token });
+  }
+  return fetch(url, opts);
+};
+
 const SES_CATEGORIES=[
   {value:'directriz',label:'Directriz'},
   {value:'circular',label:'Circular'},
@@ -55,7 +63,7 @@ async function uploadSesDoc(file,category,description,docDate){
                       file.name.endsWith('.docx')?'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
                       mimeType;
 
-      const r=await authFetch(CHAT_ENDPOINT,{
+      const r=await _authFetch(CHAT_ENDPOINT,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -125,7 +133,7 @@ async function sendSesChat(quickQ){
   try{
     _sesState.chatHistory.push({role:'user',content:text});
 
-    const r=await authFetch(CHAT_ENDPOINT,{
+    const r=await _authFetch(CHAT_ENDPOINT,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({

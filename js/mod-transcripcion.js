@@ -40,6 +40,9 @@ const T_MIME = {
   wmv:'video/x-ms-wmv',flv:'video/x-flv',ts:'video/mp2t',mts:'video/mp2t',
 };
 
+/* ── Safe fallback para CHAT_ENDPOINT (global o local) ── */
+const _CHAT_EP = typeof CHAT_ENDPOINT !== 'undefined' ? CHAT_ENDPOINT : '/.netlify/functions/chat';
+
 /* ══════════════════ ESTADO ══════════════════ */
 let _f11AudioBlob = null;
 let _f11AudioUrl  = null;
@@ -223,26 +226,31 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
   let accumulated = '';
   let buffer = '';
 
-  while(true){
-    const { done, value } = await reader.read();
-    if(done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || ''; // guardar línea incompleta
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // guardar línea incompleta
 
-    for(const line of lines){
-      if(!line.startsWith('data: ')) continue;
-      const jsonStr = line.slice(6).trim();
-      if(jsonStr === '[DONE]') continue;
-      try {
-        const evt = JSON.parse(jsonStr);
-        if(evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta'){
-          accumulated += evt.delta.text;
-          if(onProgress) onProgress(accumulated);
-        }
-      } catch(e){ /* ignorar líneas no-JSON */ }
+      for(const line of lines){
+        if(!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if(jsonStr === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(jsonStr);
+          if(evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta'){
+            accumulated += evt.delta.text;
+            if(onProgress) onProgress(accumulated);
+          }
+        } catch(e){ /* ignorar líneas no-JSON */ }
+      }
     }
+  } catch(e){
+    console.error('Error reading SSE stream:', e);
+    throw new Error('Conexión interrumpida al procesar respuesta de IA: ' + (e.message || 'stream malformado'));
   }
 
   if(!accumulated.trim()) throw new Error('La IA no generó texto. Verifica que ANTHROPIC_API_KEY esté configurada en Netlify.');
@@ -636,7 +644,7 @@ async function f11HandleDocUpload(file){
         reader.onerror=rej;
         reader.readAsDataURL(file);
       });
-      const r = await authFetch(CHAT_ENDPOINT, {
+      const r = await authFetch(_CHAT_EP, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:4000,
@@ -819,13 +827,17 @@ async function f11StartRecording(){
   const icon = document.getElementById('f11RecordIcon');
   const label = document.getElementById('f11RecordLabel');
   const recBtn = document.getElementById('f11RecordBtn');
+  if(!icon || !label || !recBtn){
+    console.warn('[F11] Faltan elementos UI para grabación: icon='+!!icon+', label='+!!label+', btn='+!!recBtn);
+  }
   if(icon) icon.textContent = '🎤';
   if(label) label.textContent = 'Permiso…';
   if(recBtn){ recBtn.disabled = true; }
 
   try {
     /* ── Construir constraints con dispositivo seleccionado ── */
-    const selectedId = _f11SelectedDeviceId || (document.getElementById('f11AudioDevice')?.value) || '';
+    const deviceSelect = document.getElementById('f11AudioDevice');
+    const selectedId = _f11SelectedDeviceId || (deviceSelect?.value) || '';
     const audioConstraints = {
       echoCancellation: true,
       noiseSuppression: true,
@@ -846,7 +858,11 @@ async function f11StartRecording(){
     const trackLabel = activeTrack?.label || 'Desconocido';
     console.log('[F11] Grabando desde:', trackLabel);
     const devStatus = document.getElementById('f11DeviceStatus');
-    if(devStatus) devStatus.textContent = '🔴 Grabando desde: ' + trackLabel;
+    if(devStatus) {
+      devStatus.textContent = '🔴 Grabando desde: ' + trackLabel;
+    } else {
+      console.warn('[F11] Elemento f11DeviceStatus no encontrado');
+    }
 
     const chunks = [];
     const mimeOptions = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'];

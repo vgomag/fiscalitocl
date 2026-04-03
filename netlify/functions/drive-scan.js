@@ -117,11 +117,24 @@ exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,x-auth-token'
+    'Access-Control-Allow-Headers': 'Content-Type,x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+
+  const authToken = event.headers['x-auth-token'] || '';
+  if (!authToken) return { statusCode: 401, headers, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
+    let body = null;
+    if (event.body) {
+      body = JSON.parse(event.body);
+      const bodyStr = JSON.stringify(body);
+      if (bodyStr.length > 1000000) {
+        return { statusCode: 413, headers, body: JSON.stringify({ error: 'Payload too large' }) };
+      }
+    }
     const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const SB_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     const SA_KEY_STR = process.env.GOOGLE_SA_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -133,11 +146,8 @@ exports.handler = async (event) => {
 
     /* Parsear body si es POST manual */
     let targetCaseId = null;
-    if (event.body) {
-      try {
-        const body = JSON.parse(event.body);
-        targetCaseId = body.caseId || null;
-      } catch {}
+    if (body) {
+      targetCaseId = body.caseId || null;
     }
 
     /* Obtener token de Google */
