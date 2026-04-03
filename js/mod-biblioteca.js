@@ -1273,7 +1273,7 @@ async function sendBibChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens: 1500,
           system: `Eres Fiscalito, asistente jurídico de la Biblioteca de Referencia. Tienes acceso a los documentos de la biblioteca y a normativa de procedimientos disciplinarios. Responde con precisión, cita normas específicas y usa lenguaje institucional formal.
 
