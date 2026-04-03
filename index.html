@@ -3522,7 +3522,7 @@ async function saveResolucion(){
   const fiscal=document.getElementById('resFiscal').value.trim();
   const facts=document.getElementById('resFacts').value.trim();
   const notes=document.getElementById('resNotes').value.trim();
-  if(!number&&!facts){alert('Ingresa al menos el N° de resolución o una descripción.');return;}
+  if(!number&&!facts){showToast('⚠ Ingresa al menos el N° de resolución o una descripción.');return;}
   const{error}=await sb.from('resoluciones').insert({case_id:currentCase.id,user_id:session.user.id,resolution_type:type,resolution_number:number||null,resolution_date:date||null,authority:authority||null,fiscal_designado:fiscal||null,facts_description:facts||null,notes:notes||null});
   if(error)return showToast('⚠ Error: '+error.message);
   await loadResoluciones();showToast('✓ Resolución guardada');
@@ -3648,7 +3648,7 @@ async function editChecklistItem(id){
   document.getElementById('miniModalBody').innerHTML=`
     <div class="mini-field"><label>Descripción del paso</label><input id="mChkText" value="${esc(data.item_text||'')}" style="width:100%"/></div>`;
   window._miniModalSave=async()=>{
-    const text=document.getElementById('mChkText').value.trim();if(!text)return alert('La descripción es obligatoria.');
+    const text=document.getElementById('mChkText').value.trim();if(!text)return showToast('⚠ La descripción es obligatoria.');
     await sb.from('case_checklist_items').update({item_text:text,updated_at:new Date().toISOString()}).eq('id',id);
     closeMiniModal();await loadChecklist();showToast('✓ Paso actualizado');
   };
@@ -3667,7 +3667,7 @@ async function addChecklistItem(){
   document.getElementById('miniModalBody').innerHTML=`
     <div class="mini-field"><label>Descripción del paso</label><input id="mChkText" placeholder="Ej: Solicitar prueba pericial" style="width:100%"/></div>`;
   window._miniModalSave=async()=>{
-    const text=document.getElementById('mChkText').value.trim();if(!text)return alert('La descripción es obligatoria.');
+    const text=document.getElementById('mChkText').value.trim();if(!text)return showToast('⚠ La descripción es obligatoria.');
     const{data:{user}}=await sb.auth.getUser();
     await sb.from('case_checklist_items').insert({case_id:currentCase.id,user_id:user?.id,phase:'paso',item_text:text,item_order:nextOrder,is_completed:false});
     closeMiniModal();await loadChecklist();showToast('✓ Paso agregado');
@@ -3769,7 +3769,7 @@ async function addNewPendiente(prefillTitle,prefillDesc){
       <div class="mini-field"><label>Prioridad</label><select id="mPendPri"><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
     </div>`;
   window._miniModalSave=async()=>{
-    const title=document.getElementById('mPendTitle').value.trim();if(!title)return alert('El título es obligatorio.');
+    const title=document.getElementById('mPendTitle').value.trim();if(!title)return showToast('⚠ El título es obligatorio.');
     const{error}=await sb.from('acciones_pendientes').insert({case_id:currentCase.id,user_id:session.user.id,title,description:document.getElementById('mPendDesc').value.trim()||null,due_date:document.getElementById('mPendDate').value||null,priority:document.getElementById('mPendPri').value,status:'pendiente',source:prefillTitle?'chat':'manual'});
     if(error)return showToast('⚠ Error: '+error.message);
     closeMiniModal();await loadAcciones();showToast('✓ Pendiente creado');
@@ -3862,7 +3862,7 @@ async function addNewNota(prefillTitle,prefillContent){
     <div class="mini-field"><label>Título (opcional)</label><input id="mNotaTitle" placeholder="Ej: Observación declaración testigo" value="${esc(prefillTitle||'')}"/></div>
     <div class="mini-field"><label>Contenido</label><textarea id="mNotaContent" rows="6" placeholder="Escribe la nota…" style="min-height:120px">${esc(prefillContent||'')}</textarea></div>`;
   window._miniModalSave=async()=>{
-    const content=document.getElementById('mNotaContent').value.trim();if(!content)return alert('El contenido es obligatorio.');
+    const content=document.getElementById('mNotaContent').value.trim();if(!content)return showToast('⚠ El contenido es obligatorio.');
     const{error}=await sb.from('case_notes').insert({case_id:currentCase.id,user_id:session.user.id,title:document.getElementById('mNotaTitle').value.trim()||null,content,source:prefillContent?'chat':'manual'});
     if(error)return showToast('⚠ Error: '+error.message);
     closeMiniModal();await loadNotas();showToast('✓ Nota guardada');
@@ -3889,7 +3889,7 @@ async function addNewNotaWithSource(prefillTitle,prefillContent,source){
     </div>
     <div class="mini-field"><label>Contenido</label><textarea id="mNotaContent" rows="6" placeholder="Contenido de la nota…" style="min-height:120px">${esc(prefillContent||'')}</textarea></div>`;
   window._miniModalSave=async()=>{
-    const content=document.getElementById('mNotaContent').value.trim();if(!content)return alert('El contenido es obligatorio.');
+    const content=document.getElementById('mNotaContent').value.trim();if(!content)return showToast('⚠ El contenido es obligatorio.');
     const{error}=await sb.from('case_notes').insert({case_id:currentCase.id,user_id:session.user.id,title:document.getElementById('mNotaTitle').value.trim()||null,content,source:document.getElementById('mNotaSource').value});
     if(error)return showToast('⚠ Error: '+error.message);
     closeMiniModal();await loadNotas();showToast('✓ Nota guardada');
