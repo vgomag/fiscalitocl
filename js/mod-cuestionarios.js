@@ -543,7 +543,7 @@ function renderCuestionariosView(){
 
   el.innerHTML=`
     <div style="padding:14px 20px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
-      <div style="font-family:var(--font-serif);font-size:22px;font-weight:400">📋 Cuestionarios, Actas y Plantillas</div>
+      <div style="font-family:var(--font-serif);font-size:22px;font-weight:400">📋 Plantillas y Actas</div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Plantillas institucionales · Actas · Resoluciones de mero trámite · Consentimientos</div>
     </div>
 
