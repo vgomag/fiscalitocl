@@ -86,25 +86,39 @@ function sheetsRequest(method, path, token, body) {
 }
 
 /* ── CORS headers ── */
-const headers = {
+const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
 
 /* ── Handler ── */
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'POST only' }) };
+
+  const authToken = event.headers['x-auth-token'] || '';
+  if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-    if (!saJson) return { statusCode: 500, headers, body: JSON.stringify({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY no configurada' }) };
+    if (!saJson) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY no configurada' }) };
     const sa = JSON.parse(saJson);
     const token = await getAccessToken(sa);
 
-    const { action, spreadsheetId, sheetName, range, values, row } = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch (parseErr) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+    }
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return { statusCode: 413, headers: CORS, body: JSON.stringify({ error: 'Payload too large' }) };
+    }
+
+    const { action, spreadsheetId, sheetName, range, values, row } = body;
 
     if (!spreadsheetId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'spreadsheetId requerido' }) };
