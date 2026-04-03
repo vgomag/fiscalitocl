@@ -622,7 +622,7 @@ ${d.terminados.map(c=>`- ${c.nueva_resolucion||c.name} | Tipo: ${c.tipo_procedim
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
+          model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens:2000,
           system:`Eres Fiscalito, asistente de estadísticas de procedimientos disciplinarios de la Universidad de Magallanes.
 Tienes acceso a TODOS los datos de los casos del usuario. Responde con datos precisos, cifras exactas y análisis útil.

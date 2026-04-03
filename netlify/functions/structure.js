@@ -142,6 +142,23 @@ async function _checkRL(token, endpoint) {
   } catch (e) { return { allowed: true }; }
 }
 
+/**
+ * Structure — Estructuración de transcripciones en actas formales.
+ * Convierte transcripciones de audio en documentos jurídicos formateados.
+ * Soporta múltiples formatos: pregunta-respuesta, acta formal, relleno de plantilla.
+ *
+ * @route POST /.netlify/functions/structure
+ * @param {Object} body
+ * @param {string} body.rawText - Texto de la transcripción (max 14000 caracteres)
+ * @param {string} body.mode - 'pregunta_respuesta' | 'directa' | 'con_expediente' | 'fill_acta'
+ * @param {string} [body.caseContext] - Contexto adicional del caso (opcional)
+ * @param {string} [body.baseDocText] - Plantilla de acta base (para mode=fill_acta)
+ * @returns {Object}
+ *   {ok: true, structuredText: string, charCount: number}
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
+
 export default async (req) => {
   const CORS = {
     'Access-Control-Allow-Origin': '*',
