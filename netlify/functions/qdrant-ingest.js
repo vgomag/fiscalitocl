@@ -134,8 +134,12 @@ function md5uuid(str) {
 
 /* ── Handler ── */
 export default async (req) => {
-  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
-  if (req.method === 'OPTIONS') return new Response('', { headers });
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers });
+
+  const authToken = req.headers.get('x-auth-token') || '';
+  if (!authToken) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers });
 
   try {
     let body;
@@ -143,6 +147,10 @@ export default async (req) => {
       body = await req.json();
     } catch (parseErr) {
       return new Response(JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }), { status: 400, headers });
+    }
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers });
     }
     const { action } = body;
     let qdrantUrl = Netlify.env.get('QDRANT_URL');

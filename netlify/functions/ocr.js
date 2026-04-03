@@ -63,10 +63,11 @@ function callClaude(apiKey, model, system, userContent, maxTokens) {
 
 const SONNET = 'claude-sonnet-4-20250514';
 const HAIKU = 'claude-haiku-4-5-20251001';
-const H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,x-auth-token' };
+const H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: H, body: '' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: H, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: H, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -76,6 +77,10 @@ exports.handler = async (event) => {
       p = JSON.parse(event.body || '{}');
     } catch (parseErr) {
       return { statusCode: 400, headers: H, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+    }
+    const bodyStr = JSON.stringify(p);
+    if (bodyStr.length > 1000000) {
+      return { statusCode: 413, headers: H, body: JSON.stringify({ error: 'Payload too large' }) };
     }
     const action = p.action || 'extract';
 
