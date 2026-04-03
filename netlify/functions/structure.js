@@ -4,6 +4,9 @@
  * Netlify Functions v2 format (ESM).
  */
 
+/* ── Claude Model Constants ── */
+const MODEL_HAIKU = Netlify.env.get('CLAUDE_MODEL_HAIKU') || 'claude-haiku-4-5-20251001';
+
 const PROMPT_BASE = `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG).
 
 Instrucción de trabajo para incorporación de declaración transcrita al acta:
@@ -203,7 +206,7 @@ export default async (req) => {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: MODEL_HAIKU,
         max_tokens: maxTok,
         system: fullPrompt,
         messages: [{ role: 'user', content: userMsg }]

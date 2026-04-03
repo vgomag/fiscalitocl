@@ -8,13 +8,13 @@
  *   mode: "sancion" | "sobreseimiento" | "art129" (medida cautelar art 129)
  */
 const https = require('https');
-const { callAnthropic: _sharedCall } = require('./shared/anthropic');
+const { callAnthropic: _sharedCall, MODEL_SONNET } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 /* Wrapper que usa Sonnet con timeout largo para generación de vistas */
 function callAnthropic(apiKey, system, userMsg, maxTokens) {
   return _sharedCall(apiKey, system, userMsg, {
-    model: 'claude-sonnet-4-6', maxTokens: maxTokens || 8000, timeout: 55000
+    model: MODEL_SONNET, maxTokens: maxTokens || 8000, timeout: 55000
   });
 }
 
