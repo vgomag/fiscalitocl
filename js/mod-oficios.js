@@ -917,7 +917,7 @@ window.buildF12Chips = function() {
     'Comunicación de resultado',
     'Memo citación a declarar',
   ];
-  row.innerHTML = chips.map(c => `<button class="fn-chip" onclick="setFnQuery('${c}')">${c}</button>`).join('');
+  row.innerHTML = chips.map(c => `<button class="fn-chip" onclick="setFnQuery('${typeof esc==='function'?esc(c):c}')">${typeof esc==='function'?esc(c):c}</button>`).join('');
 };
 
 /* ══════════════════════════════════════════

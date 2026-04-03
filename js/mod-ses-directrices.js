@@ -157,7 +157,7 @@ ${docsContext||'No hay directrices cargadas aún.'}`,
     const typing=document.getElementById('sesTyping');if(typing)typing.remove();
 
     if(!r.ok){
-      msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ Error: ${r.status}</div>`;
+      msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ Error: ${typeof esc==='function'?esc(String(r.status)):r.status}</div>`;
       return;
     }
 
