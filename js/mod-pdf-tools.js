@@ -28,7 +28,7 @@ function loadPdfLib(){
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const h=t=>(t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const fmtSize=b=>{
+const pdfFmtSize=b=>{
   if(b<1024)return b+" B";
   if(b<1048576)return(b/1024).toFixed(1)+" KB";
   return(b/1048576).toFixed(2)+" MB";
@@ -84,7 +84,7 @@ const state={
 };
 
 // ── View Injection ──────────────────────────────────────────────────────────
-function ensureView(){
+function pdfEnsureView(){
   if(document.getElementById("viewPdfTools"))return;
   const v=document.createElement("div");
   v.className="view";v.id="viewPdfTools";
@@ -99,22 +99,22 @@ function ensureView(){
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
-const TABS=[
+const PDF_TABS=[
   {id:"compress",label:"📦 Comprimir"},
   {id:"split",label:"✂️ Dividir"},
   {id:"merge",label:"🔗 Fusionar"},
   {id:"ocr",label:"🔍 OCR"}
 ];
 
-function renderTabs(){
+function pdfRenderTabs(){
   const el=document.getElementById("pdfToolsTabs");if(!el)return;
-  el.innerHTML=TABS.map(t=>`<div class="pdft-tab${pdfToolTab===t.id?" active":""}" data-tab="${t.id}">${t.label}</div>`).join("");
+  el.innerHTML=PDF_TABS.map(t=>`<div class="pdft-tab${pdfToolTab===t.id?" active":""}" data-tab="${t.id}">${t.label}</div>`).join("");
   el.querySelectorAll(".pdft-tab").forEach(tab=>{
-    tab.onclick=()=>{pdfToolTab=tab.dataset.tab;renderTabs();renderBody()};
+    tab.onclick=()=>{pdfToolTab=tab.dataset.tab;pdfRenderTabs();pdfRenderBody()};
   });
 }
 
-function renderBody(){
+function pdfRenderBody(){
   const el=document.getElementById("pdfToolsBody");if(!el)return;
   const r={compress:renderCompress,split:renderSplit,merge:renderMerge,ocr:renderOcr};
   el.innerHTML=`<div class="pdft-card">${(r[pdfToolTab]||r.compress)()}</div>`;
@@ -125,15 +125,15 @@ function renderBody(){
 function renderCompress(){
   const s=state.compress;
   if(!s.file) return dropZone("compress","Arrastra un PDF aquí o haz clic para seleccionar","Solo archivos PDF · Máximo 300 MB · Compresión máxima");
-  let html=fileBar(s.file.name,fmtSize(s.file.size),"compress");
+  let html=fileBar(s.file.name,pdfFmtSize(s.file.size),"compress");
   if(!s.result&&!s.processing) html+=`<button class="pdft-btn pdft-btn-primary" style="width:100%" id="btnCompress">📦 Comprimir PDF</button>`;
   if(s.processing) html+=`<button class="pdft-btn" style="width:100%" disabled>⏳ Comprimiendo…</button>`;
   if(s.result){
     const red=Math.max(0,((s.result.originalSize-s.result.newSize)/s.result.originalSize)*100);
     html+=`<div class="pdft-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="color:#16a34a;font-weight:600">✓ Compresión completada</span></div>
       <div class="pdft-stats">
-        <div class="stat"><div class="val">${fmtSize(s.result.originalSize)}</div><div class="lbl">Original</div></div>
-        <div class="stat"><div class="val">${fmtSize(s.result.newSize)}</div><div class="lbl">Comprimido</div></div>
+        <div class="stat"><div class="val">${pdfFmtSize(s.result.originalSize)}</div><div class="lbl">Original</div></div>
+        <div class="stat"><div class="val">${pdfFmtSize(s.result.newSize)}</div><div class="lbl">Comprimido</div></div>
         <div class="stat"><div class="val">${red.toFixed(1)}%</div><div class="lbl">Reducción</div></div>
       </div>
       <button class="pdft-btn pdft-btn-primary" style="width:100%;margin-top:10px" id="btnDownloadCompress">⬇ Descargar PDF comprimido</button>
@@ -147,7 +147,7 @@ async function doCompress(){
   if(s.processing){showToast('⚠ Operación en curso');return}
   if(!s.file)return;
   if(s.file.size>314572800){showToast("El archivo supera los 300 MB","error");return}
-  s.processing=true;s.result=null;renderBody();
+  s.processing=true;s.result=null;pdfRenderBody();
   try{
     await loadPdfLib();
     const ab=await s.file.arrayBuffer();
@@ -223,9 +223,9 @@ async function doCompress(){
 
     s.result={blob:new Blob([bytes],{type:"application/pdf"}),originalSize:s.file.size,newSize:bytes.byteLength};
     const red=Math.max(0,((s.result.originalSize-s.result.newSize)/s.result.originalSize)*100);
-    showToast(`PDF comprimido: ${fmtSize(s.result.originalSize)} → ${fmtSize(s.result.newSize)} (−${red.toFixed(1)}%)`,"success");
+    showToast(`PDF comprimido: ${pdfFmtSize(s.result.originalSize)} → ${pdfFmtSize(s.result.newSize)} (−${red.toFixed(1)}%)`,"success");
   }catch(e){console.error(e);showToast("Error al comprimir: "+e.message,"error")}
-  s.processing=false;renderBody();
+  s.processing=false;pdfRenderBody();
 }
 
 // ── Split ───────────────────────────────────────────────────────────────────
@@ -259,7 +259,7 @@ async function doSplit(){
   const s=state.split;
   if(s.processing){showToast('⚠ Operación en curso');return}
   if(!s.file)return;
-  s.processing=true;s.results=[];renderBody();
+  s.processing=true;s.results=[];pdfRenderBody();
   try{
     await loadPdfLib();
     const ab=await s.file.arrayBuffer();
@@ -267,7 +267,7 @@ async function doSplit(){
     const base=s.file.name.replace(/\.pdf$/i,"");
     if(s.mode==="range"){
       const from=Math.max(1,s.rangeFrom),to=Math.min(s.pageCount,s.rangeTo);
-      if(from>to){showToast("Rango inválido","error");s.processing=false;renderBody();return}
+      if(from>to){showToast("Rango inválido","error");s.processing=false;pdfRenderBody();return}
       const nd=await PDFLib.PDFDocument.create();
       const pages=await nd.copyPages(src,Array.from({length:to-from+1},(_,i)=>from-1+i));
       pages.forEach(p=>nd.addPage(p));
@@ -283,7 +283,7 @@ async function doSplit(){
     }
     showToast("PDF dividido","success");
   }catch(e){console.error(e);showToast("Error al dividir","error")}
-  s.processing=false;renderBody();
+  s.processing=false;pdfRenderBody();
 }
 
 // ── Merge ───────────────────────────────────────────────────────────────────
@@ -318,14 +318,14 @@ async function addMergeFiles(fileList){
       state.merge.files.push({file:f,pageCount:doc.getPageCount()});
     }catch(e){showToast("No se pudo leer: "+f.name,"error")}
   }
-  state.merge.result=null;renderBody();
+  state.merge.result=null;pdfRenderBody();
 }
 
 async function doMerge(){
   const s=state.merge;
   if(s.processing){showToast('⚠ Operación en curso');return}
   if(s.files.length<2)return;
-  s.processing=true;s.result=null;renderBody();
+  s.processing=true;s.result=null;pdfRenderBody();
   try{
     await loadPdfLib();
     const merged=await PDFLib.PDFDocument.create();
@@ -339,14 +339,14 @@ async function doMerge(){
     s.result=new Blob([u8],{type:"application/pdf"});
     showToast("PDFs fusionados","success");
   }catch(e){console.error(e);showToast("Error al fusionar","error")}
-  s.processing=false;renderBody();
+  s.processing=false;pdfRenderBody();
 }
 
 // ── OCR ─────────────────────────────────────────────────────────────────────
 function renderOcr(){
   const s=state.ocr;
   if(!s.file) return dropZone("ocr","Arrastra un PDF escaneado aquí","Máximo 300 MB · El texto será extraído en el servidor mediante IA");
-  let html=fileBar(s.file.name,fmtSize(s.file.size),"ocr");
+  let html=fileBar(s.file.name,pdfFmtSize(s.file.size),"ocr");
   if(!s.text&&!s.processing) html+=`<button class="pdft-btn pdft-btn-primary" style="width:100%" id="btnOcr">🔍 Extraer texto con OCR</button>`;
   if(s.processing) html+=`<button class="pdft-btn" style="width:100%" disabled>⏳ Extrayendo texto (puede tardar)…</button>`;
   if(s.text){
@@ -366,7 +366,7 @@ async function doOcr(){
   const s=state.ocr;
   if(s.processing){showToast('⚠ Operación en curso');return}
   if(!s.file)return;
-  s.processing=true;s.text="";renderBody();
+  s.processing=true;s.text="";pdfRenderBody();
   try{
     /* Leer archivo como base64 */
     const ab=await s.file.arrayBuffer();
@@ -409,7 +409,7 @@ async function doOcr(){
     if(!text||text.length<10)showToast("No se pudo extraer texto","warning");
     else{s.text=text;showToast("Texto extraído ("+text.length.toLocaleString()+" chars)","success")}
   }catch(e){console.error(e);showToast(e.message||"Error OCR","error")}
-  s.processing=false;renderBody();
+  s.processing=false;pdfRenderBody();
 }
 
 // ── Shared UI Components ────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ function bindEvents(){
 
   // Split mode radio
   document.querySelectorAll('input[name="splitMode"]').forEach(r=>{
-    r.onchange=()=>{state.split.mode=r.value;renderBody()};
+    r.onchange=()=>{state.split.mode=r.value;pdfRenderBody()};
   });
   const sf=document.getElementById("splitFrom"),st=document.getElementById("splitTo");
   if(sf)sf.onchange=()=>{state.split.rangeFrom=parseInt(sf.value)||1};
@@ -489,7 +489,7 @@ async function handleFileSelect(tool,file){
     }catch(e){showToast("No se pudo leer el PDF","error");return}
   }
   else if(tool==="ocr"){state.ocr={file,processing:false,text:""}}
-  renderBody();
+  pdfRenderBody();
 }
 
 function downloadBlob(blobOrIdx,nameOrTool){
@@ -506,21 +506,21 @@ function downloadBlob(blobOrIdx,nameOrTool){
 // ── Public API ──────────────────────────────────────────────────────────────
 window._pdfTools={
   addMergeFiles:fl=>addMergeFiles(fl),
-  removeMergeFile:i=>{state.merge.files.splice(i,1);state.merge.result=null;renderBody()},
+  removeMergeFile:i=>{state.merge.files.splice(i,1);state.merge.result=null;pdfRenderBody()},
   clearTool:t=>{
     if(t==="compress")state.compress={file:null,processing:false,result:null};
     else if(t==="split")state.split={file:null,pageCount:0,mode:"range",rangeFrom:1,rangeTo:1,processing:false,results:[]};
     else if(t==="ocr")state.ocr={file:null,processing:false,text:""};
-    renderBody();
+    pdfRenderBody();
   },
   downloadBlob
 };
 
 window.openPdfTools=function(){
-  ensureView();
+  pdfEnsureView();
   if(typeof showView==="function")showView("viewPdfTools");
   loadPdfLib().catch(()=>{});
-  renderTabs();renderBody();
+  pdfRenderTabs();pdfRenderBody();
 };
 
 window.loadPdfLib=loadPdfLib;

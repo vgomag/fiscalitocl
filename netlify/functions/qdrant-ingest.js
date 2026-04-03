@@ -23,42 +23,60 @@ async function getGoogleAccessToken(sa) {
     .sign(sa.private_key, 'base64')
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-  const r = await fetch(sa.token_uri, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${header}.${payload}.${sig}`
-  });
-  const data = await r.json();
-  if (!data.access_token) throw new Error('Failed to get Google access token');
-  return data.access_token;
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(sa.token_uri, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${header}.${payload}.${sig}`,
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
+    const data = await r.json();
+    if (!data.access_token) throw new Error('Failed to get Google access token');
+    return data.access_token;
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
+  }
 }
 
 /* ── Google Embeddings (with retry + backoff) ── */
 async function getEmbedding(text, accessToken, maxRetries = 2) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-        body: JSON.stringify({
-          content: { parts: [{ text: text.substring(0, 4096) }] },
-          taskType: 'RETRIEVAL_DOCUMENT',
-          outputDimensionality: 768
-        })
-      });
-      if (r.ok) {
-        const data = await r.json();
-        return data?.embedding?.values || null;
+      const _ac = new AbortController();
+      const _to = setTimeout(() => _ac.abort(), 30000);
+      try {
+        const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            content: { parts: [{ text: text.substring(0, 4096) }] },
+            taskType: 'RETRIEVAL_DOCUMENT',
+            outputDimensionality: 768
+          }),
+          signal: _ac.signal
+        });
+        clearTimeout(_to);
+        if (r.ok) {
+          const data = await r.json();
+          return data?.embedding?.values || null;
+        }
+        /* Rate limit (429) or server error (5xx) → retry */
+        if ((r.status === 429 || r.status >= 500) && attempt < maxRetries) {
+          const wait = (attempt + 1) * 1500; // 1.5s, 3s
+          console.warn(`Embedding ${r.status}, retry ${attempt+1}/${maxRetries} in ${wait}ms`);
+          await new Promise(ok => setTimeout(ok, wait));
+          continue;
+        }
+        console.error('Embedding error:', r.status, await r.text().catch(() => ''));
+        return null;
+      } catch (fetchErr) {
+        clearTimeout(_to);
+        throw fetchErr;
       }
-      /* Rate limit (429) or server error (5xx) → retry */
-      if ((r.status === 429 || r.status >= 500) && attempt < maxRetries) {
-        const wait = (attempt + 1) * 1500; // 1.5s, 3s
-        console.warn(`Embedding ${r.status}, retry ${attempt+1}/${maxRetries} in ${wait}ms`);
-        await new Promise(ok => setTimeout(ok, wait));
-        continue;
-      }
-      console.error('Embedding error:', r.status, await r.text().catch(() => ''));
-      return null;
     } catch (e) {
       if (attempt < maxRetries) {
         await new Promise(ok => setTimeout(ok, (attempt + 1) * 1500));
@@ -77,10 +95,18 @@ async function qdrantFetch(qdrantUrl, qdrantKey, path, method, body) {
   if (qdrantKey) headers['api-key'] = qdrantKey;
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(`${qdrantUrl}${path}`, opts);
-  const text = await r.text();
-  try { return { ok: r.ok, status: r.status, data: JSON.parse(text) }; }
-  catch { return { ok: r.ok, status: r.status, data: text }; }
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(`${qdrantUrl}${path}`, { ...opts, signal: _ac.signal });
+    clearTimeout(_to);
+    const text = await r.text();
+    try { return { ok: r.ok, status: r.status, data: JSON.parse(text) }; }
+    catch { return { ok: r.ok, status: r.status, data: text }; }
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
+  }
 }
 
 async function ensureCollection(qdrantUrl, qdrantKey, name, vectorSize = 768) {
@@ -153,9 +179,9 @@ async function _checkRL(token, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) return { allowed: true };
+    if (!r.ok) return { allowed: false };
     return (await r.json()) || { allowed: true };
-  } catch (e) { return { allowed: true }; }
+  } catch (e) { return { allowed: false }; }
 }
 
 /**

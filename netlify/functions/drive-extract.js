@@ -26,69 +26,114 @@ async function getAccessToken(sa) {
     .sign(sa.private_key, 'base64')
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-  const r = await fetch(sa.token_uri, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${header}.${payload}.${sig}`
-  });
-  const data = await r.json();
-  if (!data.access_token) throw new Error('Failed to get Drive access token');
-  return data.access_token;
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(sa.token_uri, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${header}.${payload}.${sig}`,
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
+    const data = await r.json();
+    if (!data.access_token) throw new Error('Failed to get Drive access token');
+    return data.access_token;
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
+  }
 }
 
 /* ── Drive helpers ── */
 async function driveGetMeta(fileId, token) {
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  if (!r.ok) throw new Error(`Drive meta error: ${r.status}`);
-  return r.json();
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
+    if (!r.ok) throw new Error(`Drive meta error: ${r.status}`);
+    return r.json();
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
+  }
 }
 
 async function driveExportText(fileId, token) {
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  return r.ok ? r.text() : null;
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
+    return r.ok ? r.text() : null;
+  } catch (err) {
+    clearTimeout(_to);
+    return null;
+  }
 }
 
 async function driveDownloadBinary(fileId, token) {
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  if (!r.ok) throw new Error(`Drive download error: ${r.status}`);
-  return Buffer.from(await r.arrayBuffer());
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
+    if (!r.ok) throw new Error(`Drive download error: ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
+  }
 }
 
 /* ── Claude text extraction ── */
 async function extractTextViaClaude(apiKey, base64Data, mediaType) {
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: MODEL_SONNET,
-      max_tokens: 16000,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64Data } },
-          { type: 'text', text: 'Extrae el texto completo de este documento legal. Incluye TODO el contenido: titulos, parrafos, conclusiones, firmas. Responde SOLO con el texto extraido, sin comentarios. Manten la estructura del documento.' }
-        ]
-      }]
-    })
-  });
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: MODEL_SONNET,
+        max_tokens: 16000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64Data } },
+            { type: 'text', text: 'Extrae el texto completo de este documento legal. Incluye TODO el contenido: titulos, parrafos, conclusiones, firmas. Responde SOLO con el texto extraido, sin comentarios. Manten la estructura del documento.' }
+          ]
+        }]
+      }),
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
 
-  if (!r.ok) {
-    const errText = await r.text();
-    throw new Error(`Claude API error: ${r.status} - ${errText.substring(0, 200)}`);
+    if (!r.ok) {
+      const errText = await r.text();
+      throw new Error(`Claude API error: ${r.status} - ${errText.substring(0, 200)}`);
+    }
+
+    const data = await r.json();
+    return (data.content || []).map(b => b.text || '').join('');
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
   }
-
-  const data = await r.json();
-  return (data.content || []).map(b => b.text || '').join('');
 }
 
 /* ── Rate Limiting ── */
@@ -112,9 +157,9 @@ async function _checkRL(token, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) return { allowed: true };
+    if (!r.ok) return { allowed: false };
     return (await r.json()) || { allowed: true };
-  } catch (e) { return { allowed: true }; }
+  } catch (e) { return { allowed: false }; }
 }
 
 /**

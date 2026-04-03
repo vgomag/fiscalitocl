@@ -2,7 +2,7 @@
  * SHARED/RATE-LIMIT.JS — Rate Limiting para funciones Netlify (CJS)
  * ─────────────────────────────────────────────────────────────────
  * Usa Supabase RPC (check_rate_limit) para persistencia.
- * Fail-open: si Supabase no responde, permite la solicitud.
+ * Fail-closed: si Supabase no responde, rechaza la solicitud.
  *
  * Límites por endpoint (requests/hora):
  *   chat:60  ocr:30  ocr-batch:15  qdrant-ingest:30  rag:60
@@ -51,11 +51,11 @@ async function checkRateLimit(userId, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) { console.warn('[rate-limit] RPC error:', r.status); return fallback; }
+    if (!r.ok) { console.warn('[rate-limit] RPC error:', r.status); return { allowed: false, remaining: 0, current: maxReq, limit: maxReq, reset_at: '' }; }
     return (await r.json()) || fallback;
   } catch (err) {
     console.warn('[rate-limit] Error:', err.message);
-    return fallback;
+    return { allowed: false, remaining: 0, current: maxReq, limit: maxReq, reset_at: '' };
   }
 }
 

@@ -24,31 +24,49 @@ async function getGoogleAccessToken(sa) {
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
   const jwt = `${header}.${payload}.${sig}`;
-  const r = await fetch(sa.token_uri, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
-  });
-  const data = await r.json();
-  if (!data.access_token) throw new Error('Failed to get Google access token');
-  return data.access_token;
+  const _ac = new AbortController();
+  const _to = setTimeout(() => _ac.abort(), 30000);
+  try {
+    const r = await fetch(sa.token_uri, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+      signal: _ac.signal
+    });
+    clearTimeout(_to);
+    const data = await r.json();
+    if (!data.access_token) throw new Error('Failed to get Google access token');
+    return data.access_token;
+  } catch (err) {
+    clearTimeout(_to);
+    throw err;
+  }
 }
 
 /* ── Embeddings via Google gemini-embedding-001 (768 dims) ── */
 async function getEmbedding(text, accessToken) {
   try {
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-      body: JSON.stringify({
-        content: { parts: [{ text: text.substring(0, 4096) }] },
-        taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: 768
-      })
-    });
-    if (!r.ok) { console.error('Embedding error:', r.status, await r.text()); return null; }
-    const data = await r.json();
-    return data?.embedding?.values || null;
+    const _ac = new AbortController();
+    const _to = setTimeout(() => _ac.abort(), 30000);
+    try {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          content: { parts: [{ text: text.substring(0, 4096) }] },
+          taskType: 'RETRIEVAL_QUERY',
+          outputDimensionality: 768
+        }),
+        signal: _ac.signal
+      });
+      clearTimeout(_to);
+      if (!r.ok) { console.error('Embedding error:', r.status, await r.text()); return null; }
+      const data = await r.json();
+      return data?.embedding?.values || null;
+    } catch (fetchErr) {
+      clearTimeout(_to);
+      throw fetchErr;
+    }
   } catch (e) { console.error('Embedding exception:', e); return null; }
 }
 
@@ -58,20 +76,29 @@ async function searchQdrant(vector, collection, qdrantUrl, qdrantKey, limit = 4)
     const headers = { 'Content-Type': 'application/json' };
     if (qdrantKey) headers['api-key'] = qdrantKey;
 
-    const r = await fetch(`${qdrantUrl}/collections/${collection}/points/search`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ vector, limit, with_payload: true })
-    });
+    const _ac = new AbortController();
+    const _to = setTimeout(() => _ac.abort(), 30000);
+    try {
+      const r = await fetch(`${qdrantUrl}/collections/${collection}/points/search`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ vector, limit, with_payload: true }),
+        signal: _ac.signal
+      });
+      clearTimeout(_to);
 
-    if (!r.ok) { console.warn(`Qdrant search ${collection}: ${r.status}`); return []; }
+      if (!r.ok) { console.warn(`Qdrant search ${collection}: ${r.status}`); return []; }
 
-    const data = await r.json();
-    return (data.result || []).map(p => ({
-      score: p.score,
-      text: p.payload?.text || p.payload?.content || '',
-      source: p.payload?.source_name || p.payload?.source || collection,
-      collection
-    }));
+      const data = await r.json();
+      return (data.result || []).map(p => ({
+        score: p.score,
+        text: p.payload?.text || p.payload?.content || '',
+        source: p.payload?.source_name || p.payload?.source || collection,
+        collection
+      }));
+    } catch (fetchErr) {
+      clearTimeout(_to);
+      throw fetchErr;
+    }
   } catch (e) {
     console.warn(`Qdrant search error (${collection}):`, e.message);
     return [];
@@ -127,9 +154,9 @@ async function _checkRL(token, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) return { allowed: true };
+    if (!r.ok) return { allowed: false };
     return (await r.json()) || { allowed: true };
-  } catch (e) { return { allowed: true }; }
+  } catch (e) { return { allowed: false }; }
 }
 
 /**

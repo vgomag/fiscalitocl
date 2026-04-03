@@ -22,24 +22,50 @@ async function getAccessToken(sa) {
     .sign(sa.private_key, 'base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${header}.${payload}.${sig}`;
   return new Promise((resolve, reject) => {
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request('https://oauth2.googleapis.com/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) }
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d).access_token); } catch (e) { reject(new Error('Token error')); } });
-    }); req.on('error', reject); req.write(body); req.end();
+    });
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Token request timeout'));
+    });
+    req.write(body);
+    req.end();
   });
 }
 
 function driveDownload(fileId, token) {
   return new Promise((resolve, reject) => {
-    https.get(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-      headers: { Authorization: 'Bearer ' + token }
+    const _to = setTimeout(() => req.destroy(), 30000);
+    const req = https.get(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: 'Bearer ' + token },
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       const chunks = [];
       res.on('data', d => chunks.push(d));
       res.on('end', () => resolve({ status: res.statusCode, data: Buffer.concat(chunks) }));
-    }).on('error', reject);
+    });
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Drive download timeout'));
+    });
   });
 }
 

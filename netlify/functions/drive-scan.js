@@ -37,17 +37,28 @@ function getGoogleToken(saKey){
     const jwt = signInput + '.' + signature;
 
     const body = `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`;
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body)}
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body)},
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => {
         try { resolve(JSON.parse(d).access_token); }
         catch(e) { reject(new Error('Google token parse error')); }
       });
     });
-    req.on('error', reject);
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Token request timeout'));
+    });
     req.write(body);
     req.end();
   });
@@ -59,12 +70,15 @@ function listDriveFolder(folderId, token){
     const fields = encodeURIComponent('files(id,name,mimeType,modifiedTime,webViewLink,createdTime)');
     const url = `/drive/v3/files?q=${q}&fields=${fields}&pageSize=200`;
 
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request({
       hostname: 'www.googleapis.com',
       path: url,
       method: 'GET',
-      headers: {'Authorization': 'Bearer ' + token}
+      headers: {'Authorization': 'Bearer ' + token},
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => {
         try {
@@ -73,7 +87,15 @@ function listDriveFolder(folderId, token){
         } catch(e) { reject(new Error('Drive list parse error')); }
       });
     });
-    req.on('error', reject);
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Drive list request timeout'));
+    });
     req.end();
   });
 }
@@ -93,19 +115,30 @@ function supabaseFetch(url, serviceKey, path, method, body){
     if(reqBody) headers['Content-Length'] = Buffer.byteLength(reqBody);
 
     const parsed = new URL(url + '/rest/v1/' + path);
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request({
       hostname: parsed.hostname,
       path: parsed.pathname + parsed.search,
       method: method || 'GET',
-      headers
+      headers,
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => {
         try { resolve(JSON.parse(d || '[]')); }
         catch { resolve(d); }
       });
     });
-    req.on('error', reject);
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Supabase request timeout'));
+    });
     if(reqBody) req.write(reqBody);
     req.end();
   });

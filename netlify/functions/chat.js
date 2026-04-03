@@ -22,9 +22,9 @@ async function _checkRL(token, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) return { allowed: true };
+    if (!r.ok) return { allowed: false };
     return (await r.json()) || { allowed: true };
-  } catch (e) { return { allowed: true }; }
+  } catch (e) { return { allowed: false }; }
 }
 
 /**
@@ -98,9 +98,17 @@ export default async (req) => {
         audioBytes = Buffer.from(audioBase64, 'base64');
       } else if (signedUrl) {
         try {
-          const dlResp = await fetch(signedUrl);
-          if (!dlResp.ok) throw new Error('HTTP ' + dlResp.status);
-          audioBytes = Buffer.from(await dlResp.arrayBuffer());
+          const _ac = new AbortController();
+          const _to = setTimeout(() => _ac.abort(), 30000);
+          try {
+            const dlResp = await fetch(signedUrl, { signal: _ac.signal });
+            clearTimeout(_to);
+            if (!dlResp.ok) throw new Error('HTTP ' + dlResp.status);
+            audioBytes = Buffer.from(await dlResp.arrayBuffer());
+          } catch (fetchErr) {
+            clearTimeout(_to);
+            throw fetchErr;
+          }
         } catch (e) {
           return json({ error: 'Error descargando audio: ' + e.message }, 400);
         }
@@ -115,11 +123,20 @@ export default async (req) => {
           const dlBearer = sbServiceKey || authToken;
           if (!dlKey) throw new Error('No Supabase key available');
           const dlUrl = `${sbUrl}/storage/v1/object/authenticated/${storageBucket}/${storagePath}`;
-          const dlResp = await fetch(dlUrl, {
-            headers: { 'Authorization': 'Bearer ' + dlBearer, 'apikey': dlKey }
-          });
-          if (!dlResp.ok) throw new Error('Storage download HTTP ' + dlResp.status);
-          audioBytes = Buffer.from(await dlResp.arrayBuffer());
+          const _ac = new AbortController();
+          const _to = setTimeout(() => _ac.abort(), 30000);
+          try {
+            const dlResp = await fetch(dlUrl, {
+              headers: { 'Authorization': 'Bearer ' + dlBearer, 'apikey': dlKey },
+              signal: _ac.signal
+            });
+            clearTimeout(_to);
+            if (!dlResp.ok) throw new Error('Storage download HTTP ' + dlResp.status);
+            audioBytes = Buffer.from(await dlResp.arrayBuffer());
+          } catch (fetchErr) {
+            clearTimeout(_to);
+            throw fetchErr;
+          }
         } catch (e) {
           return json({ error: 'Error descargando audio de Storage: ' + e.message }, 400);
         }
@@ -137,10 +154,18 @@ export default async (req) => {
           addField(parts, boundary, 'response_format', 'text');
           addFile(parts, boundary, 'file', fileName || 'audio.wav', mimeType || 'audio/wav', audioBytes);
           parts.push(Buffer.from('--' + boundary + '--\r\n'));
-          const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST', headers: { 'Authorization': 'Bearer ' + openaiKey, 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body: Buffer.concat(parts)
-          });
-          if (r.ok) { transcript = await r.text(); provider = 'whisper'; }
+          const _ac = new AbortController();
+          const _to = setTimeout(() => _ac.abort(), 30000);
+          try {
+            const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+              method: 'POST', headers: { 'Authorization': 'Bearer ' + openaiKey, 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body: Buffer.concat(parts), signal: _ac.signal
+            });
+            clearTimeout(_to);
+            if (r.ok) { transcript = await r.text(); provider = 'whisper'; }
+          } catch (fetchErr) {
+            clearTimeout(_to);
+            throw fetchErr;
+          }
         } catch (e) { console.log('Whisper:', e.message); }
       }
       if (elevenKey && !transcript) {
@@ -151,10 +176,18 @@ export default async (req) => {
           addField(parts, boundary, 'language_code', 'spa');
           addFile(parts, boundary, 'file', fileName || 'audio.wav', mimeType || 'audio/wav', audioBytes);
           parts.push(Buffer.from('--' + boundary + '--\r\n'));
-          const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
-            method: 'POST', headers: { 'xi-api-key': elevenKey, 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body: Buffer.concat(parts)
-          });
-          if (r.ok) { const d = await r.json(); transcript = d.text || ''; provider = 'elevenlabs'; }
+          const _ac = new AbortController();
+          const _to = setTimeout(() => _ac.abort(), 30000);
+          try {
+            const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+              method: 'POST', headers: { 'xi-api-key': elevenKey, 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body: Buffer.concat(parts), signal: _ac.signal
+            });
+            clearTimeout(_to);
+            if (r.ok) { const d = await r.json(); transcript = d.text || ''; provider = 'elevenlabs'; }
+          } catch (fetchErr) {
+            clearTimeout(_to);
+            throw fetchErr;
+          }
         } catch (e) { console.log('ElevenLabs:', e.message); }
       }
       if (!transcript) return json({ error: 'Transcripción falló' }, 500);

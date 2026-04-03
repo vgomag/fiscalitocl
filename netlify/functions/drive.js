@@ -22,28 +22,53 @@ async function getAccessToken(sa) {
   const jwt = header+'.'+payload+'.'+sig;
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
   return new Promise((resolve, reject) => {
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: {'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)}
+      headers: {'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d).access_token); } catch(e) { reject(new Error('Token error: '+d)); } });
     });
-    req.on('error', reject); req.write(body); req.end();
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Token request timeout'));
+    });
+    req.write(body);
+    req.end();
   });
 }
 
 function driveGet(path, token) {
   return new Promise((resolve, reject) => {
-    https.get('https://www.googleapis.com' + path, {
-      headers: { Authorization: 'Bearer ' + token }
+    const _to = setTimeout(() => req.destroy(), 30000);
+    const req = https.get('https://www.googleapis.com' + path, {
+      headers: { Authorization: 'Bearer ' + token },
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => {
         try { resolve({ status: res.statusCode, data: res.statusCode < 300 ? JSON.parse(d) : d }); }
         catch(e) { resolve({ status: res.statusCode, data: d }); }
       });
-    }).on('error', reject);
+    });
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Drive GET request timeout'));
+    });
   });
 }
 
@@ -51,25 +76,49 @@ function driveGet(path, token) {
    For binary files (PDF, images), use driveDownloadBinary() instead. */
 function driveDownload(path, token) {
   return new Promise((resolve, reject) => {
-    https.get('https://www.googleapis.com' + path, {
-      headers: { Authorization: 'Bearer ' + token }
+    const _to = setTimeout(() => req.destroy(), 30000);
+    const req = https.get('https://www.googleapis.com' + path, {
+      headers: { Authorization: 'Bearer ' + token },
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => resolve({ status: res.statusCode, data: d }));
-    }).on('error', reject);
+    });
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Drive download request timeout'));
+    });
   });
 }
 
 /* Download binary file as Buffer (for PDFs, images, etc.) */
 function driveDownloadBinary(path, token) {
   return new Promise((resolve, reject) => {
-    https.get('https://www.googleapis.com' + path, {
-      headers: { Authorization: 'Bearer ' + token }
+    const _to = setTimeout(() => req.destroy(), 30000);
+    const req = https.get('https://www.googleapis.com' + path, {
+      headers: { Authorization: 'Bearer ' + token },
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => resolve({ status: res.statusCode, data: Buffer.concat(chunks) }));
-    }).on('error', reject);
+    });
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Drive binary download request timeout'));
+    });
   });
 }
 

@@ -141,9 +141,9 @@ async function _checkRL(token, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) return { allowed: true };
+    if (!r.ok) return { allowed: false };
     return (await r.json()) || { allowed: true };
-  } catch (e) { return { allowed: true }; }
+  } catch (e) { return { allowed: false }; }
 }
 
 /**

@@ -37,10 +37,13 @@ async function getAccessToken(sa) {
   const jwt = header + '.' + payload + '.' + sig;
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
   return new Promise((resolve, reject) => {
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+      timeout: 30000
     }, (res) => {
+      clearTimeout(_to);
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
@@ -51,7 +54,15 @@ async function getAccessToken(sa) {
         } catch (e) { reject(new Error('Token parse error: ' + d)); }
       });
     });
-    req.on('error', reject);
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Token request timeout'));
+    });
     req.write(body);
     req.end();
   });
@@ -71,8 +82,11 @@ function sheetsRequest(method, path, token, body) {
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json',
       },
+      timeout: 30000
     };
+    const _to = setTimeout(() => req.destroy(), 30000);
     const req = https.request(options, (res) => {
+      clearTimeout(_to);
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
@@ -80,7 +94,15 @@ function sheetsRequest(method, path, token, body) {
         catch (e) { resolve({ status: res.statusCode, data: d }); }
       });
     });
-    req.on('error', reject);
+    req.on('error', (e) => {
+      clearTimeout(_to);
+      reject(e);
+    });
+    req.on('timeout', () => {
+      clearTimeout(_to);
+      req.destroy();
+      reject(new Error('Sheets request timeout'));
+    });
     if (body) req.write(JSON.stringify(body));
     req.end();
   });
