@@ -391,7 +391,7 @@ async function doOcr(){
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",
+        model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : "claude-sonnet-4-20250514",
         max_tokens:16000,
         system:"Eres un extractor de texto. Extrae TODO el texto del documento. Mantén estructura, encabezados y párrafos. Responde SOLO con el texto extraído, sin comentarios.",
         messages:[{role:"user",content:[
