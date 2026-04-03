@@ -630,8 +630,8 @@ async function f11HandleDocUpload(file){
   if(!ok){ showToast('⚠ Solo se aceptan TXT, PDF o Word'); return; }
 
   _f11DocFile = file;
-  document.getElementById('f11DocName').textContent = file.name;
-  document.getElementById('f11DocClearBtn').style.display = 'inline-block';
+  const _dn=document.getElementById('f11DocName');if(_dn)_dn.textContent = file.name;
+  const _dc=document.getElementById('f11DocClearBtn');if(_dc)_dc.style.display = 'inline-block';
   const preview = document.getElementById('f11DocPreview');
 
   try {
@@ -676,9 +676,9 @@ async function f11HandleDocUpload(file){
 function f11ClearDoc(){
   _f11DocFile = null;
   _f11DocText = '';
-  document.getElementById('f11DocName').textContent = 'Seleccionar archivo de preguntas…';
-  document.getElementById('f11DocClearBtn').style.display = 'none';
-  document.getElementById('f11DocPreview').style.display = 'none';
+  const _dn=document.getElementById('f11DocName');if(_dn)_dn.textContent = 'Seleccionar archivo de preguntas…';
+  const _dc=document.getElementById('f11DocClearBtn');if(_dc)_dc.style.display = 'none';
+  const _dp=document.getElementById('f11DocPreview');if(_dp)_dp.style.display = 'none';
 }
 
 /* ══════════════════ AUDIO UPLOAD ══════════════════ */
@@ -1043,9 +1043,9 @@ async function f11Paso1_Transcribir(){
     bar.style.background = 'var(--green)';
     status.textContent = '✅ Transcripción completada — texto crudo guardado';
 
-    document.getElementById('f11RawResult').value = _f11RawText;
-    document.getElementById('f11RawResultSection').style.display = 'block';
-    document.getElementById('f11Step2Section').style.display = 'block';
+    const _rr=document.getElementById('f11RawResult');if(_rr)_rr.value = _f11RawText;
+    const _rs=document.getElementById('f11RawResultSection');if(_rs)_rs.style.display = 'block';
+    const _s2=document.getElementById('f11Step2Section');if(_s2)_s2.style.display = 'block';
 
     _f11UpdateSteps();
     showToast('✅ Paso 1 completado: transcripción cruda guardada');
@@ -1152,9 +1152,9 @@ async function f11Paso2_Editar(){
     bar.style.background = 'var(--green)';
     status.textContent = `✅ Texto refundido generado (${resultText.length} caracteres)`;
 
-    document.getElementById('f11EditedResult').value = _f11EditedText;
-    document.getElementById('f11EditedResultSection').style.display = 'block';
-    document.getElementById('f11Step3Section').style.display = 'block';
+    const _er=document.getElementById('f11EditedResult');if(_er)_er.value = _f11EditedText;
+    const _es=document.getElementById('f11EditedResultSection');if(_es)_es.style.display = 'block';
+    const _s3=document.getElementById('f11Step3Section');if(_s3)_s3.style.display = 'block';
 
     _f11UpdateSteps();
     showToast('✅ Paso 2 completado: texto refundido listo');

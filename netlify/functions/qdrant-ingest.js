@@ -144,11 +144,15 @@ async function _checkRL(token, endpoint) {
     const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
     const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
     if (!sbUrl || !sbKey) return { allowed: true };
+    const _ac = new AbortController();
+    const _to = setTimeout(() => _ac.abort(), 10000);
     const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
       body: JSON.stringify({ p_user_id: uid, p_endpoint: endpoint, p_max_requests: _RL_LIMITS[endpoint] || 60, p_window_minutes: 60 }),
+      signal: _ac.signal,
     });
+    clearTimeout(_to);
     if (!r.ok) return { allowed: true };
     return (await r.json()) || { allowed: true };
   } catch (e) { return { allowed: true }; }
