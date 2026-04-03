@@ -285,6 +285,18 @@ async function adminChangeRole(userId, newRole) {
   const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
   if (!sb) return;
   try {
+    // Validar que no se cambie el propio rol
+    const { data: { user } } = await sb.auth.getUser();
+    if (user && user.id === userId) {
+      showToast('⚠ No puedes cambiar tu propio rol');
+      loadAdminData(); // Re-render para restaurar select
+      return;
+    }
+    // Validar rol válido
+    if (!ROLE_CONFIG[newRole]) {
+      showToast('⚠ Rol no válido');
+      return;
+    }
     const { error } = await sb.from('user_roles').upsert(
       { user_id: userId, role: newRole },
       { onConflict: 'user_id' }
@@ -309,7 +321,7 @@ async function renderUsageTab(body) {
         .select('user_id, fn_code, logged_at')
         .gte('logged_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
         .order('logged_at', { ascending: false }),
-      sb.from('profiles').select('user_id, id, email, full_name'),
+      sb.from('profiles').select('id, email, full_name'),
       sb.from('user_roles').select('user_id, role'),
     ]);
 
@@ -320,7 +332,7 @@ async function renderUsageTab(body) {
 
     // Mapear perfiles
     const profileMap = {};
-    profiles.forEach(p => { profileMap[p.user_id || p.id] = p; });
+    profiles.forEach(p => { profileMap[p.id] = p; });
 
     // Agrupar por usuario
     const byUser = {};

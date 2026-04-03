@@ -232,7 +232,9 @@
     if (_isSessionError(error)) {
       console.warn("[Seguridad] Error de sesión detectado, intentando refresh…");
       try {
-        const { data, error: refreshError } = await sb.auth.refreshSession();
+        const _sb = typeof supabaseClient !== 'undefined' ? supabaseClient : (typeof sb !== 'undefined' ? sb : null);
+        if (!_sb) return false;
+        const { data, error: refreshError } = await _sb.auth.refreshSession();
         if (refreshError || !data.session) {
           console.error("[Seguridad] Refresh fallido, cerrando sesión");
           window.dispatchEvent(new CustomEvent("supabase:session-expired"));
@@ -253,27 +255,15 @@
     if (typeof showToast === "function") {
       showToast("Sesión expirada. Por favor inicia sesión nuevamente.", "warning");
     }
+    const _sb = typeof supabaseClient !== 'undefined' ? supabaseClient : (typeof sb !== 'undefined' ? sb : null);
     setTimeout(() => {
-      if (typeof sb !== "undefined") {
-        sb.auth.signOut().then(() => location.reload());
+      if (_sb) {
+        _sb.auth.signOut().then(() => location.reload());
       } else {
         location.reload();
       }
     }, 2000);
   });
-
-  // Vigilar estado de autenticación
-  if (typeof sb !== "undefined") {
-    sb.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-        console.log(`[Seguridad] Auth event: ${event}`);
-      }
-      if (event === "SIGNED_OUT") {
-        // Limpiar cualquier dato en memoria
-        window._securityCache = {};
-      }
-    });
-  }
 
   // ============================================================================
   // SECCIÓN 5: LOGGING DE AUDITORÍA (cliente → BD vía RPC)
@@ -285,9 +275,10 @@
    * @param {object} opts - { table_name, record_id, case_id, accessed_fields, metadata }
    */
   window.logAuditEvent = async function (action, opts = {}) {
-    if (typeof sb === "undefined") return;
+    const _sb = typeof supabaseClient !== 'undefined' ? supabaseClient : (typeof sb !== 'undefined' ? sb : null);
+    if (!_sb) return;
     try {
-      await sb.rpc("log_audit_event", {
+      await _sb.rpc("log_audit_event", {
         p_action: action,
         p_table_name: opts.table_name || null,
         p_record_id: opts.record_id || null,
@@ -300,15 +291,20 @@
     }
   };
 
-  // Log automático al iniciar sesión
-  if (typeof sb !== "undefined") {
-    sb.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
-        window.logAuditEvent("login", { metadata: { method: "email" } });
-      } else if (event === "SIGNED_OUT") {
-        window.logAuditEvent("logout");
-      }
-    });
+  // Vigilar estado de autenticación (listener unificado)
+  {
+    const _sb = typeof supabaseClient !== 'undefined' ? supabaseClient : (typeof sb !== 'undefined' ? sb : null);
+    if (_sb) {
+      _sb.auth.onAuthStateChange((event) => {
+        console.log(`[Seguridad] Auth event: ${event}`);
+        if (event === "SIGNED_IN") {
+          window.logAuditEvent("login", { metadata: { method: "email" } });
+        } else if (event === "SIGNED_OUT") {
+          window._securityCache = {};
+          window.logAuditEvent("logout");
+        }
+      });
+    }
   }
 
   // ============================================================================
@@ -542,7 +538,7 @@
     csp.httpEquiv = "Content-Security-Policy";
     csp.content = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.supabase.co",
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.supabase.co",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",

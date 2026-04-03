@@ -86,7 +86,7 @@ async function openShareCaseModal(caseId){
     for(const uid of uids){
       try{
         /* Buscar en auth.users no es posible desde client, usar perfil o caso */
-        const{data:prof}=await sb.from('user_profiles').select('email,full_name').eq('id',uid).maybeSingle();
+        const{data:prof}=await sb.from('profiles').select('email,full_name').eq('id',uid).maybeSingle();
         if(prof)userEmails[uid]=prof;
       }catch(e){}
     }
@@ -176,11 +176,11 @@ async function inviteUserToCase(caseId){
   if(email===session.user.email){showToast('⚠️ No puedes compartir contigo mismo');return;}
 
   try{
-    /* Buscar usuario por email en auth.users via RPC o user_profiles */
+    /* Buscar usuario por email en auth.users via RPC o profiles */
     let targetUserId=null;
 
-    /* Intentar buscar en user_profiles */
-    const{data:prof}=await sb.from('user_profiles').select('id').eq('email',email).maybeSingle();
+    /* Intentar buscar en profiles */
+    const{data:prof}=await sb.from('profiles').select('id').eq('email',email).maybeSingle();
     if(prof){
       targetUserId=prof.id;
     } else {
@@ -255,7 +255,7 @@ async function openShareLeyModal(){
   if(shares?.length){
     for(const s of shares){
       try{
-        const{data:prof}=await sb.from('user_profiles').select('email,full_name').eq('id',s.user_id).maybeSingle();
+        const{data:prof}=await sb.from('profiles').select('email,full_name').eq('id',s.user_id).maybeSingle();
         if(prof)userEmails[s.user_id]=prof;
       }catch(e){}
     }
@@ -333,7 +333,7 @@ async function inviteUserToLey(){
 
   try{
     let targetUserId=null;
-    const{data:prof}=await sb.from('user_profiles').select('id').eq('email',email).maybeSingle();
+    const{data:prof}=await sb.from('profiles').select('id').eq('email',email).maybeSingle();
     if(prof)targetUserId=prof.id;
     else{
       const{data:authUser}=await sb.rpc('get_user_id_by_email',{email_input:email}).catch(()=>({data:null}));
@@ -395,7 +395,7 @@ async function renderCaseCollaborators(caseId){
     const r=SHARE_ROLES[s.role]||SHARE_ROLES.consultor;
     let name='';
     try{
-      const{data:prof}=await sb.from('user_profiles').select('email,full_name').eq('id',s.user_id).maybeSingle();
+      const{data:prof}=await sb.from('profiles').select('email,full_name').eq('id',s.user_id).maybeSingle();
       name=prof?.full_name||prof?.email?.split('@')[0]||'Usuario';
     }catch(e){name='Usuario';}
 
@@ -456,7 +456,7 @@ async function applyCasePermissions(){
 }
 
 /* ═══════════════════════════════════════
-   TABLA user_profiles: crear si no existe
+   TABLA profiles: crear si no existe
    Necesaria para buscar usuarios por email
    ═══════════════════════════════════════ */
 
@@ -468,9 +468,9 @@ async function ensureUserProfile(){
   const name=session.user.user_metadata?.full_name||session.user.user_metadata?.name||email?.split('@')[0]||'';
 
   try{
-    const{data}=await sb.from('user_profiles').select('id').eq('id',uid).maybeSingle();
+    const{data}=await sb.from('profiles').select('id').eq('id',uid).maybeSingle();
     if(!data){
-      await sb.from('user_profiles').insert({
+      await sb.from('profiles').insert({
         id:uid,
         email:email,
         full_name:name
