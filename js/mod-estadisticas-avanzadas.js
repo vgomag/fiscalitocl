@@ -47,7 +47,7 @@
   /* ── Patchear vista de estadísticas para agregar tab avanzado ── */
   function injectAdvancedTab(){
     // Buscar el contenedor de tabs del dashboard
-    const statsTabs = document.querySelector('#viewStats .tabs, #viewStats [class*="stat-tabs"]');
+    const statsTabs = document.querySelector('#viewDashboard .tabs, #viewDashboard [class*="stat-tabs"]');
     if(!statsTabs || statsTabs.querySelector('[data-tab="tabStatsAvanzado"]')) return false;
 
     // Agregar tab
