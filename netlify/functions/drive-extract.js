@@ -5,6 +5,9 @@
  */
 import { createSign } from 'node:crypto';
 
+/* ── Claude Model Constants ── */
+const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
+
 /* ── Google OAuth2 for Drive ── */
 function base64url(str) {
   return Buffer.from(str).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -67,7 +70,7 @@ async function extractTextViaClaude(apiKey, base64Data, mediaType) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: MODEL_SONNET,
       max_tokens: 16000,
       messages: [{
         role: 'user',

@@ -94,6 +94,27 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
+/**
+ * Sheets — Operaciones con Google Sheets para numeración y referencias documentales.
+ * Lectura, escritura y actualización de hojas de cálculo compartidas.
+ *
+ * @route POST /.netlify/functions/sheets
+ * @param {Object} body
+ * @param {string} body.action - 'info' | 'read' | 'append' | 'update'
+ * @param {string} body.spreadsheetId - ID del Google Sheet
+ * @param {string} [body.sheetName] - Nombre de la hoja (default: Sheet1)
+ * @param {string} [body.range] - Rango a leer/escribir (ej: 'A1:C10')
+ * @param {Array<string>} [body.row] - Fila a agregar (para append)
+ * @param {Array<Array<string>>} [body.values] - Valores a actualizar (para update)
+ * @returns {Object}
+ *   - info: {ok:true, title:string, sheets:Array}
+ *   - read: {ok:true, range:string, values:Array, rowCount:number}
+ *   - append: {ok:true, updatedRange:string, updatedRows:number}
+ *   - update: {ok:true, updatedRange:string, updatedCells:number}
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
+
 /* ── Handler ── */
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
