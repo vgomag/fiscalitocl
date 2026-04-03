@@ -114,6 +114,29 @@ function supabaseFetch(url, serviceKey, path, method, body){
 /* ══════════════════════════════════
    HANDLER
    ══════════════════════════════════ */
+
+/**
+ * Drive Scan — Escaneo automático de carpetas Drive y sincronización con Supabase.
+ * Detecta archivos nuevos y crea registros de diligencias.
+ * Puede ejecutarse como función programada (cron) o POST manual.
+ *
+ * @route POST /.netlify/functions/drive-scan
+ * @param {Object} [body]
+ * @param {string} [body.caseId] - ID específico de caso a escanear (opcional)
+ * @returns {Object}
+ *   {
+ *     ok: true,
+ *     scanned: number,
+ *     totalNewFiles: number,
+ *     results: Array<{
+ *       caseId, caseName, driveFiles, newFiles, imported,
+ *       error? (si falló)
+ *     }>
+ *   }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 30 req/hora por usuario
+ * @scheduled Puede ejecutarse cada 15 minutos vía cron de Netlify
+ */
 exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
