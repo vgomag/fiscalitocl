@@ -615,36 +615,43 @@ ${d.terminados.map(c=>`- ${c.nueva_resolucion||c.name} | Tipo: ${c.tipo_procedim
 
   try{
     _statsChatHistory.push({role:'user',content:text});
-    const r=await authFetch(CHAT_ENDPOINT,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:2000,
-        system:`Eres Fiscalito, asistente de estadísticas de procedimientos disciplinarios de la Universidad de Magallanes.
+    const _ctrl=new AbortController();
+    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    try{
+      const r=await authFetch(CHAT_ENDPOINT,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:2000,
+          system:`Eres Fiscalito, asistente de estadísticas de procedimientos disciplinarios de la Universidad de Magallanes.
 Tienes acceso a TODOS los datos de los casos del usuario. Responde con datos precisos, cifras exactas y análisis útil.
 Usa tablas cuando sea apropiado. Sé conciso pero completo.
 Si te piden datos que no están en el contexto, indícalo.
 
 ${dataSummary}`,
-        messages:_statsChatHistory.slice(-10)
-      })
-    });
+          messages:_statsChatHistory.slice(-10)
+        }),
+        signal:_ctrl.signal
+      });
 
-    const typing=document.getElementById('statsChatTyping');
-    if(typing)typing.remove();
+      const typing=document.getElementById('statsChatTyping');
+      if(typing)typing.remove();
 
-    if(!r.ok){
-      msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ Error: ${r.status}</div>`;
-      return;
+      if(!r.ok){
+        msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ Error: ${r.status}</div>`;
+        return;
+      }
+      const data=await r.json();
+      const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin respuesta.';
+      _statsChatHistory.push({role:'assistant',content:reply});
+
+      msgs.innerHTML+=`<div style="align-self:flex-start;background:var(--surface2);border:1px solid var(--border);padding:10px 14px;border-radius:2px 12px 12px 12px;max-width:90%;font-size:12px;line-height:1.6">${md(reply)}</div>`;
+      msgs.scrollTop=msgs.scrollHeight;
+
+    }finally{
+      clearTimeout(_tout);
     }
-    const data=await r.json();
-    const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin respuesta.';
-    _statsChatHistory.push({role:'assistant',content:reply});
-
-    msgs.innerHTML+=`<div style="align-self:flex-start;background:var(--surface2);border:1px solid var(--border);padding:10px 14px;border-radius:2px 12px 12px 12px;max-width:90%;font-size:12px;line-height:1.6">${md(reply)}</div>`;
-    msgs.scrollTop=msgs.scrollHeight;
-
   }catch(err){
     const typing=document.getElementById('statsChatTyping');if(typing)typing.remove();
     msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ ${err.message}</div>`;
