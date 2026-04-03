@@ -105,6 +105,10 @@ function switchBibTab(tab) {
     const m = onclick.match(/switchBibTab\('([^']+)'\)/);
     if (m) t.classList.toggle('active', m[1] === tab);
   });
+  // Cargar docs RAG al cambiar a esa pestaña
+  if (tab === 'modelos' && typeof loadRAGDocs === 'function' && typeof rag !== 'undefined' && !rag.docs.length && !rag.loading) {
+    loadRAGDocs();
+  }
 }
 
 function renderBibTabBody() {

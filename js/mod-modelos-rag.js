@@ -687,60 +687,53 @@ function sendRAGToChat() {
 }
 
 /* ────────────────────────────────────────────────────────
-   VISTA HTML + INYECCIÓN
+   RENDER EMBEBIDO EN BIBLIOTECA
+   Se llama desde mod-biblioteca.js → renderBibModelosRAG()
    ──────────────────────────────────────────────────────── */
-(function injectRAGView() {
-  if (document.getElementById('viewModelosRAG')) return;
-  const view = document.createElement('div');
-  view.id = 'viewModelosRAG';
-  view.className = 'view';
-  view.style.cssText = 'flex-direction:column;overflow:hidden;';
-  view.innerHTML = `
-    <div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between">
-      <div>
-        <div style="font-family:var(--font-serif,'EB Garamond',serif);font-size:21px;font-weight:400">📄 Modelos Documentales</div>
-        <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">
-          Genera documentos basados exclusivamente en tus propias resoluciones, informes y vistas fiscales
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:10px;background:rgba(5,150,105,.1);border:1px solid rgba(5,150,105,.25);color:var(--green);padding:2px 9px;border-radius:8px;font-weight:500">🔒 Fuente única — sin conocimiento externo</span>
-        <button class="btn-sm" style="font-size:10.5px" onclick="loadRAGDocs()">↺ Recargar</button>
+function renderRAGEmbedded() {
+  // Lanzar carga si no se ha hecho
+  if (!rag.docs.length && !rag.loading) { loadRAGDocs(); }
+
+  if (rag.loading) {
+    return '<div class="loading" style="padding:40px">Cargando documentos modelo…</div>';
+  }
+
+  return `
+  <div style="padding:8px 14px 6px;display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text)">📄 Modelos Documentales</div>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">
+        Genera documentos basados exclusivamente en tus propias resoluciones, informes y vistas fiscales
       </div>
     </div>
-    <div id="ragMain" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0">
-      <div class="loading">Cargando documentos…</div>
-    </div>`;
-  const welcome = document.getElementById('viewWelcome');
-  if (welcome) welcome.parentNode.insertBefore(view, welcome);
-  else document.querySelector('.main')?.appendChild(view);
-})();
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:10px;background:rgba(5,150,105,.1);border:1px solid rgba(5,150,105,.25);color:var(--green);padding:2px 9px;border-radius:8px;font-weight:500">🔒 Fuente única</span>
+      <button class="btn-sm" style="font-size:10.5px" onclick="loadRAGDocs()">↺ Recargar</button>
+    </div>
+  </div>
+  <div id="ragMain" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0">
+    <div class="rag-layout">
+      <div class="rag-left">${renderRAGCatalog()}</div>
+      <div class="rag-right">${renderRAGGenerator()}</div>
+    </div>
+  </div>`;
+}
 
-/* ────────────────────────────────────────────────────────
-   ITEM EN SIDEBAR (se inyecta bajo Plantillas)
-   ──────────────────────────────────────────────────────── */
-(function injectRAGSidebarItem() {
-  if (document.getElementById('ragSidebarItem')) return;
-  // Anclar después de Párrafos Tipo (Plantillas Personalizadas fue eliminado)
-  const parrafos = [...document.querySelectorAll('.sidebar-nav-item')]
-    .find(el => el.getAttribute('onclick')?.includes("openBiblioteca('parrafos')"));
-  if (!parrafos) return;
-  const item = document.createElement('div');
-  item.id = 'ragSidebarItem';
-  item.className = 'sidebar-nav-item';
-  item.setAttribute('onclick', 'openModelosRAG()');
-  item.innerHTML = `
-    <span class="nav-icon">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/>
-        <polyline points="9,2 9,6 13,6"/>
-        <line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="7.5" y2="12"/>
-        <circle cx="12" cy="12" r="2.5" fill="var(--gold)" stroke="none"/>
-        <text x="11.2" y="13" fill="white" font-size="3.5" font-family="sans-serif">⚡</text>
-      </svg>
-    </span>Modelos RAG`;
-  parrafos.insertAdjacentElement('afterend', item);
-})();
+/* Mantener compatibilidad: renderRAGView ahora actualiza dentro de Biblioteca */
+const _origRenderRAGView = renderRAGView;
+renderRAGView = function() {
+  // Si estamos embebidos en Biblioteca, re-render el tab body
+  if (typeof biblioteca !== 'undefined' && biblioteca.activeTab === 'modelos') {
+    const body = document.getElementById('bibBody');
+    if (body) { body.innerHTML = renderBibModelosRAG ? renderBibModelosRAG() : renderRAGEmbedded(); return; }
+  }
+  // Fallback al ragMain standalone (por si acaso)
+  const main = document.getElementById('ragMain');
+  if (main) {
+    if (rag.loading) { main.innerHTML = '<div class="loading" style="padding:40px">Cargando documentos modelo…</div>'; return; }
+    main.innerHTML = `<div class="rag-layout"><div class="rag-left">${renderRAGCatalog()}</div><div class="rag-right">${renderRAGGenerator()}</div></div>`;
+  }
+};
 
 /* ────────────────────────────────────────────────────────
    CSS

@@ -688,8 +688,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
       </div>
     </div>
 
-    <!-- BIBLIOTECA DE REFERENCIA VIEW -->
+    <!-- BIBLIOTECA VIEW (unificada) -->
     <div class="view" id="viewBiblioteca" style="flex-direction:column;overflow:hidden;">
+      <div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
+        <div style="font-family:var(--font-serif);font-size:22px;font-weight:400;color:var(--text)">Biblioteca</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Libros · Normas · Normativa Interna · Párrafos Tipo · Modelos RAG · Chat IA</div>
+      </div>
       <div id="bibliotecaContainer" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
         <div class="loading">Cargando biblioteca…</div>
       </div>
