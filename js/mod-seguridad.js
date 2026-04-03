@@ -157,6 +157,11 @@
     return `${local.slice(0, 2)}***${domain}`;
   };
 
+  /** Determina si los datos PII deben enmascararse (admin viendo datos ajenos) */
+  window.shouldMaskData = function (isAdmin, isOwner) {
+    return isAdmin && !isOwner;
+  };
+
   // ============================================================================
   // SECCIÓN 3: SANITIZADOR PII (para indexación RAG / Qdrant)
   // ============================================================================
@@ -217,6 +222,7 @@
 
   const _isSessionError = (error) => {
     if (!error) return false;
+    if (error?.code === "PGRST303") return true;
     const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
     return (
       msg.includes("jwt expired") ||
