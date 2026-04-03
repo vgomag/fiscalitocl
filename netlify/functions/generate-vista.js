@@ -165,10 +165,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const authToken = event.headers['x-auth-token'] || '';
-  if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
+  if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: 'API key no configurada' }) };
+  if (!apiKey) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'API key no configurada' }) };
 
   try {
     const userId = extractUserIdFromToken(authToken);

@@ -99,7 +99,7 @@ async function driveDownloadBinary(fileId, token) {
 /* ── Claude text extraction ── */
 async function extractTextViaClaude(apiKey, base64Data, mediaType) {
   const _ac = new AbortController();
-  const _to = setTimeout(() => _ac.abort(), 30000);
+  const _to = setTimeout(() => _ac.abort(), 55000);
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

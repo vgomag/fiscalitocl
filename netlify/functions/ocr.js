@@ -90,10 +90,10 @@ function driveText(path, token) {
 function callClaude(apiKey, model, system, userContent, maxTokens) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ model, max_tokens: maxTokens || 4000, system, messages: [{ role: 'user', content: userContent }] });
-    const _to = setTimeout(() => req.destroy(), 30000);
+    const _to = setTimeout(() => req.destroy(), 55000);
     const req = https.request('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      timeout: 30000
+      timeout: 55000
     }, (res) => {
       clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);

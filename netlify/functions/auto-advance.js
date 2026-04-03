@@ -142,7 +142,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const authToken = event.headers['x-auth-token'] || '';
-  if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
+  if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
     const userId = extractUserIdFromToken(authToken);
@@ -159,7 +159,7 @@ exports.handler = async (event) => {
 
     if (action === 'analyze' || action === 'advance') {
       /* ── Analizar un caso individual ── */
-      if (!caseId) return { statusCode: 400, body: JSON.stringify({ error: 'caseId requerido' }) };
+      if (!caseId) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'caseId requerido' }) };
 
       // Obtener textos de las diligencias (pasados desde frontend o extraídos)
       const texts = (diligencias || []).map(d => d.extracted_text || d.ai_summary || '').filter(Boolean);
@@ -218,7 +218,7 @@ Responde SOLO con un JSON: {"stage":"nombre_etapa","confidence":"alta|media|baja
     if (action === 'batch-autofill') {
       /* ── Batch: extraer metadata para múltiples casos ── */
       const ids = caseIds || [];
-      if (!ids.length) return { statusCode: 400, body: JSON.stringify({ error: 'caseIds requerido' }) };
+      if (!ids.length) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'caseIds requerido' }) };
 
       const results = ids.map(id => {
         const caseDiligencias = (diligencias || []).filter(d => d.case_id === id);
@@ -238,7 +238,7 @@ Responde SOLO con un JSON: {"stage":"nombre_etapa","confidence":"alta|media|baja
       };
     }
 
-    return { statusCode: 400, body: JSON.stringify({ error: 'action inválida. Use: analyze, advance, batch-autofill' }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'action inválida. Use: analyze, advance, batch-autofill' }) };
 
   } catch (err) {
     console.error('auto-advance error:', err);

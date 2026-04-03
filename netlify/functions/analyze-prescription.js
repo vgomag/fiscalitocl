@@ -348,7 +348,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   const authToken = event.headers['x-auth-token'] || '';
-  if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
+  if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
     const userId = extractUserIdFromToken(authToken);
@@ -358,17 +358,13 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body);
     const bodyStr = JSON.stringify(body);
     if (bodyStr.length > 1000000) {
-      return { statusCode: 413, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Payload too large' }) };
+      return { statusCode: 413, headers: CORS, body: JSON.stringify({ error: 'Payload too large' }) };
     }
 
     const { caseId, caseData, diligencias, etapas, includeAI } = body;
 
     if (!caseId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ error: 'caseId requerido' })
-      };
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'caseId requerido' }) };
     }
 
     // Análisis determinístico (siempre)
