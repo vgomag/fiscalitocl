@@ -654,7 +654,7 @@ ${dataSummary}`,
     }
   }catch(err){
     const typing=document.getElementById('statsChatTyping');if(typing)typing.remove();
-    msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ ${err.message}</div>`;
+    msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
 }
 
