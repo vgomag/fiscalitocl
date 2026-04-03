@@ -215,20 +215,31 @@ export default async (req) => {
                  : mode === 'directa' ? 7000
                  : 5000;
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: MODEL_HAIKU,
-        max_tokens: maxTok,
-        system: fullPrompt,
-        messages: [{ role: 'user', content: userMsg }]
-      })
-    });
+    const _ac = new AbortController();
+    const _to = setTimeout(() => _ac.abort(), 55000);
+    let res;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: MODEL_HAIKU,
+          max_tokens: maxTok,
+          system: fullPrompt,
+          messages: [{ role: 'user', content: userMsg }]
+        }),
+        signal: _ac.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(_to);
+      const msg = fetchErr.name === 'AbortError' ? 'Timeout (55s)' : fetchErr.message;
+      return json({ error: msg }, 504, CORS);
+    }
+    clearTimeout(_to);
 
     if (!res.ok) {
       const errText = await res.text();
