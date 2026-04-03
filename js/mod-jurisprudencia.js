@@ -173,7 +173,7 @@ async function _juriStreamGenerate({ systemPrompt, userMsg, maxTokens, onProgres
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
       max_tokens: maxTokens || 4000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMsg }]
