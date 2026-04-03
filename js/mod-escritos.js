@@ -173,7 +173,7 @@ REQUISITOS:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens: 4000,
           system: `Eres Fiscalito, asistente jurídico especializado en escritos judiciales chilenos. Generas documentos formales completos con estructura procesal correcta, citas normativas precisas y lenguaje institucional formal. Tus escritos son listos para revisión del abogado.`,
           messages: [{ role: 'user', content: prompt }]
