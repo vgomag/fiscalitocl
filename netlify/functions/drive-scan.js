@@ -10,6 +10,7 @@
  */
 const https = require('https');
 const crypto = require('crypto');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 /* ══════════════════════════════════
    GOOGLE DRIVE AUTH (Service Account)
@@ -135,6 +136,10 @@ exports.handler = async (event) => {
         return { statusCode: 413, headers, body: JSON.stringify({ error: 'Payload too large' }) };
       }
     }
+
+    const userId = extractUserIdFromToken(authToken);
+    const rl = await checkRateLimit(userId, 'drive-scan');
+    if (!rl.allowed) return rateLimitResponse(rl, headers);
     const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const SB_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     const SA_KEY_STR = process.env.GOOGLE_SA_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY;

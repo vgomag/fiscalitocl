@@ -7,6 +7,7 @@
  */
 const crypto = require('crypto');
 const https = require('https');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 function base64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -82,6 +83,12 @@ exports.handler = async (event) => {
     if (bodyStr.length > 1000000) {
       return { statusCode: 413, headers: H, body: JSON.stringify({ error: 'Payload too large' }) };
     }
+
+    const authToken = event.headers['x-auth-token'] || '';
+    const userId = extractUserIdFromToken(authToken);
+    const rl = await checkRateLimit(userId, 'ocr');
+    if (!rl.allowed) return rateLimitResponse(rl, H);
+
     const action = p.action || 'extract';
 
     /* ═══════════════════════════════════════════════════════

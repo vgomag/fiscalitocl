@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const https = require('https');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 function base64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -148,6 +149,10 @@ exports.handler = async (event) => {
     if (bodyStr.length > 1000000) {
       return { statusCode: 413, headers, body: JSON.stringify({ error: 'Payload too large' }) };
     }
+
+    const userId = extractUserIdFromToken(authToken);
+    const rl = await checkRateLimit(userId, 'drive');
+    if (!rl.allowed) return rateLimitResponse(rl, headers);
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
     let sa;

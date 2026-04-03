@@ -13,6 +13,7 @@
 
 const crypto = require('crypto');
 const https = require('https');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 /* ── JWT Auth (mismo patrón que drive.js, scope diferente) ── */
 function base64url(buf) {
@@ -102,6 +103,10 @@ exports.handler = async (event) => {
   if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
+    const userId = extractUserIdFromToken(authToken);
+    const rl = await checkRateLimit(userId, 'sheets');
+    if (!rl.allowed) return rateLimitResponse(rl, CORS);
+
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!saJson) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY no configurada' }) };
     const sa = JSON.parse(saJson);

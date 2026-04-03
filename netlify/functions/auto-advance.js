@@ -11,6 +11,7 @@
  */
 const https = require('https');
 const { callAnthropic } = require('./shared/anthropic');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 /* ── Etapas procesales ordenadas ── */
 const STAGES = ['indagatoria', 'cargos', 'descargos', 'prueba', 'vista', 'resolucion', 'cerrado'];
@@ -118,6 +119,10 @@ exports.handler = async (event) => {
   if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
+    const userId = extractUserIdFromToken(authToken);
+    const rl = await checkRateLimit(userId, 'auto-advance');
+    if (!rl.allowed) return rateLimitResponse(rl, CORS);
+
     const body = JSON.parse(event.body);
     const bodyStr = JSON.stringify(body);
     if (bodyStr.length > 1000000) {

@@ -8,6 +8,7 @@
  */
 const https = require('https');
 const { base64url, callAnthropicVision } = require('./shared/anthropic');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 async function getAccessToken(sa) {
   const now = Math.floor(Date.now() / 1000);
@@ -76,6 +77,10 @@ exports.handler = async (event) => {
 
   const authToken = event.headers['x-auth-token'] || '';
   if (!authToken) return { statusCode: 401, body: JSON.stringify({ error: 'No autorizado' }) };
+
+  const userId = extractUserIdFromToken(authToken);
+  const rl = await checkRateLimit(userId, 'ocr-batch');
+  if (!rl.allowed) return rateLimitResponse(rl, CORS);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: 'API key no configurada' }) };

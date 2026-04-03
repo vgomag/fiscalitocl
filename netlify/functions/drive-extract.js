@@ -88,6 +88,28 @@ async function extractTextViaClaude(apiKey, base64Data, mediaType) {
   return (data.content || []).map(b => b.text || '').join('');
 }
 
+/* ── Rate Limiting ── */
+const _RL_LIMITS = { chat:60, structure:60, rag:60, 'qdrant-ingest':30, 'drive-extract':30 };
+async function _checkRL(token, endpoint) {
+  if (!token) return { allowed: true };
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return { allowed: true };
+    const uid = JSON.parse(atob(parts[1])).sub;
+    if (!uid) return { allowed: true };
+    const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
+    const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
+    if (!sbUrl || !sbKey) return { allowed: true };
+    const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+      body: JSON.stringify({ p_user_id: uid, p_endpoint: endpoint, p_max_requests: _RL_LIMITS[endpoint] || 60, p_window_minutes: 60 }),
+    });
+    if (!r.ok) return { allowed: true };
+    return (await r.json()) || { allowed: true };
+  } catch (e) { return { allowed: true }; }
+}
+
 /* ── Handler ── */
 export default async (req) => {
   const CORS = {
@@ -110,6 +132,12 @@ export default async (req) => {
     if (bodyStr.length > 1000000) {
       return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: CORS });
     }
+
+    const _rl = await _checkRL(authToken, 'drive-extract');
+    if (!_rl.allowed) {
+      return new Response(JSON.stringify({ error: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.', limit: _rl.limit, remaining: 0 }), { status: 429, headers: { ...CORS, 'Retry-After': '60' } });
+    }
+
     const { fileId } = body;
     if (!fileId) throw new Error('fileId is required');
 

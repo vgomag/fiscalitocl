@@ -1,3 +1,25 @@
+/* ── Rate Limiting ── */
+const _RL_LIMITS = { chat:60, structure:60, rag:60, 'qdrant-ingest':30, 'drive-extract':30 };
+async function _checkRL(token, endpoint) {
+  if (!token) return { allowed: true };
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return { allowed: true };
+    const uid = JSON.parse(atob(parts[1])).sub;
+    if (!uid) return { allowed: true };
+    const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
+    const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
+    if (!sbUrl || !sbKey) return { allowed: true };
+    const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+      body: JSON.stringify({ p_user_id: uid, p_endpoint: endpoint, p_max_requests: _RL_LIMITS[endpoint] || 60, p_window_minutes: 60 }),
+    });
+    if (!r.ok) return { allowed: true };
+    return (await r.json()) || { allowed: true };
+  } catch (e) { return { allowed: true }; }
+}
+
 export default async (req) => {
   const CORS = {
     'Access-Control-Allow-Origin': '*',
@@ -24,6 +46,11 @@ export default async (req) => {
     const bodyStr = JSON.stringify(body);
     if (bodyStr.length > 1000000) {
       return json({ error: 'Payload too large' }, 413, CORS);
+    }
+
+    const _rl = await _checkRL(authToken, 'chat');
+    if (!_rl.allowed) {
+      return new Response(JSON.stringify({ error: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.', limit: _rl.limit, remaining: 0 }), { status: 429, headers: { ...CORS, 'Content-Type': 'application/json', 'Retry-After': '60' } });
     }
 
     /* ═══ MODO TRANSCRIPCIÓN ═══ */

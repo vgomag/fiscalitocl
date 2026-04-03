@@ -9,6 +9,7 @@
  */
 const https = require('https');
 const { callAnthropic: _sharedCall } = require('./shared/anthropic');
+const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
 /* Wrapper que usa Sonnet con timeout largo para generación de vistas */
 function callAnthropic(apiKey, system, userMsg, maxTokens) {
@@ -147,6 +148,10 @@ exports.handler = async (event) => {
   if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: 'API key no configurada' }) };
 
   try {
+    const userId = extractUserIdFromToken(authToken);
+    const rl = await checkRateLimit(userId, 'generate-vista');
+    if (!rl.allowed) return rateLimitResponse(rl, CORS);
+
     const data = JSON.parse(event.body);
     const bodyStr = JSON.stringify(data);
     if (bodyStr.length > 1000000) {
