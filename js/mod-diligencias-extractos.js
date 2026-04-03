@@ -324,6 +324,7 @@ async function processDiligenciaOCR(dilId){
 
     const dlData=await dlRes.json();
     if(!dlData||typeof dlData!=='object'){throw new Error('Invalid response format from download');}
+    if(!dlRes.ok) return '';
 
     if(dlData.ok&&dlData.base64){
       /* Step 2: Extract text CLIENT-SIDE with pdf.js */
