@@ -100,11 +100,15 @@ function scoreDocument(doc, keywords) {
 async function searchDiligenciasRAG(query, caseId) {
   if (!query || !caseId || !session) return [];
 
-  const { data: dils } = await sb.from('diligencias')
+  const { data: dils, error } = await sb.from('diligencias')
     .select('id,diligencia_type,diligencia_label,file_name,fecha_diligencia,fojas_inicio,fojas_fin,ai_summary,extracted_text')
     .eq('case_id', caseId)
     .eq('is_processed', true);
 
+  if (error) {
+    console.error('searchDiligenciasRAG error:', error);
+    return [];
+  }
   if (!dils?.length) return [];
 
   const keywords = extractKeywords(query);
@@ -172,6 +176,7 @@ async function searchDriveForContext(query, caseObj) {
     });
     const ct = r.headers.get('content-type') || '';
     if (!ct.includes('json')) return '';
+    if (!r.ok) return '';
 
     const data = await r.json();
     if (!data.files?.length) return '';

@@ -191,3 +191,173 @@
 
   setTimeout(installCEPatch, 2500);
 })();
+
+/* ────────────────────────────────────────────────────────────────
+   ANÁLISIS DE CASOS EXTERNOS — VIEW OPENER
+   ──────────────────────────────────────────────────────────────── */
+
+// Module state
+const ce_view = {
+  search: '',
+  results: [],
+  loading: false
+};
+
+function openAnalisisCasosExternos() {
+  // Remove active class from all sidebar items
+  document.querySelectorAll('.sidebar-nav-item').forEach(el => el.classList.remove('active'));
+  if (typeof event !== 'undefined' && event?.currentTarget) {
+    event.currentTarget.classList.add('active');
+  }
+
+  // Clear current case
+  if (typeof currentCase !== 'undefined') {
+    currentCase = null;
+  }
+
+  // Create view if it doesn't exist
+  if (!document.getElementById('viewCasosExternos')) {
+    createCasosExternosView();
+  }
+
+  // Show the view
+  showView('viewCasosExternos');
+
+  // Render the UI
+  renderCasosExternosView();
+}
+
+function createCasosExternosView() {
+  const main = document.querySelector('.main');
+  if (!main) return;
+
+  const viewDiv = document.createElement('div');
+  viewDiv.id = 'viewCasosExternos';
+  viewDiv.className = 'view';
+  viewDiv.style.cssText = 'flex-direction:column;overflow:hidden;';
+
+  viewDiv.innerHTML = `
+    <div style="padding:14px 20px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
+      <div style="font-family:var(--font-serif);font-size:22px;font-weight:400;color:var(--text)">Análisis de Casos Externos</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Analiza casos de referencia externos para comparar con tus expedientes</div>
+    </div>
+    <div id="casosExternosContainer" style="flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;background:var(--surface);">
+      <div class="loading">Cargando módulo…</div>
+    </div>
+  `;
+
+  main.appendChild(viewDiv);
+}
+
+function renderCasosExternosView() {
+  const container = document.getElementById('casosExternosContainer');
+  if (!container) return;
+
+  container.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;background:var(--surface);padding:16px;';
+
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:16px;max-width:900px;margin:0 auto;">
+
+      <!-- Search Section -->
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-muted);">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6.5" cy="6.5" r="4"/>
+            <line x1="10" y1="10" x2="14" y2="14"/>
+          </svg>
+          <input
+            id="casosExternosSearch"
+            type="text"
+            placeholder="Buscar casos externos por palabra clave…"
+            value="${ce_view.search}"
+            oninput="ce_view.search=this.value;renderCasosExternosView()"
+            style="flex:1;border:none;background:transparent;outline:none;font-size:13px;color:var(--text);font-family:inherit;"
+          />
+        </div>
+        <button
+          onclick="loadCasosExternos()"
+          style="padding:8px 14px;background:var(--gold);color:var(--surface);border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity 0.2s;"
+          onmouseover="this.style.opacity='0.9'"
+          onmouseout="this.style.opacity='1'"
+        >
+          🔍 Buscar
+        </button>
+      </div>
+
+      <!-- Results Container -->
+      <div id="casosExternosResults" style="display:flex;flex-direction:column;gap:12px;">
+        ${ce_view.loading ?
+          '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Buscando casos externos…</div>' :
+          ce_view.results.length === 0 ?
+          `<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:13px;">
+            <div style="margin-bottom:8px;">📂</div>
+            <div>Ingresa términos de búsqueda para encontrar casos externos relevantes</div>
+            <div style="font-size:11px;margin-top:8px;opacity:0.7;">Se buscarán en la biblioteca QDRANT, jurisprudencia y bases de datos externas</div>
+          </div>` :
+          ce_view.results.map((result, idx) => `
+            <div style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--surface);transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+              <div style="font-family:var(--font-serif);font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px;">${result.title || 'Caso sin título'}</div>
+              <div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:8px;">${result.description || 'Sin descripción disponible'}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;">
+                ${result.source ? `<span style="padding:3px 8px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-muted);">📚 ${result.source}</span>` : ''}
+                ${result.type ? `<span style="padding:3px 8px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-muted);">⚖️ ${result.type}</span>` : ''}
+              </div>
+            </div>
+          `).join('')
+        }
+      </div>
+
+      <!-- Info Panel -->
+      <div style="margin-top:16px;padding:12px;background:rgba(0,0,0,0.03);border-left:3px solid var(--gold);border-radius:4px;font-size:12px;color:var(--text-muted);line-height:1.5;">
+        <strong style="color:var(--text);display:block;margin-bottom:6px;">💡 Consejos:</strong>
+        <ul style="margin:0;padding-left:16px;">
+          <li>Busca por materia legal (ej: "disciplinario", "laboral", "administrativo")</li>
+          <li>Usa términos específicos de tu procedimiento (ej: "sumario", "suspensión")</li>
+          <li>Los resultados incluyen jurisprudencia, doctrina y casos referenciados</li>
+        </ul>
+      </div>
+
+    </div>
+  `;
+}
+
+function loadCasosExternos() {
+  if (!ce_view.search.trim()) {
+    if (typeof showToast === 'function') {
+      showToast('⚠ Ingresa términos de búsqueda');
+    }
+    return;
+  }
+
+  ce_view.loading = true;
+  renderCasosExternosView();
+
+  // Simulate search delay (in a real app, this would call an API)
+  setTimeout(() => {
+    ce_view.loading = false;
+
+    // Mock results for demonstration
+    ce_view.results = [
+      {
+        title: 'Jurisprudencia CGR - Sumarios Administrativos',
+        description: 'Línea jurisprudencial en sumarios administrativos. Garantías del debido proceso, garantías de defensa y procedimientos de investigación.',
+        source: 'Dictámenes CGR',
+        type: 'Jurisprudencia'
+      },
+      {
+        title: 'Doctrina: Principios de Proporcionalidad en Sanciones',
+        description: 'Análisis doctrinal sobre el principio de proporcionalidad en la imposición de sanciones administrativas, con énfasis en el caso de funcionarios públicos.',
+        source: 'Biblioteca de Referencia',
+        type: 'Doctrina'
+      },
+      {
+        title: 'Resolución sobre Nulidad por Defectos Procedimentales',
+        description: 'Casos relevantes de recursos administrativos por vicios procedimentales en procesos disciplinarios. Criterios de reparabilidad según jurisprudencia.',
+        source: 'Qdrant - Jurisprudencia',
+        type: 'Jurisprudencia'
+      }
+    ];
+
+    renderCasosExternosView();
+  }, 800);
+}

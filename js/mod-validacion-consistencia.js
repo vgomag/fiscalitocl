@@ -264,11 +264,13 @@
   }
 
   /* ── Patchear renderCaseHeader ── */
+  if(window._validacionPatched) return;
   const _origRenderCaseHeader = window.renderCaseHeader;
   window.renderCaseHeader = function(){
     if(typeof _origRenderCaseHeader==='function') _origRenderCaseHeader();
     setTimeout(injectButton, 120);
   };
+  window._validacionPatched = true;
 
   /* ── API pública ── */
   window._validacion = {
