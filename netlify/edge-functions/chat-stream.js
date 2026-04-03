@@ -1,4 +1,6 @@
 export default async (req) => {
+  const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
+
   const CORS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
@@ -35,7 +37,7 @@ export default async (req) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: body.model || 'claude-sonnet-4-20250514',
+        model: body.model || MODEL_SONNET,
         max_tokens: body.max_tokens || 2000,
         system: body.system,
         messages: body.messages,
