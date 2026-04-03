@@ -655,7 +655,7 @@ async function generateDiligenciaSummary(dilId){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:300,
+        model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',max_tokens:300,
         system:'Resume documentos jurídicos en máximo 3 oraciones concisas. Solo el resumen, sin preámbulos.',
         messages:[{role:'user',content:`Resume este documento tipo "${dil.diligencia_type}":\n\n${dil.extracted_text.substring(0,4000)}`}]
       })
@@ -1011,7 +1011,7 @@ GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL D
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
-            model:'claude-sonnet-4-20250514',
+            model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
             max_tokens:8192,
             stream:true,
             system:systemPrompt,
