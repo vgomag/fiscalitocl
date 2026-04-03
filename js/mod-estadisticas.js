@@ -50,7 +50,7 @@ function countBusinessDays(startDate,endDate){
   return count;
 }
 
-function isGenderCase(name,rol){
+function _statIsGenderCase(name,rol){
   const p=/\d+\s*[-]?\s*G(?:\s|$|[^a-záéíóúñ])/;
   return p.test(name||'')||(name||'').toUpperCase().includes('-G')||p.test(rol||'');
 }
