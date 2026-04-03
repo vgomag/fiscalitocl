@@ -12,6 +12,7 @@
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <style>
 /* ══════════════════════════════════════════
    FISCALITO DESIGN v2 — Design System
@@ -4252,7 +4253,8 @@ function setJuriQuery(text){const el=document.getElementById('juriQuery');if(el)
 
 /* ── Helpers ── */
 function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function md(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+function md(t){
+  var html=t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   .replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
   .replace(/`([^`]+)`/g,'<code>$1</code>')
   .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
@@ -4263,10 +4265,10 @@ function md(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,
   .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
   .replace(/---/g,'<hr>')
   .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')
-  .replace(/^(?!<[hH\d]|<ul|<li|<pre|<blockquote|<hr)(.+)$/gm,'<p>$1</p>')
-  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'')
-  .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi,'')
-  .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'');}
+  .replace(/^(?!<[hH\d]|<ul|<li|<pre|<blockquote|<hr)(.+)$/gm,'<p>$1</p>');
+  /* Sanitizar con DOMPurify si disponible, fallback a regex */
+  if(typeof DOMPurify!=='undefined'){return DOMPurify.sanitize(html,{ALLOWED_TAGS:['h1','h2','h3','h4','p','br','strong','em','code','pre','ul','ol','li','blockquote','hr','a','table','thead','tbody','tr','th','td','span','div','img'],ALLOWED_ATTR:['href','target','rel','src','alt','class','style'],FORBID_TAGS:['script','iframe','object','embed','form','input'],FORBID_ATTR:['onerror','onclick','onload','onmouseover','onfocus']});}
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi,'').replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'');}
 
 function showToast(msg){
   const c=document.getElementById('toastContainer');
