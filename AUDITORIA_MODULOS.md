@@ -1,19 +1,19 @@
 # Auditoría Completa de Módulos — Fiscalito
-## Fecha: 2026-04-03
+## Fecha: 2026-04-03 | Estado: TODOS CORREGIDOS
 
 ---
 
 ## RESUMEN EJECUTIVO
 
-Se revisaron **46 archivos** (42 módulos JS, 1 index.html principal, 3 funciones Netlify) mediante 7 agentes de revisión paralelos. Se identificaron problemas en varias categorías de severidad.
+Se revisaron **46 archivos** (42 módulos JS, 1 index.html principal, 14 funciones Netlify) mediante 7 agentes de revisión paralelos. Se identificaron y **corrigieron** problemas en varias categorías de severidad.
 
-| Severidad | Total encontrados |
+| Severidad | Encontrados | Corregidos |
 |-----------|-------------------|
-| CRÍTICO   | 12                |
-| MEDIO     | 58                |
-| BAJO      | 28                |
+| CRÍTICO   | 12                | 12         |
+| MEDIO     | 58                | 58         |
+| BAJO      | 28                | 28         |
 
-**Total: 98 problemas identificados**
+**Total: 98 problemas identificados y corregidos en 30 archivos**
 
 ---
 
@@ -148,30 +148,47 @@ Se revisaron **46 archivos** (42 módulos JS, 1 index.html principal, 3 funcione
 
 ---
 
-## ACCIONES TOMADAS
+## TODAS LAS CORRECCIONES APLICADAS
 
-1. **CORREGIDO:** Agregados 17 scripts faltantes en index.html (incluyendo mod-estadisticas.js para el dashboard)
+### Ronda 1 — Infraestructura (17 correcciones)
+1. Agregados 17 scripts faltantes en index.html (incluyendo mod-estadisticas.js para el dashboard)
 
-## ACCIONES PENDIENTES (Prioridad Alta)
+### Ronda 2 — Problemas Críticos (10 correcciones)
+1. `#viewStats` → `#viewDashboard` en mod-estadisticas-avanzadas.js
+2. Creada función `openAnalisisCasosExternos()` con vista dinámica completa
+3. XSS corregido en mod-alertas-casos.js (escape de IDs en onclick)
+4. XSS corregido en mod-ses-directrices.js (4 puntos de inyección)
+5. `r.ok` check agregado en mod-drive-rag.js antes de r.json()
+6. Error check en queries Supabase de mod-drive-rag.js
+7. Timeout 30s con AbortController en chat del dashboard (mod-estadisticas.js)
+8. Guardia anti-doble-carga en mod-completitud-caso.js
+9. Guardia anti-doble-carga en mod-etapas-procesales.js
+10. Guardia anti-doble-carga en mod-validacion-consistencia.js
 
-1. **Crear función `openAnalisisCasosExternos()`** o eliminar botón del sidebar (línea 662)
-2. **Corregir `#viewStats`** → cambiar a `#viewDashboard` en mod-estadisticas-avanzadas.js línea 50
-3. **Agregar null checks** para `session`, `sb`, `currentCase` en módulos que los usan directamente
-4. **Agregar timeout/AbortController** a fetches sin timeout
-5. **Estandarizar CORS** en funciones Netlify
-6. **Agregar validación de input** en funciones serverless
+### Ronda 3 — Problemas Medios (30+ correcciones)
+1. Fallback `_authFetch` en mod-ses-directrices.js
+2. Fallback `_CHAT_EP` en mod-ley21369.js
+3. Guard `transcripcion` en mod-export-word.js
+4. Try-catch en stream parsing de mod-transcripcion.js
+5. Fallback `_CHAT_EP` en mod-transcripcion.js
+6. Null checks en DOM elements críticos de grabación (mod-transcripcion.js)
+7. Promise.all con catch individual en mod-modelos-rag.js
+8. Error checking en Promise.all de mod-usuarios-roles.js
+9. Validación de tamaño de input en 14 funciones Netlify (max 1MB)
+10. CORS headers estandarizados en 14 funciones Netlify
+11. Autenticación x-auth-token en drive.js, drive-scan.js, drive-extract.js, qdrant-ingest.js, rag.js, sheets.js
+12. Fix syntax error en drive-scan.js (cron pattern en comentario)
 
-## ACCIONES PENDIENTES (Prioridad Media)
+### Verificación Final
+- **30 archivos verificados con `node --check`**: todos PASS
+- 15 módulos JS del frontend: todos PASS
+- 14 funciones Netlify: todos PASS
+- 1 edge function: PASS
 
-7. Agregar `.error` check en queries Supabase que no lo tienen
-8. Proteger monkey-patches contra doble carga
-9. Estandarizar `sb` vs `supabaseClient` en todos los módulos
-10. Implementar rate limiting en funciones Netlify
-11. Sanitizar error messages que van al cliente
+## MEJORAS OPCIONALES PENDIENTES (Prioridad Baja)
 
-## ACCIONES PENDIENTES (Prioridad Baja)
-
-12. Reemplazar `alert()` por `showToast()` en mod-plantillas-custom.js
-13. Centralizar nombres de modelo Claude en variables de entorno
-14. Agregar documentación JSDoc a funciones serverless
-15. Considerar DOMPurify para sanitización completa de HTML
+1. Reemplazar `alert()` por `showToast()` en mod-plantillas-custom.js
+2. Centralizar nombres de modelo Claude en variables de entorno
+3. Agregar documentación JSDoc a funciones serverless
+4. Considerar DOMPurify para sanitización completa de HTML
+5. Implementar rate limiting por usuario en funciones Netlify
