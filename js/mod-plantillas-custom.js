@@ -37,7 +37,7 @@ let isCreating = false;
 /* ── CRUD: Cargar plantillas ── */
 async function loadTemplates(){
   const s = _sb();
-  if(!s || !session) return;
+  if(!s || !session?.user?.id) return;
   const { data, error } = await s.from('custom_templates').select('*')
     .eq('user_id', session.user.id).eq('is_active', true).order('name');
   if(error){ console.warn('[plantillas] Error:', error); return; }
@@ -48,7 +48,7 @@ async function loadTemplates(){
 /* ── CRUD: Guardar plantilla ── */
 async function saveTemplate(formData){
   const s = _sb();
-  if(!s || !session) return;
+  if(!s || !session?.user?.id) return;
 
   // Detectar variables en la estructura
   const detectedVars = extractVariables(formData.structure);
@@ -102,7 +102,7 @@ async function deleteTemplate(id){
 /* ── CRUD: Duplicar plantilla ── */
 async function duplicateTemplate(tmpl){
   const s = _sb();
-  if(!s || !session) return;
+  if(!s || !session?.user?.id) return;
   const { error } = await s.from('custom_templates').insert({
     user_id: session.user.id,
     name: tmpl.name + ' (copia)',
@@ -403,7 +403,7 @@ window.removeTmplVar = function(idx){
 window.saveCurrentTemplate = function(){
   const name = document.getElementById('tmplName')?.value?.trim();
   const code = document.getElementById('tmplCode')?.value?.trim();
-  if(!name || !code) return alert('Nombre y código son obligatorios.');
+  if(!name || !code) return showToast('⚠ Nombre y código son obligatorios.');
 
   const structure = document.getElementById('tmplStructure')?.value || '';
   const type = document.getElementById('tmplType')?.value || 'RES';

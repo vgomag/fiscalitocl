@@ -143,7 +143,9 @@ function renderCompress(){
 }
 
 async function doCompress(){
-  const s=state.compress;if(!s.file)return;
+  const s=state.compress;
+  if(s.processing){showToast('⚠ Operación en curso');return}
+  if(!s.file)return;
   if(s.file.size>314572800){showToast("El archivo supera los 300 MB","error");return}
   s.processing=true;s.result=null;renderBody();
   try{
@@ -254,7 +256,9 @@ function renderSplit(){
 }
 
 async function doSplit(){
-  const s=state.split;if(!s.file)return;
+  const s=state.split;
+  if(s.processing){showToast('⚠ Operación en curso');return}
+  if(!s.file)return;
   s.processing=true;s.results=[];renderBody();
   try{
     await loadPdfLib();
@@ -318,7 +322,9 @@ async function addMergeFiles(fileList){
 }
 
 async function doMerge(){
-  const s=state.merge;if(s.files.length<2)return;
+  const s=state.merge;
+  if(s.processing){showToast('⚠ Operación en curso');return}
+  if(s.files.length<2)return;
   s.processing=true;s.result=null;renderBody();
   try{
     await loadPdfLib();
@@ -357,7 +363,9 @@ function renderOcr(){
 }
 
 async function doOcr(){
-  const s=state.ocr;if(!s.file)return;
+  const s=state.ocr;
+  if(s.processing){showToast('⚠ Operación en curso');return}
+  if(!s.file)return;
   s.processing=true;s.text="";renderBody();
   try{
     /* Leer archivo como base64 */
@@ -377,6 +385,8 @@ async function doOcr(){
     /* Enviar a Claude para extraer texto */
     const ENDPOINT=typeof CHAT_ENDPOINT!=="undefined"?CHAT_ENDPOINT:"/.netlify/functions/chat";
     const fetchFn=typeof authFetch==="function"?authFetch:fetch;
+    const ctrl=new AbortController();
+    const tout=setTimeout(()=>ctrl.abort(),30000);
     const r=await fetchFn(ENDPOINT,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -388,8 +398,10 @@ async function doOcr(){
           {type:"document",source:{type:"base64",media_type:mediaType,data:base64}},
           {type:"text",text:"Extrae el texto completo de este documento. Incluye títulos, párrafos, tablas y notas. Responde SOLO con el texto."}
         ]}]
-      })
+      }),
+      signal:ctrl.signal
     });
+    clearTimeout(tout);
 
     if(!r.ok){const errText=await r.text();throw new Error("Error API: "+r.status)}
     const data=await r.json();

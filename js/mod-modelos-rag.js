@@ -192,8 +192,24 @@ function resTypeLabel(t) {
    RENDER PRINCIPAL
    ──────────────────────────────────────────────────────── */
 function renderRAGView() {
-  const main = document.getElementById('ragMain');
-  if (!main) return;
+  let main = document.getElementById('ragMain');
+  // If container doesn't exist, try to create it in the appropriate context
+  if (!main) {
+    const bibBody = document.getElementById('bibBody');
+    if (bibBody) {
+      // We're in Biblioteca context; container will be created by renderBibModelosRAG
+      return;
+    }
+    // Standalone context: create container
+    const masterView = document.querySelector('.main-content') || document.querySelector('main');
+    if (masterView) {
+      main = document.createElement('div');
+      main.id = 'ragMain';
+      masterView.appendChild(main);
+    } else {
+      return;
+    }
+  }
 
   if (rag.loading) {
     main.innerHTML = '<div class="loading" style="padding:40px">Cargando documentos modelo…</div>';
@@ -391,7 +407,7 @@ function renderRAGResult() {
         <button class="btn-del" onclick="rag.result='';updateRAGGenerator()">✕</button>
       </div>
     </div>
-    <div class="rag-result-body">${md(rag.result)}</div>
+    <div class="rag-result-body">${typeof md === 'function' ? md(rag.result) : (typeof esc === 'function' ? esc(rag.result) : rag.result)}</div>
   </div>`;
 }
 

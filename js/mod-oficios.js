@@ -43,19 +43,26 @@ const SHEET_CONFIG = {
    GOOGLE SHEETS API CALLS (vía Netlify function)
    ══════════════════════════════════════════ */
 async function callSheets(body) {
-  const res = await fetch('/.netlify/functions/sheets', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!data.ok && res.status >= 400) throw new Error(data.error || 'Error en Sheets API');
-  return data;
+  const ctrl = new AbortController();
+  const tout = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const res = await fetch('/.netlify/functions/sheets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    const data = await res.json();
+    if (!data.ok && res.status >= 400) throw new Error(data.error || 'Error en Sheets API');
+    return data;
+  } finally {
+    clearTimeout(tout);
+  }
 }
 
 /* Cargar el Sheet ID desde Supabase settings */
 async function loadSheetConfig() {
-  if (!window.session) return;
+  if (!window.session?.user?.id) return;
   try {
     const { data } = await sb.from('user_settings')
       .select('value')
@@ -83,7 +90,7 @@ async function loadSheetConfig() {
 
 /* Guardar el Sheet ID en Supabase */
 async function saveSheetConfig(sheetId) {
-  if (!window.session) return;
+  if (!window.session?.user?.id) return;
   oficios.sheetId = sheetId;
   oficios.sheetConnected = !!sheetId;
   // Intentar guardar en user_settings, fallback a case_metadata
@@ -208,7 +215,7 @@ async function syncCountersFromSheet() {
    CARGAR CONTADORES (Supabase + Google Sheet)
    ══════════════════════════════════════════ */
 async function loadDocCounters() {
-  if (!window.session) return;
+  if (!window.session?.user?.id) return;
   const year = new Date().getFullYear();
 
   // Defaults
@@ -250,7 +257,7 @@ async function loadDocCounters() {
    OBTENER SIGUIENTE NÚMERO (VÍA RPC ATÓMICA)
    ══════════════════════════════════════════ */
 async function getNextDocNumber(docType) {
-  if (!window.session) throw new Error('Sin sesión');
+  if (!window.session?.user?.id) throw new Error('Sin sesión');
   const year = new Date().getFullYear();
   // Usa la función RPC compartida por organización
   const { data, error } = await sb.rpc('next_doc_number_shared', {
@@ -299,7 +306,7 @@ function previewNextNumber(docType) {
    GUARDAR DOCUMENTO GENERADO
    ══════════════════════════════════════════ */
 async function saveGeneratedDoc(docType, docNumber, sequential, title, destinatario, content, metadata = {}) {
-  if (!window.session) return;
+  if (!window.session?.user?.id) return;
   const year = new Date().getFullYear();
   const caseId = window.currentCase?.id || null;
   const userName = session.user?.user_metadata?.name || session.user?.email?.split('@')[0] || 'Usuario';
@@ -324,7 +331,7 @@ async function saveGeneratedDoc(docType, docNumber, sequential, title, destinata
    CARGAR HISTORIAL DE DOCUMENTOS
    ══════════════════════════════════════════ */
 async function loadDocHistory() {
-  if (!window.session) return [];
+  if (!window.session?.user?.id) return [];
   const year = new Date().getFullYear();
   // Cargar historial COMPARTIDO de toda la organización
   const { data, error } = await sb.from('generated_documents')
@@ -645,7 +652,7 @@ window.oficioPreviewFormats = function() {
    GUARDAR CONFIGURACIÓN DE FORMATOS
    ══════════════════════════════════════════ */
 window.saveDocFormats = async function() {
-  if (!window.session) return;
+  if (!window.session?.user?.id) return;
   const tpl = document.getElementById('oficioFormatTemplate')?.value || '{PREFIX}-{NUM}/{YEAR}';
   const year = new Date().getFullYear();
 

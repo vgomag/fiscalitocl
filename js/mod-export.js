@@ -221,6 +221,7 @@ async function exportToPDF(text, filename, options={}){
 /* PDF via pdf-lib */
 async function exportPdfLib(text, filename, options={}){
   try{
+    if(typeof PDFLib === 'undefined' || !PDFLib.PDFDocument) { showToast('⚠ Librería PDF no disponible'); return; }
     const{PDFDocument,rgb,StandardFonts}=PDFLib;
     const doc=await PDFDocument.create();
     const font=await doc.embedFont(StandardFonts.Helvetica);
@@ -336,6 +337,7 @@ async function exportPdfLib(text, filename, options={}){
 /* PDF via jsPDF fallback */
 async function exportJsPDF(text, filename, options={}){
   try{
+    if(!window.jspdf?.jsPDF) { showToast('⚠ Librería jsPDF no disponible'); return; }
     const{jsPDF}=window.jspdf;
     const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
     const titulo=options.title||getTitleFromFilename(filename,"pdf");

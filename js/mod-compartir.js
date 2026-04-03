@@ -24,7 +24,7 @@ const LEY_ROLES={
 
 /** Obtener el rol del usuario actual en un caso */
 async function getCaseRole(caseId){
-  if(!session||!caseId)return null;
+  if(!session?.user?.id||!caseId)return null;
   const uid=session.user.id;
 
   /* Dueño del caso = fiscal automático */
@@ -47,7 +47,7 @@ function isReadOnly(role){return role==='consultor';}
 
 /** Obtener rol en Ley 21.369 */
 async function getLeyRole(){
-  if(!session)return null;
+  if(!session?.user?.id)return null;
   const uid=session.user.id;
 
   /* Verificar si es admin (quien creó el primer ítem o tiene rol admin) */
@@ -68,7 +68,7 @@ async function getLeyRole(){
 
 async function openShareCaseModal(caseId){
   const cs=caseId||currentCase?.id;
-  if(!cs||!session){showToast('⚠️ Selecciona un caso primero');return;}
+  if(!cs||!session?.user?.id){showToast('⚠️ Selecciona un caso primero');return;}
 
   const myRole=await getCaseRole(cs);
   if(!canShare(myRole)){showToast('⚠️ Solo el fiscal puede compartir este caso');return;}
@@ -242,7 +242,7 @@ async function removeShare(shareId,caseId){
    ═══════════════════════════════════════ */
 
 async function openShareLeyModal(){
-  if(!session){showToast('⚠️ Inicia sesión primero');return;}
+  if(!session?.user?.id){showToast('⚠️ Inicia sesión primero');return;}
 
   const myRole=await getLeyRole();
   if(myRole!=='admin'){showToast('⚠️ Solo el administrador puede gestionar accesos');return;}
@@ -462,7 +462,7 @@ async function applyCasePermissions(){
 
 /** Asegurar que el perfil del usuario actual existe */
 async function ensureUserProfile(){
-  if(!session)return;
+  if(!session?.user?.id)return;
   const uid=session.user.id;
   const email=session.user.email;
   const name=session.user.user_metadata?.full_name||session.user.user_metadata?.name||email?.split('@')[0]||'';

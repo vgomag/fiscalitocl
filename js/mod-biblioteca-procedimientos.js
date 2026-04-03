@@ -156,6 +156,15 @@
     main.appendChild(div);
   }
 
+  /* ── Initialize API stub before rendering HTML ── */
+  if(!window._biblioProc){
+    window._biblioProc = {
+      toggle: function(){},
+      search: function(){},
+      open: function(){}
+    };
+  }
+
   /* ── Render ── */
   function renderBiblioteca(filter){
     const el = document.getElementById(VIEW_ID);
