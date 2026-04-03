@@ -488,32 +488,184 @@ async function adminSaveLimits() {
   }
 }
 
-/* ── TAB AUDITORÍA (fallback si mod-seguridad no está cargado) ── */
+/* ── TAB AUDITORÍA (con filtros y paginación) ── */
+let _auditPage = 0;
+let _auditFilter = 'all';
+let _auditSearch = '';
+
 async function renderAuditTab(body) {
+  const actionColors = { view:'var(--blue)', create:'var(--green)', update:'#f59e0b', delete:'var(--red)', login:'#6366f1', logout:'#8b5cf6', export:'#0d9488', share:'#ec4899' };
+  const actions = ['all','view','create','update','delete','login','logout','export','share'];
+
+  // Usar loadAuditLogs de mod-seguridad si está disponible
+  let result;
+  if (typeof window.loadAuditLogs === 'function') {
+    result = await window.loadAuditLogs({ action: _auditFilter, search: _auditSearch, page: _auditPage, pageSize: 50 });
+  } else {
+    const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+    if (!sb) return;
+    const { data, count } = await sb.from('audit_access_logs')
+      .select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(_auditPage*50, _auditPage*50+49);
+    result = { data: data || [], count: count || 0 };
+  }
+
+  const logs = result.data;
+  const total = result.count;
+  const totalPages = Math.max(1, Math.ceil(total / 50));
+
+  body.innerHTML = `
+  <!-- Filtros -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="auditActionFilter" class="juri-select" style="font-size:11px;min-width:100px" onchange="_auditFilter=this.value;_auditPage=0;loadAdminData()">
+      ${actions.map(a => `<option value="${a}" ${_auditFilter===a?'selected':''}>${a === 'all' ? 'Todas las acciones' : a.charAt(0).toUpperCase()+a.slice(1)}</option>`).join('')}
+    </select>
+    <input id="auditSearchInput" type="text" placeholder="Buscar tabla, usuario…" value="${_auditSearch}" class="juri-input" style="font-size:11px;flex:1;min-width:140px;max-width:220px"
+      onkeydown="if(event.key==='Enter'){_auditSearch=this.value;_auditPage=0;loadAdminData();}"/>
+    <button onclick="_auditSearch=document.getElementById('auditSearchInput')?.value||'';_auditPage=0;loadAdminData()" class="btn-save" style="padding:5px 10px;font-size:10px">Buscar</button>
+    <div style="margin-left:auto;font-size:10.5px;color:var(--text-muted)">${total} registros</div>
+  </div>
+  ${!logs?.length ? '<div class="empty-state">Sin logs de auditoría.</div>' : `
+  <div style="overflow-x:auto;font-size:11.5px">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th class="admin-th">Fecha</th><th class="admin-th">Acción</th>
+        <th class="admin-th">Tabla</th><th class="admin-th">Campos</th><th class="admin-th">Detalles</th>
+      </tr></thead>
+      <tbody>${logs.map(l => {
+        const ac = actionColors[l.action] || 'var(--text-muted)';
+        const fields = l.accessed_fields ? (Array.isArray(l.accessed_fields) ? l.accessed_fields : []).slice(0,4).map(f => `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:var(--surface2);color:var(--text-dim);margin-right:2px">${f}</span>`).join('') : '—';
+        const meta = l.metadata ? (typeof l.metadata === 'object' ? (l.metadata.name || l.metadata.role || JSON.stringify(l.metadata).substring(0,60)) : String(l.metadata).substring(0,60)) : '—';
+        return `<tr>
+          <td class="admin-td" style="font-family:'DM Mono',monospace;white-space:nowrap;font-size:10.5px">${new Date(l.created_at).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+          <td class="admin-td"><span style="font-size:9.5px;padding:1px 7px;border-radius:8px;background:${ac}22;color:${ac};font-weight:500">${l.action||'—'}</span></td>
+          <td class="admin-td" style="color:var(--text-dim);font-size:11px">${l.table_name||'—'}</td>
+          <td class="admin-td">${fields}</td>
+          <td class="admin-td" style="font-size:10px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${typeof esc==='function'?esc(String(meta)):meta}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>
+  <!-- Paginación -->
+  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;font-size:11px">
+    <button onclick="_auditPage=Math.max(0,_auditPage-1);loadAdminData()" ${_auditPage===0?'disabled':''} style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;font-size:10px;color:var(--text-muted)">← Anterior</button>
+    <span style="color:var(--text-muted)">Pág. ${_auditPage+1} de ${totalPages}</span>
+    <button onclick="_auditPage=Math.min(${totalPages-1},_auditPage+1);loadAdminData()" ${_auditPage>=totalPages-1?'disabled':''} style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;font-size:10px;color:var(--text-muted)">Siguiente →</button>
+  </div>`}`;
+}
+
+/* ── TAB ALERTAS DE SEGURIDAD ── */
+async function renderAlertasTab(body) {
   const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
   if (!sb) return;
+
   try {
-    const { data: logs } = await sb.from('audit_access_logs')
-      .select('*').order('created_at', { ascending: false }).limit(50);
-    if (!logs?.length) { body.innerHTML = '<div class="empty-state">Sin logs de auditoría.</div>'; return; }
-    const actionColors = { view:'var(--blue)', create:'var(--green)', update:'#f59e0b', delete:'var(--red)' };
-    body.innerHTML = `<div style="overflow-x:auto;font-size:11.5px">
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr>
-          <th class="admin-th">Fecha</th><th class="admin-th">Acción</th>
-          <th class="admin-th">Tabla</th><th class="admin-th">Detalles</th>
-        </tr></thead>
-        <tbody>${logs.map(l=>`<tr>
-          <td class="admin-td" style="font-family:'DM Mono',monospace;white-space:nowrap;font-size:10.5px">${new Date(l.created_at).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
-          <td class="admin-td"><span style="font-size:9.5px;padding:1px 7px;border-radius:8px;background:${(actionColors[l.action]||'var(--text-muted)')}22;color:${actionColors[l.action]||'var(--text-muted)'}">${l.action||'—'}</span></td>
-          <td class="admin-td" style="color:var(--text-dim)">${l.table_name||'—'}</td>
-          <td class="admin-td" style="font-size:10px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${JSON.stringify(l.metadata||{}).substring(0,80)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
+    // Cargar destinatarios y alertas en paralelo
+    const [recipientsRes, alertsData] = await Promise.all([
+      sb.from('security_alert_recipients').select('*').order('created_at'),
+      typeof window.loadSecurityAlerts === 'function' ? window.loadSecurityAlerts() : sb.from('security_alerts_sent').select('*').order('created_at', { ascending: false }).limit(50).then(r => r.data || [])
+    ]);
+
+    const recipients = recipientsRes.data || [];
+    const alerts = Array.isArray(alertsData) ? alertsData : [];
+
+    const sevColors = { critical:'var(--red)', warning:'#f59e0b', info:'var(--blue)' };
+    const typeLabels = { mass_deletion:'Eliminación masiva', bulk_participant_access:'Acceso masivo', suspicious_access:'Acceso sospechoso', off_hours:'Fuera de horario' };
+
+    body.innerHTML = `
+    <!-- Sub-tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:14px">
+      <button id="alertTabRecip" class="admin-tab active" onclick="document.getElementById('alertRecipPanel').style.display='';document.getElementById('alertHistPanel').style.display='none';this.classList.add('active');document.getElementById('alertTabHist').classList.remove('active')" style="font-size:11px;padding:5px 12px">📧 Destinatarios (${recipients.length})</button>
+      <button id="alertTabHist" class="admin-tab" onclick="document.getElementById('alertHistPanel').style.display='';document.getElementById('alertRecipPanel').style.display='none';this.classList.add('active');document.getElementById('alertTabRecip').classList.remove('active')" style="font-size:11px;padding:5px 12px">📋 Historial (${alerts.length})</button>
+    </div>
+
+    <!-- Destinatarios -->
+    <div id="alertRecipPanel">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.5">
+        Emails que recibirán alertas de seguridad automáticas (eliminación masiva, acceso sospechoso).
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <input id="newAlertEmail" type="email" placeholder="email@umag.cl" class="juri-input" style="flex:1;font-size:11px"/>
+        <button onclick="addAlertRecipient()" class="btn-save" style="padding:6px 12px;font-size:10px;white-space:nowrap">+ Agregar</button>
+      </div>
+      ${recipients.length ? recipients.map(r => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:5px">
+        <span style="flex:1;font-size:12px;color:var(--text)">${typeof esc==='function'?esc(r.email):r.email}</span>
+        <button onclick="toggleAlertRecipient('${r.id}',${!r.is_active})" style="font-size:10px;padding:2px 8px;border-radius:8px;border:1px solid ${r.is_active?'var(--green)':'var(--border)'};background:${r.is_active?'var(--green)11':'var(--surface)'};color:${r.is_active?'var(--green)':'var(--text-muted)'};cursor:pointer">${r.is_active?'✓ Activo':'Inactivo'}</button>
+        <button onclick="removeAlertRecipient('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:13px" title="Eliminar">✕</button>
+      </div>`).join('') : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Sin destinatarios configurados</div>'}
+
+      <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:6px">Tipos de alerta monitoreados</div>
+        <div style="font-size:11px;color:var(--text-dim);line-height:1.6">
+          🔴 <strong>Eliminación masiva:</strong> 5+ eliminaciones de participantes en 5 min<br/>
+          🟡 <strong>Acceso masivo:</strong> 50+ accesos a participantes en 5 min<br/>
+          🔵 <strong>Acceso sospechoso:</strong> patrones inusuales de consulta
+        </div>
+      </div>
+    </div>
+
+    <!-- Historial -->
+    <div id="alertHistPanel" style="display:none">
+      ${alerts.length ? `<div style="overflow-x:auto;font-size:11.5px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th class="admin-th">Fecha</th><th class="admin-th">Tipo</th>
+            <th class="admin-th">Severidad</th><th class="admin-th">Enviada a</th>
+          </tr></thead>
+          <tbody>${alerts.map(a => {
+            const sc = sevColors[a.severity] || 'var(--text-muted)';
+            const tl = typeLabels[a.alert_type] || a.alert_type || '—';
+            const emails = a.email_sent_to ? (Array.isArray(a.email_sent_to) ? a.email_sent_to.join(', ') : a.email_sent_to) : '—';
+            return `<tr>
+              <td class="admin-td" style="font-family:'DM Mono',monospace;white-space:nowrap;font-size:10.5px">${new Date(a.created_at).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+              <td class="admin-td" style="font-size:11px">${tl}</td>
+              <td class="admin-td"><span style="font-size:9.5px;padding:1px 7px;border-radius:8px;background:${sc}22;color:${sc};font-weight:500">${a.severity||'—'}</span></td>
+              <td class="admin-td" style="font-size:10px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${typeof esc==='function'?esc(String(emails)):emails}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>` : '<div class="empty-state">Sin alertas registradas.</div>'}
     </div>`;
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
+}
+
+/* ── CRUD destinatarios alertas ── */
+async function addAlertRecipient() {
+  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!sb) return;
+  const email = document.getElementById('newAlertEmail')?.value.trim();
+  if (!email || !email.includes('@')) { showToast('⚠ Ingresa un email válido'); return; }
+  try {
+    const { error } = await sb.from('security_alert_recipients').insert({ email, is_active: true });
+    if (error) throw error;
+    showToast('✓ Destinatario agregado');
+    loadAdminData();
+  } catch (err) { showToast('⚠ ' + err.message); }
+}
+
+async function toggleAlertRecipient(id, active) {
+  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!sb) return;
+  try {
+    const { error } = await sb.from('security_alert_recipients').update({ is_active: active }).eq('id', id);
+    if (error) throw error;
+    showToast(active ? '✓ Activado' : '✓ Desactivado');
+    loadAdminData();
+  } catch (err) { showToast('⚠ ' + err.message); }
+}
+
+async function removeAlertRecipient(id) {
+  if (!confirm('¿Eliminar este destinatario?')) return;
+  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!sb) return;
+  try {
+    const { error } = await sb.from('security_alert_recipients').delete().eq('id', id);
+    if (error) throw error;
+    showToast('✓ Eliminado');
+    loadAdminData();
+  } catch (err) { showToast('⚠ ' + err.message); }
 }
 
 /* ────────────────────────────────────────────────────────────────
