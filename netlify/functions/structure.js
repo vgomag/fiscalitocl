@@ -123,15 +123,15 @@ REGLAS:
 /* ── Rate Limiting ── */
 const _RL_LIMITS = { chat:60, structure:60, rag:60, 'qdrant-ingest':30, 'drive-extract':30 };
 async function _checkRL(token, endpoint) {
-  if (!token) return { allowed: true };
+  if (!token) return { allowed: false };
   try {
     const parts = token.split('.');
-    if (parts.length !== 3) return { allowed: true };
+    if (parts.length !== 3) return { allowed: false };
     const uid = JSON.parse(atob(parts[1])).sub;
-    if (!uid) return { allowed: true };
+    if (!uid) return { allowed: false };
     const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
     const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
-    if (!sbUrl || !sbKey) return { allowed: true };
+    if (!sbUrl || !sbKey) return { allowed: false };
     const _ac = new AbortController();
     const _to = setTimeout(() => _ac.abort(), 10000);
     const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
