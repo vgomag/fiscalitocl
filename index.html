@@ -2494,9 +2494,6 @@ function showFnPanel(code){
         </div>
       </div>`;
 
-  /* ── F7: Panel especial con accesos directos a plantillas y Modelos RAG ── */
-  const f7Extra = code==='F7' ? renderF7TemplatePanel() : '';
-
   panel.innerHTML=`
     <div class="fn-panel-link" style="cursor:default;background:var(--surface2);">
       <div style="display:flex;flex-direction:column;gap:5px;width:100%">
@@ -2508,120 +2505,8 @@ function showFnPanel(code){
         ${p.note?`<div style="background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:4px;padding:7px 10px;font-size:11.5px;color:var(--text-dim);margin-top:4px">${p.noteIcon||'ℹ️'} ${p.note}</div>`:''}
         ${p.fmt?`<div style="font-size:11px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-top:4px;white-space:pre-wrap;font-family:var(--font-mono)">${esc(p.fmt)}</div>`:''}
         ${caseLink}
-        ${f7Extra}
       </div>
     </div>`;
-}
-
-/* ── F7: Panel de plantillas de mero trámite + acceso a Modelos RAG ── */
-function renderF7TemplatePanel(){
-  const hasMT = typeof ALL_MERO_TRAMITE !== 'undefined' && ALL_MERO_TRAMITE.length > 0;
-  const hasRAG = typeof rag !== 'undefined';
-
-  let html = `
-  <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
-    <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);margin-bottom:8px">⚡ Herramientas de emisión</div>
-
-    <!-- Plantillas Mero Trámite -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <button class="fn-chip" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600" onclick="openF7MeroTramite()">
-        📜 Resoluciones Mero Trámite (${hasMT ? ALL_MERO_TRAMITE.length : 44})
-      </button>
-      <button class="fn-chip" style="background:var(--gold-glow);border-color:var(--gold-dim);color:var(--gold);font-weight:600" onclick="openBiblioteca('modelos')">
-        📄 Modelos RAG
-      </button>
-    </div>`;
-
-  if(hasMT){
-    // Mostrar selección rápida de fase
-    html += `
-    <div id="f7MtPanel" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-top:4px">
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-        <span style="font-size:10px;font-weight:600;color:var(--text-muted)">FASE:</span>
-        <button class="rag-filter-btn active" onclick="filterF7MT('all',this)">Todas</button>
-        <button class="rag-filter-btn" onclick="filterF7MT('indagatoria',this)">Indagatoria</button>
-        <button class="rag-filter-btn" onclick="filterF7MT('discusion',this)">Discusión/Defensa</button>
-        <span style="font-size:10px;font-weight:600;color:var(--text-muted);margin-left:8px">TIPO:</span>
-        <button class="rag-filter-btn active" onclick="filterF7MTProcType('all',this)">Todos</button>
-        <button class="rag-filter-btn" onclick="filterF7MTProcType('IS',this)">IS</button>
-        <button class="rag-filter-btn" onclick="filterF7MTProcType('SA',this)">SA</button>
-        <button class="rag-filter-btn" onclick="filterF7MTProcType('PD',this)">PD</button>
-      </div>
-      <div style="max-height:250px;overflow-y:auto" id="f7MtList"></div>
-    </div>`;
-  }
-
-  html += '</div>';
-  return html;
-}
-
-/* ── Estado filtros F7 ── */
-let _f7MtFase='all', _f7MtProc='all';
-
-function openF7MeroTramite(){
-  const panel=document.getElementById('f7MtPanel');
-  if(!panel)return;
-  panel.style.display=panel.style.display==='none'?'block':'none';
-  if(panel.style.display==='block') renderF7MTList();
-}
-
-function filterF7MT(fase,btn){
-  _f7MtFase=fase;
-  btn.parentElement.querySelectorAll('.rag-filter-btn').forEach(b=>{
-    if(b.textContent.trim()==='IS'||b.textContent.trim()==='SA'||b.textContent.trim()==='PD'||b.textContent.trim()==='Todos')return;
-    b.classList.remove('active');
-  });
-  btn.classList.add('active');
-  renderF7MTList();
-}
-
-function filterF7MTProcType(proc,btn){
-  _f7MtProc=proc;
-  btn.parentElement.querySelectorAll('.rag-filter-btn').forEach(b=>{
-    if(b.textContent.trim()==='Todas'||b.textContent.trim()==='Indagatoria'||b.textContent.trim()==='Discusión/Defensa')return;
-    b.classList.remove('active');
-  });
-  btn.classList.add('active');
-  renderF7MTList();
-}
-
-function renderF7MTList(){
-  const list=document.getElementById('f7MtList');
-  if(!list||typeof getMeroTramitePlantillas!=='function')return;
-  const filtered=getMeroTramitePlantillas({fase:_f7MtFase,procType:_f7MtProc});
-  if(!filtered.length){list.innerHTML='<div style="padding:12px;text-align:center;font-size:11px;color:var(--text-muted)">Sin plantillas para este filtro</div>';return;}
-  list.innerHTML=filtered.map(p=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onmouseover="this.style.background='var(--gold-glow)'" onmouseout="this.style.background=''" onclick="useF7Template('${p.code}')">
-      <span style="font-family:var(--font-mono);font-size:9px;color:var(--gold);background:var(--gold-glow);padding:1px 5px;border-radius:3px;flex-shrink:0">${esc(p.code)}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-        <div style="font-size:10px;color:var(--text-muted)">${esc(p.desc)}</div>
-      </div>
-      <span style="font-size:9px;color:var(--text-muted);flex-shrink:0">${p.applicableTo.join('/')}</span>
-    </div>`).join('');
-}
-
-function useF7Template(code){
-  if(typeof ALL_MERO_TRAMITE==='undefined')return;
-  const tmpl=ALL_MERO_TRAMITE.find(t=>t.code===code);
-  if(!tmpl)return;
-  // Determinar tipo de procedimiento del caso activo
-  const procType=currentCase?.tipo_procedimiento||'SA';
-  const procKey=procType.toUpperCase().includes('INVESTIGACI')?'IS':procType.toUpperCase().includes('DISCIPL')?'PD':'SA';
-  const resolved=typeof resolveTemplate==='function'?resolveTemplate(tmpl,procKey):tmpl.structure;
-  // Insertar en el input del chat con instrucción
-  const inp=document.getElementById('inputBox');
-  if(inp){
-    inp.value=`Usa esta plantilla de resolución de mero trámite (${tmpl.name}) y adapta las variables al expediente actual. Rellena los campos {variable} con los datos reales del caso:\n\n${resolved}`;
-    inp.focus();
-    // Auto-resize
-    inp.style.height='auto';
-    inp.style.height=Math.min(inp.scrollHeight,200)+'px';
-  }
-  // Cerrar panel
-  const panel=document.getElementById('f7MtPanel');
-  if(panel)panel.style.display='none';
-  showToast('📜 Plantilla cargada — envía el mensaje para que Fiscalito la adapte al caso');
 }
 
 function buildFnChips(code){
