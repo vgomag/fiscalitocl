@@ -660,15 +660,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1h8l3 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><polyline points="12 1 12 4 15 4"/></svg></span>Herramientas PDF
       </div>
 
-      <!-- BIBLIOTECA (sub-items) -->
-      <div class="sidebar-section-label" style="margin-top:6px">Libros y Normas</div>
+      <!-- BIBLIOTECA (unificada) -->
+      <div class="sidebar-section-label" style="margin-top:6px">Recursos</div>
 
-      <div class="sidebar-nav-item" onclick="openBiblioteca('normas')">
-        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h1.5v12H3.5A1.5 1.5 0 0 1 2 12.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2 1.5 1.5 0 0 0 11 3.5v9A1.5 1.5 0 0 0 12.5 14 1.5 1.5 0 0 0 14 12.5z"/><path d="M5 2h6v12H5z"/></svg></span>Libros y Normas
-      </div>
-
-      <div class="sidebar-nav-item" onclick="openBiblioteca('parrafos')">
-        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5 13.5 5.5 6 13H3v-3z"/><line x1="9" y1="4" x2="12" y2="7"/></svg></span>Párrafos Tipo
+      <div class="sidebar-nav-item" onclick="openBiblioteca('documentos')">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h1.5v12H3.5A1.5 1.5 0 0 1 2 12.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2 1.5 1.5 0 0 0 11 3.5v9A1.5 1.5 0 0 0 12.5 14 1.5 1.5 0 0 0 14 12.5z"/><path d="M5 2h6v12H5z"/></svg></span>Biblioteca
       </div>
 
       <!-- FUNCIONES IA -->
@@ -4194,12 +4190,14 @@ function openBiblioteca(tipo){
   document.querySelectorAll('.sidebar-nav-item').forEach(el=>el.classList.remove('active'));
   if(event?.currentTarget)event.currentTarget.classList.add('active');
   if(typeof biblioteca!=='undefined'){
-    const tabMap={parrafos:'parrafos',normas:'normas',normativa:'normativa',chat:'chat'};
+    const tabMap={parrafos:'parrafos',normas:'normas',normativa:'normativa',chat:'chat',modelos:'modelos',documentos:'documentos'};
     biblioteca.activeTab=tabMap[tipo]||'documentos';
     if(typeof showView==='function')showView('viewBiblioteca');
     // Cargar libros siempre al abrir (no depender de estado previo en memoria)
     if(typeof loadBibliotecaBooks==='function')loadBibliotecaBooks();
     else if(typeof renderBibliotecaView==='function')renderBibliotecaView();
+    // Si es tab modelos, cargar docs RAG también
+    if(biblioteca.activeTab==='modelos' && typeof loadRAGDocs==='function') loadRAGDocs();
   }else{showView('viewBiblioteca');}
 }
 

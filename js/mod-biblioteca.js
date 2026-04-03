@@ -81,6 +81,7 @@ function renderBibliotecaView() {
     { id:'normas',     label:'📋 Normas' },
     { id:'normativa',  label:'🏛 Normativa Interna' },
     { id:'parrafos',   label:'✏️ Párrafos' },
+    { id:'modelos',    label:'📄 Modelos RAG' },
     { id:'chat',       label:'💬 Chat IA' },
   ];
 
@@ -112,9 +113,18 @@ function renderBibTabBody() {
     case 'normas':     return renderBibNormas();
     case 'normativa':  return renderBibNormativaInterna();
     case 'parrafos':   return renderBibParrafos();
+    case 'modelos':    return renderBibModelosRAG();
     case 'chat':       return renderBibChat();
     default:           return '';
   }
+}
+
+/* ── TAB MODELOS RAG (embebido en Biblioteca) ── */
+function renderBibModelosRAG() {
+  // Delegamos al renderizado del módulo RAG si existe
+  if (typeof renderRAGEmbedded === 'function') return renderRAGEmbedded();
+  // Fallback si el módulo aún no cargó
+  return '<div class="loading" style="padding:30px">Cargando módulo Modelos RAG…</div>';
 }
 
 /* ── TAB DOCUMENTOS ── */

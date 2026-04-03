@@ -69,11 +69,10 @@ function saveFavs() {
    APERTURA DESDE SIDEBAR
    ──────────────────────────────────────────────────────── */
 function openModelosRAG() {
-  document.querySelectorAll('.sidebar-nav-item').forEach(el => el.classList.remove('active'));
-  if (typeof event !== 'undefined') event?.currentTarget?.classList.add('active');
-  if (typeof currentCase !== 'undefined') currentCase = null;
-  showView('viewModelosRAG');
-  loadRAGDocs();
+  // Redirigir a la pestaña Modelos RAG dentro de Biblioteca
+  if (typeof openBiblioteca === 'function') {
+    openBiblioteca('modelos');
+  }
 }
 
 /* ────────────────────────────────────────────────────────
