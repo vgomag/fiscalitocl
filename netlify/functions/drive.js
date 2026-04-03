@@ -125,6 +125,25 @@ async function readFile(fileId, token) {
   return { ok: true, name, mimeType: mime, content: content.substring(0, 50000) };
 }
 
+/**
+ * Drive — Operaciones con Google Drive (lectura, descarga, listado).
+ * Gestiona acceso a archivos de Drive para casos y diligencias.
+ *
+ * @route POST /.netlify/functions/drive
+ * @param {Object} body
+ * @param {string} body.action - 'list' | 'read' | 'download'
+ * @param {string} body.folderId - ID de carpeta (para list)
+ * @param {string} [body.fileId] - ID de archivo (para read, download)
+ * @param {boolean} [body.recursive] - Listar recursivamente (para list)
+ * @param {number} [body.maxDepth] - Profundidad máxima (para list recursive, default: 3)
+ * @param {string} [body.exportFormat] - 'docx' | 'xlsx' | 'pdf' (para download)
+ * @returns {Object}
+ *   - list: {ok:true, files:Array, folders:Array, total:number}
+ *   - read: {ok:true, name:string, mimeType:string, content:string}
+ *   - download: {ok:true, name:string, mimeType:string, size:number, base64:string}
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
 exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
