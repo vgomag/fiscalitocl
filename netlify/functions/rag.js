@@ -128,6 +128,28 @@ async function _checkRL(token, endpoint) {
   } catch (e) { return { allowed: true }; }
 }
 
+/**
+ * RAG — Búsqueda semántica en base de datos de documentos (Qdrant).
+ * Realiza búsqueda vectorial usando embeddings de Google Gemini.
+ * Retorna documentos relevantes de múltiples colecciones de referencia.
+ *
+ * @route POST /.netlify/functions/rag
+ * @param {Object} body
+ * @param {string} body.query - Consulta de búsqueda (texto natural)
+ * @param {string} [body.folder] - Carpeta/colección a buscar (default: 'todos')
+ *   Opciones: 'normativa', 'dictamenes', 'jurisprudencia', 'doctrina', 'libros', 'tematicas'
+ * @returns {Object}
+ *   {
+ *     context: string,
+ *     sources: Array<string>,
+ *     count: number,
+ *     message?: string,
+ *     error?: string
+ *   }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
+
 /* ── Handler ── */
 export default async (req) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
