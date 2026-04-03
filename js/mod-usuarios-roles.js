@@ -186,6 +186,7 @@ function renderAdminView() {
     { id:'uso_ia',      label:'⚡ Uso IA' },
     { id:'limites',     label:'⚙️ Límites' },
     { id:'auditoria',   label:'🔍 Auditoría' },
+    { id:'alertas',     label:'🚨 Alertas' },
   ];
 
   main.innerHTML = `
@@ -208,14 +209,11 @@ async function loadAdminData() {
   if (!body) return;
   body.innerHTML = '<div class="loading">Cargando…</div>';
 
-  if (roles.panel === 'usuarios')  await renderUsersTab(body);
+  if (roles.panel === 'usuarios')       await renderUsersTab(body);
   else if (roles.panel === 'uso_ia')   await renderUsageTab(body);
   else if (roles.panel === 'limites')  await renderLimitsTab(body);
-  else if (roles.panel === 'auditoria') {
-    await openAuditPanel?.(); // delegar a mod-seguridad si existe
-    // Fallback inline
-    await renderAuditTab(body);
-  }
+  else if (roles.panel === 'auditoria') await renderAuditTab(body);
+  else if (roles.panel === 'alertas')  await renderAlertasTab(body);
 }
 
 /* ── TAB USUARIOS ── */
