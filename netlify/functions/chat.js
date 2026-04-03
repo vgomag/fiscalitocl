@@ -210,18 +210,28 @@ export default async (req) => {
     }
 
     /* Modo sin streaming (fallback para compatibilidad) */
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: body.model || MODEL_SONNET,
-        max_tokens: body.max_tokens || 2000,
-        system: body.system,
-        messages: body.messages,
-      }),
-    });
-    const data = await res.json();
-    return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS } });
+    const nsController = new AbortController();
+    const nsTimeout = setTimeout(() => nsController.abort(), 55000);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: body.model || MODEL_SONNET,
+          max_tokens: body.max_tokens || 2000,
+          system: body.system,
+          messages: body.messages,
+        }),
+        signal: nsController.signal,
+      });
+      clearTimeout(nsTimeout);
+      const data = await res.json();
+      return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS } });
+    } catch (fetchErr) {
+      clearTimeout(nsTimeout);
+      const msg = fetchErr.name === 'AbortError' ? 'Timeout (55s)' : fetchErr.message;
+      return json({ error: msg }, 504, CORS);
+    }
   } catch (e) {
     return json({ error: e.message }, 500, CORS);
   }
