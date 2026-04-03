@@ -245,12 +245,13 @@ async function renderUsersTab(body) {
         <th class="admin-th">Rol actual</th>
         <th class="admin-th">Cambiar rol</th>
         <th class="admin-th">Registro</th>
+        <th class="admin-th">Acciones</th>
       </tr></thead>
       <tbody>
       ${profiles.map(p => {
-        const role = rolesMap[p.user_id] || rolesMap[p.id] || 'fiscal';
+        const role = rolesMap[p.id] || 'fiscal';
         const rc = ROLE_CONFIG[role] || ROLE_CONFIG.fiscal;
-        const isSelf = p.user_id === user?.id || p.id === user?.id;
+        const isSelf = p.id === user?.id;
         return `<tr>
           <td class="admin-td">
             <div style="font-weight:500">${esc(p.full_name || p.email?.split('@')[0] || '—')}</div>
@@ -264,12 +265,15 @@ async function renderUsersTab(body) {
           <td class="admin-td">
             ${isSelf ? `<span style="font-size:10px;color:var(--text-muted)">Tu cuenta</span>` : `
             <select class="juri-select" style="font-size:11px"
-              onchange="adminChangeRole('${p.user_id||p.id}',this.value)">
+              onchange="adminChangeRole('${p.id}',this.value)">
               ${Object.entries(ROLE_CONFIG).map(([k,v])=>`<option value="${k}" ${role===k?'selected':''}>${v.label}</option>`).join('')}
             </select>`}
           </td>
           <td class="admin-td" style="font-size:10.5px;color:var(--text-muted);font-family:'DM Mono',monospace">
             ${p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL') : '—'}
+          </td>
+          <td class="admin-td">
+            ${isSelf ? '' : `<button onclick="adminResetPassword('${esc(p.email)}')" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:3px 8px;font-size:10px;cursor:pointer;color:var(--text-muted);transition:all .15s" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'" title="Enviar enlace para restablecer contraseña">🔑 Reenviar enlace</button>`}
           </td>
         </tr>`;
       }).join('')}
@@ -305,6 +309,22 @@ async function adminChangeRole(userId, newRole) {
     showToast(`✓ Rol actualizado a ${ROLE_CONFIG[newRole]?.label || newRole}`);
   } catch (err) {
     showToast(`⚠ Error al cambiar rol: ${err.message}`);
+  }
+}
+
+/* ── REENVIAR ENLACE DE CONTRASEÑA ── */
+async function adminResetPassword(email) {
+  if (!email) return;
+  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!sb) return;
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin
+    });
+    if (error) throw error;
+    showToast(`✓ Enlace enviado a ${email}`);
+  } catch (err) {
+    showToast(`⚠ Error: ${err.message}`);
   }
 }
 
