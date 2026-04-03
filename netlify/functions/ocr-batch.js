@@ -63,6 +63,27 @@ async function ocrWithRetry(apiKey, base64Data, mimeType, fileName, maxRetries =
   return { error: 'Max retries exceeded' };
 }
 
+/**
+ * OCR Batch — Procesamiento de múltiples archivos en lote.
+ * Descarga archivos de Google Drive y extrae texto con Claude Vision.
+ * Incluye retry automático con backoff exponencial.
+ *
+ * @route POST /.netlify/functions/ocr-batch
+ * @param {Object} body
+ * @param {Array<{driveFileId:string, fileName:string, mimeType:string, base64Data?:string}>} body.files - Array de archivos a procesar (max 10)
+ * @param {string} [body.caseId] - ID del caso para referencia
+ * @returns {Object}
+ *   {
+ *     results: Array<{fileName, status, text?, error?, textLength?}>,
+ *     caseId: string,
+ *     processed: number,
+ *     failed: number,
+ *     total: number,
+ *     usage: {inputTokens, outputTokens}
+ *   }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 30 req/hora por usuario
+ */
 exports.handler = async (event) => {
   const CORS = {
     'Access-Control-Allow-Origin': '*',

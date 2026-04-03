@@ -166,7 +166,7 @@ export default async (req) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: body.model || 'claude-sonnet-4-20250514',
+          model: body.model || MODEL_SONNET,
           max_tokens: body.max_tokens || 2000,
           system: body.system,
           messages: body.messages,
