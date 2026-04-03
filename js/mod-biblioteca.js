@@ -82,6 +82,8 @@ function renderBibliotecaView() {
     { id:'normativa',  label:'🏛 Normativa Interna' },
     { id:'parrafos',   label:'✏️ Párrafos' },
     { id:'modelos',    label:'📄 Modelos RAG' },
+    { id:'drive',      label:'☁️ Drive' },
+    { id:'pdf',        label:'📕 PDF' },
     { id:'chat',       label:'💬 Chat IA' },
   ];
 
@@ -118,6 +120,8 @@ function renderBibTabBody() {
     case 'normativa':  return renderBibNormativaInterna();
     case 'parrafos':   return renderBibParrafos();
     case 'modelos':    return renderBibModelosRAG();
+    case 'drive':      return renderBibDrive();
+    case 'pdf':        return renderBibPdf();
     case 'chat':       return renderBibChat();
     default:           return '';
   }
@@ -129,6 +133,41 @@ function renderBibModelosRAG() {
   if (typeof renderRAGEmbedded === 'function') return renderRAGEmbedded();
   // Fallback si el módulo aún no cargó
   return '<div class="loading" style="padding:30px">Cargando módulo Modelos RAG…</div>';
+}
+
+/* ── TAB DRIVE (embebido en Biblioteca) ── */
+function renderBibDrive() {
+  // Redirigir a la vista Drive existente
+  setTimeout(function(){
+    if (typeof openMonitorDrive === 'function') {
+      // Navegar a la vista Drive sin cambiar el sidebar highlight
+      if (typeof showView === 'function') showView('viewDriveQdrant');
+      if (typeof dqLoadAll === 'function') dqLoadAll();
+    }
+  }, 50);
+  return `
+  <div style="text-align:center;padding:30px">
+    <div style="font-size:28px;margin-bottom:10px">☁️</div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:6px">Herramientas Drive & Qdrant</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Gestión de colecciones Qdrant, sincronización Drive y vectorización de documentos</div>
+    <button class="btn-save" style="padding:8px 20px" onclick="if(typeof showView==='function')showView('viewDriveQdrant');if(typeof dqLoadAll==='function')dqLoadAll()">Abrir Herramientas Drive</button>
+  </div>`;
+}
+
+/* ── TAB PDF (embebido en Biblioteca) ── */
+function renderBibPdf() {
+  setTimeout(function(){
+    if (typeof showView === 'function' && document.getElementById('viewPdfTools')) {
+      showView('viewPdfTools');
+    }
+  }, 50);
+  return `
+  <div style="text-align:center;padding:30px">
+    <div style="font-size:28px;margin-bottom:10px">📕</div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:6px">Herramientas PDF</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Combinar, dividir, rotar, extraer texto y manipular archivos PDF</div>
+    <button class="btn-save" style="padding:8px 20px" onclick="if(typeof showView==='function')showView('viewPdfTools')">Abrir Herramientas PDF</button>
+  </div>`;
 }
 
 /* ── TAB DOCUMENTOS ── */

@@ -652,15 +652,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="1" width="4" height="8" rx="2"/><path d="M3 7v1a5 5 0 0 0 10 0V7"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="5.5" y1="15" x2="10.5" y2="15"/></svg></span><span style="color:#7c3aed;font-weight:600;">Transcripción de Audio</span>
       </div>
 
-      <div class="sidebar-nav-item" onclick="openMonitorDrive()">
-        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 10.5 A5.5 5.5 0 0 0 2.8 7.5"/><path d="M2.5 10.5 A5.5 5.5 0 0 0 13.2 7.5"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg></span>Herramientas Drive
-      </div>
-
-      <div class="sidebar-nav-item" onclick="openPdfTools()">
-        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1h8l3 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><polyline points="12 1 12 4 15 4"/></svg></span>Herramientas PDF
-      </div>
-
-      <!-- BIBLIOTECA (unificada) -->
+      <!-- BIBLIOTECA (unificada — incluye Drive, PDF, Libros, Normas, Párrafos, Modelos RAG) -->
       <div class="sidebar-section-label" style="margin-top:6px">Recursos</div>
 
       <div class="sidebar-nav-item" onclick="openBiblioteca('documentos')">
@@ -692,7 +684,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
     <div class="view" id="viewBiblioteca" style="flex-direction:column;overflow:hidden;">
       <div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
         <div style="font-family:var(--font-serif);font-size:22px;font-weight:400;color:var(--text)">Biblioteca</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Libros · Normas · Normativa Interna · Párrafos Tipo · Modelos RAG · Chat IA</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Libros · Normas · Normativa · Párrafos · Modelos RAG · Drive · PDF · Chat IA</div>
       </div>
       <div id="bibliotecaContainer" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
         <div class="loading">Cargando biblioteca…</div>
@@ -4325,7 +4317,7 @@ function openBiblioteca(tipo){
   document.querySelectorAll('.sidebar-nav-item').forEach(el=>el.classList.remove('active'));
   if(event?.currentTarget)event.currentTarget.classList.add('active');
   if(typeof biblioteca!=='undefined'){
-    const tabMap={parrafos:'parrafos',normas:'normas',normativa:'normativa',chat:'chat',modelos:'modelos',documentos:'documentos'};
+    const tabMap={parrafos:'parrafos',normas:'normas',normativa:'normativa',chat:'chat',modelos:'modelos',documentos:'documentos',drive:'drive',pdf:'pdf'};
     biblioteca.activeTab=tabMap[tipo]||'documentos';
     if(typeof showView==='function')showView('viewBiblioteca');
     // Cargar libros siempre al abrir (no depender de estado previo en memoria)
