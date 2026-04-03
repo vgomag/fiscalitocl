@@ -23,7 +23,7 @@ async function _checkRL(token, endpoint) {
     });
     clearTimeout(_to);
     if (!r.ok) return { allowed: false };
-    return (await r.json()) || { allowed: true };
+    return (await r.json()) || { allowed: false };
   } catch (e) { return { allowed: false }; }
 }
 
