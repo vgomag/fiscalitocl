@@ -305,7 +305,7 @@
       const [diligenciasRes, participantsRes, chronologyRes] = await Promise.all([
         sb.from('diligencias').select('diligencia_label,file_name,fecha_diligencia,ai_summary').eq('case_id', c.id).order('fecha_diligencia',{ascending:true}),
         sb.from('case_participants').select('name,role,estamento,carrera').eq('case_id', c.id),
-        sb.from('case_chronology').select('event_date,title,description').eq('case_id', c.id).order('event_date',{ascending:true})
+        sb.from('cronologia').select('event_date,title,description').eq('case_id', c.id).order('event_date',{ascending:true})
       ]);
 
       const result = await apiFetch('generate-vista', {
