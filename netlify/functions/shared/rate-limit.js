@@ -42,11 +42,15 @@ async function checkRateLimit(userId, endpoint) {
   if (!sbUrl || !sbKey) return fallback;
 
   try {
+    const _ac = new AbortController();
+    const _to = setTimeout(() => _ac.abort(), 10000);
     const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
       body: JSON.stringify({ p_user_id: userId, p_endpoint: endpoint, p_max_requests: maxReq, p_window_minutes: 60 }),
+      signal: _ac.signal,
     });
+    clearTimeout(_to);
     if (!r.ok) { console.warn('[rate-limit] RPC error:', r.status); return fallback; }
     return (await r.json()) || fallback;
   } catch (err) {
