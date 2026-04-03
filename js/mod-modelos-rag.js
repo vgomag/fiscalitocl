@@ -521,7 +521,7 @@ Genera el documento adaptado al nuevo caso, respetando al máximo la estructura,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens: 4000,
           system: systemPrompt,
           messages: [{ role: 'user', content: userMessage }]
