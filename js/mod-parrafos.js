@@ -482,7 +482,7 @@ async function generateParrafoIA() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-auth-token': _token },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens: 2000,
           system: `Eres Fiscalito, asistente jurídico de la Fiscalía General de la Universidad de Magallanes. Generas párrafos modelo para Vistas Fiscales e Informes de Investigadora en procedimientos disciplinarios (DFL N°29/2005, Ley 19.880, Ley 18.575).
 
