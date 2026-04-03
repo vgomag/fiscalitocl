@@ -108,12 +108,20 @@ const FOLDER_ALIASES = {
 
 /* ── Handler ── */
 export default async (req) => {
-  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 
-  if (req.method === 'OPTIONS') return new Response('', { headers });
+  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers });
+
+  const authToken = req.headers.get('x-auth-token') || '';
+  if (!authToken) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers });
 
   try {
     const body = await req.json();
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers });
+    }
     const { query, folder = 'todos' } = body;
     if (!query) return new Response(JSON.stringify({ error: 'query required' }), { status: 400, headers });
 
