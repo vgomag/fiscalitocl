@@ -6,6 +6,10 @@
  */
 const https = require('https');
 
+/* ── Claude Model Constants ── */
+const MODEL_SONNET = process.env.CLAUDE_MODEL_SONNET || 'claude-sonnet-4-20250514';
+const MODEL_HAIKU = process.env.CLAUDE_MODEL_HAIKU || 'claude-haiku-4-5-20251001';
+
 /**
  * Codifica un buffer o string en base64url (RFC 4648 §5).
  * Acepta Buffer o string. Elimina padding '=' correctamente.
@@ -28,7 +32,7 @@ function callAnthropic(apiKey, system, userMsg, opts) {
   // Retrocompatibilidad: si opts es un número, es maxTokens
   if (typeof opts === 'number') opts = { maxTokens: opts };
   const { model, maxTokens, timeout } = Object.assign(
-    { model: 'claude-haiku-4-5-20251001', maxTokens: 2000, timeout: 25000 },
+    { model: MODEL_HAIKU, maxTokens: 2000, timeout: 25000 },
     opts || {}
   );
 
@@ -72,7 +76,7 @@ function callAnthropic(apiKey, system, userMsg, opts) {
  */
 function callAnthropicVision(apiKey, base64Data, mimeType, fileName, opts) {
   const { model, maxTokens, timeout } = Object.assign(
-    { model: 'claude-haiku-4-5-20251001', maxTokens: 4000, timeout: 30000 },
+    { model: MODEL_HAIKU, maxTokens: 4000, timeout: 30000 },
     opts || {}
   );
 
@@ -121,4 +125,4 @@ function callAnthropicVision(apiKey, base64Data, mimeType, fileName, opts) {
   });
 }
 
-module.exports = { callAnthropic, callAnthropicVision, base64url };
+module.exports = { callAnthropic, callAnthropicVision, base64url, MODEL_SONNET, MODEL_HAIKU };
