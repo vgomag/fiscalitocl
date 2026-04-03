@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const https = require('https');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { MODEL_SONNET, MODEL_HAIKU } = require('./shared/anthropic');
 
 function base64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -62,10 +63,29 @@ function callClaude(apiKey, model, system, userContent, maxTokens) {
   });
 }
 
-const SONNET = 'claude-sonnet-4-20250514';
-const HAIKU = 'claude-haiku-4-5-20251001';
+const SONNET = MODEL_SONNET;
+const HAIKU = MODEL_HAIKU;
 const H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 
+/**
+ * OCR — Extracción de texto y análisis de diligencias con Claude Vision.
+ * Pipeline de dos etapas: extracción de PDF + análisis de contenido.
+ *
+ * @route POST /.netlify/functions/ocr
+ * @param {Object} body
+ * @param {string} body.action - 'extract' | 'analyze' | 'summarize'
+ * @param {string} [body.fileId] - ID del archivo en Google Drive (para extract)
+ * @param {string} [body.fileName] - Nombre del archivo
+ * @param {string} [body.extractedText] - Texto extraído previo (para analyze)
+ * @param {string} [body.text] - Texto a resumir (para summarize)
+ * @param {string} [body.diligenciaType] - Tipo de diligencia
+ * @returns {Object}
+ *   - extract: {ok:true, name:string, mimeType:string, fileSize:number, extractedText:string, aiSummary:string, charCount:number}
+ *   - analyze: {ok:true, diligencias:Array, count:number}
+ *   - summarize: {ok:true, summary:string}
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: H, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: H, body: JSON.stringify({ error: 'Method Not Allowed' }) };

@@ -1,3 +1,6 @@
+/* ── Claude Model Constants ── */
+const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
+
 /* ── Rate Limiting ── */
 const _RL_LIMITS = { chat:60, structure:60, rag:60, 'qdrant-ingest':30, 'drive-extract':30 };
 async function _checkRL(token, endpoint) {
@@ -20,6 +23,30 @@ async function _checkRL(token, endpoint) {
   } catch (e) { return { allowed: true }; }
 }
 
+/**
+ * Chat IA — Endpoint principal de conversación con Claude.
+ * Soporta modo texto normal y modo transcripción de audio.
+ *
+ * @route POST /.netlify/functions/chat
+ * @param {Object} body
+ * @param {string} [body.model] - Modelo Claude a usar (default: claude-sonnet-4-20250514)
+ * @param {number} [body.max_tokens] - Máximo de tokens en respuesta (default: 2000)
+ * @param {string} [body.system] - System prompt para el modelo
+ * @param {Array<{role:string, content:string}>} body.messages - Array de mensajes conversacionales
+ * @param {boolean} [body.stream] - Si true, devuelve SSE stream; si false, respuesta completa
+ * @param {string} [body.mode] - 'transcribe' para modo transcripción de audio
+ * @param {string} [body.audioBase64] - Audio en base64 (si mode=transcribe)
+ * @param {string} [body.signedUrl] - URL firmada a archivo de audio
+ * @param {string} [body.storageBucket] - Bucket de Supabase Storage
+ * @param {string} [body.storagePath] - Ruta en Storage
+ * @param {string} [body.fileName] - Nombre del archivo de audio
+ * @param {string} [body.mimeType] - MIME type del audio
+ * @returns {Response}
+ *   - Modo texto: {content:[{type:'text',text:'...'}], usage:{...}} o SSE stream
+ *   - Modo transcripción: {transcript:string, provider:'whisper'|'elevenlabs'}
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
 export default async (req) => {
   const CORS = {
     'Access-Control-Allow-Origin': '*',
