@@ -176,6 +176,10 @@ exports.handler = async (event) => {
     let targetCaseId = null;
     if (body) {
       targetCaseId = body.caseId || null;
+      /* Validar formato UUID para prevenir inyección en query REST */
+      if (targetCaseId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetCaseId)) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'caseId inválido' }) };
+      }
     }
 
     /* Obtener token de Google */
@@ -184,7 +188,7 @@ exports.handler = async (event) => {
     /* Obtener casos activos con carpeta Drive */
     let casesPath = 'cases?select=id,name,drive_folder_url&drive_folder_url=not.is.null&status=neq.cerrado';
     if (targetCaseId) {
-      casesPath = `cases?select=id,name,drive_folder_url&id=eq.${targetCaseId}`;
+      casesPath = `cases?select=id,name,drive_folder_url&id=eq.${encodeURIComponent(targetCaseId)}`;
     }
     const cases = await supabaseFetch(SB_URL, SB_KEY, casesPath, 'GET');
 

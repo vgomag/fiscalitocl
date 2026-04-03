@@ -46,28 +46,56 @@ export default async (req) => {
     const key = Netlify.env.get('ANTHROPIC_API_KEY');
     if (!key) return new Response(JSON.stringify({ error: 'API key no configurada' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: body.model || MODEL_SONNET,
-        max_tokens: body.max_tokens || 2000,
-        system: body.system,
-        messages: body.messages,
-        stream: true,
-      }),
-    });
+    /* Validar messages */
+    if (!Array.isArray(body.messages) || !body.messages.length) {
+      return new Response(JSON.stringify({ error: 'messages requerido' }), { status: 400, headers: { 'Content-Type': 'application/json', ...CORS } });
+    }
+
+    /* Limitar max_tokens */
+    const maxTokens = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 16000);
+
+    /* AbortController con timeout de 120s para streams largos */
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+
+    let res;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: body.model || MODEL_SONNET,
+          max_tokens: maxTokens,
+          system: body.system,
+          messages: body.messages,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      const msg = fetchErr.name === 'AbortError' ? 'Stream timeout (120s)' : fetchErr.message;
+      return new Response(JSON.stringify({ error: msg }), { status: 504, headers: { 'Content-Type': 'application/json', ...CORS } });
+    }
 
     if (!res.ok) {
+      clearTimeout(timeout);
       const errData = await res.text();
       return new Response(errData, { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
-    return new Response(res.body, {
+    /* Wrap stream to clean up timeout on completion */
+    const upstream = res.body;
+    const transform = new TransformStream({
+      flush() { clearTimeout(timeout); }
+    });
+    upstream.pipeTo(transform.writable).catch(() => clearTimeout(timeout));
+
+    return new Response(transform.readable, {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream',

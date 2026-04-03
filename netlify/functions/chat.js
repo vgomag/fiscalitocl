@@ -90,6 +90,7 @@ export default async (req) => {
       /* Obtener audio: base64 directo, URL firmada, o descarga de Supabase Storage */
       let audioBytes;
       if (audioBase64) {
+        if (audioBase64.length > 33554432) return json({ error: 'Audio demasiado grande (max 25MB)' }, 413, CORS);
         audioBytes = Buffer.from(audioBase64, 'base64');
       } else if (signedUrl) {
         try {
@@ -162,25 +163,42 @@ export default async (req) => {
 
     /* Si el cliente pide streaming (stream: true en body) */
     if (body.stream) {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: body.model || MODEL_SONNET,
-          max_tokens: body.max_tokens || 2000,
-          system: body.system,
-          messages: body.messages,
-          stream: true,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.text();
-        return new Response(errData, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+      if (!Array.isArray(body.messages) || !body.messages.length) return json({ error: 'messages requerido' }, 400, CORS);
+      const maxTokens = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 16000);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000);
+      let res;
+      try {
+        res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: body.model || MODEL_SONNET,
+            max_tokens: maxTokens,
+            system: body.system,
+            messages: body.messages,
+            stream: true,
+          }),
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        clearTimeout(timeout);
+        const msg = fetchErr.name === 'AbortError' ? 'Stream timeout (120s)' : fetchErr.message;
+        return json({ error: msg }, 504, CORS);
       }
 
-      /* Reenviar el stream SSE de Anthropic directamente al cliente */
-      return new Response(res.body, {
+      if (!res.ok) {
+        clearTimeout(timeout);
+        const errData = await res.text();
+        return new Response(errData, { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+      }
+
+      /* Reenviar el stream SSE con cleanup de timeout */
+      const upstream = res.body;
+      const transform = new TransformStream({ flush() { clearTimeout(timeout); } });
+      upstream.pipeTo(transform.writable).catch(() => clearTimeout(timeout));
+
+      return new Response(transform.readable, {
         status: 200,
         headers: {
           'Content-Type': 'text/event-stream',
