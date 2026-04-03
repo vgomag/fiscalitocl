@@ -1044,6 +1044,10 @@ const SB_KEY='sb_publishable_qIWOIFlcCKbtr8_2Gf0FQA_73kSqD9-';
 const CHAT_ENDPOINT='/.netlify/functions/chat';
 const CHAT_STREAM_ENDPOINT='/api/chat-stream';
 
+/* ── Claude Model Constants ── */
+const CLAUDE_SONNET = 'claude-sonnet-4-20250514';
+const CLAUDE_HAIKU = 'claude-haiku-4-5-20251001';
+
 /** Fetch autenticado — envía token de Supabase en cada request al chat */
 async function authFetch(url, options = {}) {
   const token = session?.access_token || '';
@@ -2183,7 +2187,7 @@ async function batchExtractCarrerasFromInformes(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
+          model:CLAUDE_SONNET,
           max_tokens:200,
           system:'Eres un extractor de datos. Responde SOLO en formato JSON sin markdown ni comentarios.',
           messages:[{role:'user',content:`Del siguiente fragmento de vista fiscal/informe de investigadora, extrae la carrera universitaria o programa de estudio del denunciante y del denunciado.
@@ -3054,7 +3058,7 @@ async function sendMessage(){
     }
 
     const body={
-      model:'claude-sonnet-4-20250514',
+      model:CLAUDE_SONNET,
       max_tokens:activeFn==='F7'?24000:activeFn==='F8'?16000:activeFn==='F12'?6000:activeFn==='F5'?4096:4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
       messages:[...historyMsgs,{role:'user',content:userContent}],

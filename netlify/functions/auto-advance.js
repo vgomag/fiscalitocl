@@ -103,6 +103,32 @@ function extractMetadata(texts) {
   return metadata;
 }
 
+/**
+ * Auto Advance — Avance automático de etapas procesales en casos.
+ * Analiza diligencias y detecta cambios de etapa (indagatoria → cargos → descargos, etc.).
+ * Extrae metadata automáticamente.
+ *
+ * @route POST /.netlify/functions/auto-advance
+ * @param {Object} body
+ * @param {string} body.action - 'analyze' | 'advance' | 'batch-autofill'
+ * @param {string} [body.caseId] - ID del caso (para analyze/advance)
+ * @param {Array<{extracted_text?, ai_summary?}>} [body.diligencias] - Diligencias del caso
+ * @param {Array<string>} [body.caseIds] - IDs de casos (para batch-autofill)
+ * @returns {Object}
+ *   - analyze/advance: {
+ *       suggestedStage: string,
+ *       patternStage: string,
+ *       aiSuggestion?: {stage, confidence, reason},
+ *       metadata: Object,
+ *       action: 'analyze_only'|'advance_requested'
+ *     }
+ *   - batch-autofill: {
+ *       results: Array<{caseId, suggestedStage, metadata, documentCount}>,
+ *       processed: number
+ *     }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
 exports.handler = async (event) => {
   const CORS = {
     'Access-Control-Allow-Origin': '*',

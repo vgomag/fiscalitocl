@@ -305,7 +305,35 @@ function analyzePrescription(caseData, diligencias, etapas) {
   };
 }
 
-/* ── Análisis con IA (opcional, usa módulo compartido) ── */
+/**
+ * Analyze Prescription — Análisis de prescripción de acciones disciplinarias.
+ * Calcula plazos según Estatuto Administrativo y Ley Karin.
+ * Alerta sobre riesgo de prescripción consumada.
+ *
+ * @route POST /.netlify/functions/analyze-prescription
+ * @param {Object} body
+ * @param {string} body.caseId - ID del caso
+ * @param {Object} [body.caseData] - Datos del caso (fechas, protocolo, etc.)
+ * @param {Array<{diligencia_label?, file_name?}>} [body.diligencias] - Diligencias del caso
+ * @param {Array<{stage_name, is_current?, started_at?}>} [body.etapas] - Etapas del procedimiento
+ * @param {boolean} [body.includeAI] - Incluir recomendación de IA (default: false)
+ * @returns {Object}
+ *   {
+ *     caseId: string,
+ *     tipoProcedimiento: string,
+ *     normativa: string,
+ *     riskLevel: 'ok'|'warning'|'critical'|'expired',
+ *     alerts: Array<{severity, message}>,
+ *     timeline: Array<{tipo, label, fechaInicio, fechaLimite, diasRestantes, ...}>,
+ *     etapaActual?: {nombre, inicio},
+ *     fechas: {hechos, conocimiento, resolucion},
+ *     missingFields: Array<string>,
+ *     aiRecommendation?: string,
+ *     analyzedAt: string (ISO)
+ *   }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
 
 exports.handler = async (event) => {
   const CORS = {
