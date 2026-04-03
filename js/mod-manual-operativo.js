@@ -201,41 +201,68 @@ async function downloadManualOperativo(){
 
     /* ÍNDICE */
     addP();sect('Índice de Contenidos');
-    ['1. Introducción','2. Acceso al Sistema','3. Interfaz Principal','4. Funciones del Asistente IA','5. Gestión de Expedientes','6. Diligencias y Extractos','7. Google Drive','8. Módulos Especializados','9. Biblioteca de Normas','10. Directiva Anti-Alucinación','11. Buenas Prácticas','12. Solución de Problemas','13. Novedades v'+MANUAL_VERSION].forEach(t=>{doc.setFontSize(10);doc.setFont('helvetica','normal');rgb(CC.tx);chk(7);doc.text(t,M+4,y+4);y+=7;});
+    ['1. Introducción','2. Arquitectura Técnica','3. Despliegue e Infraestructura','4. Acceso al Sistema','5. Interfaz Principal — Sidebar','6. Funciones del Asistente IA (F0-F12)','7. Gestión de Expedientes','8. Biblioteca (8 pestañas)','9. Plantillas y Actas','10. Análisis Jurisprudencial (3 modos)','11. Diligencias y Extractos','12. Google Drive','13. Directiva Anti-Alucinación','14. Buenas Prácticas','15. Solución de Problemas','16. Propiedad Intelectual','17. Novedades v'+MANUAL_VERSION].forEach(t=>{doc.setFontSize(10);doc.setFont('helvetica','normal');rgb(CC.tx);chk(7);doc.text(t,M+4,y+4);y+=7;});
 
     /* 1 */ addP();sect('1. Introducción');par(MANUAL.desc);sub('Características principales');MANUAL.features.forEach(f=>bul(f));sub('Marco normativo');MANUAL.legalFramework.forEach(f=>bul(f));
 
-    /* 2 */ addP();sect('2. Acceso al Sistema');par('Fiscalito utiliza autenticación mediante Supabase Auth. El acceso está restringido a usuarios autorizados.');box('El registro está deshabilitado. Contacte al administrador para credenciales.','info');
+    /* 2 */ addP();sect('2. Arquitectura Técnica');par(MANUAL.techDesc);
+    sub('Módulos del sistema');MANUAL.architecture.modules.forEach((m,i)=>num(i+1,m.file,m.desc));
+    sub('Tipos de procedimiento');MANUAL.architecture.procTypes.forEach((p,i)=>num(i+1,p.code+' — '+p.name,'Firma: '+p.firma+'.'));
 
-    /* 3 */ sect('3. Interfaz Principal');par('La interfaz se divide en: Barra lateral (navegación), Panel central (detalle del expediente con pestañas) y Panel de lista (tabla de expedientes filtrable por categoría).');
+    /* 3 */ addP();sect('3. Despliegue e Infraestructura');
+    sub('URLs y servicios');
+    bul('Aplicación web: '+MANUAL.deployment.url);
+    bul('Repositorio: '+MANUAL.deployment.repo);
+    bul('Base de datos: '+MANUAL.deployment.db);
+    bul('Hosting: '+MANUAL.deployment.hosting);
+    sub('Modelo SaaS');par(MANUAL.deployment.model);
 
-    /* 4 */ addP();sect('4. Funciones del Asistente IA');par('11 funciones especializadas desde la pestaña Chat IA:');MANUAL.functions.forEach((f,i)=>num(i+1,f.c+' — '+f.n,f.d));box('Todas las funciones operan bajo la Directiva Anti-Alucinación.','warn');
+    /* 4 */ sect('4. Acceso al Sistema');par('Fiscalito utiliza autenticación mediante Supabase Auth. El acceso está restringido a usuarios autorizados de la Fiscalía Universitaria.');box('El registro está deshabilitado. Contacte al administrador para credenciales.','info');
 
-    /* 5 */ addP();sect('5. Gestión de Expedientes');par('Cada expediente se organiza en pestañas:');MANUAL.tabs.forEach((t,i)=>num(i+1,t.n,t.d));
+    /* 5 */ addP();sect('5. Interfaz Principal — Sidebar');par('La interfaz se organiza mediante una barra lateral con 3 secciones principales. Cada sección agrupa funcionalidades relacionadas:');
+    MANUAL.architecture.sidebar.forEach(s=>{sub(s.section);s.items.forEach(i=>bul(i));});
 
-    /* 6 */ addP();sect('6. Diligencias y Extractos');par('Importa documentos desde Drive, clasifica automáticamente, extrae texto con IA (OCR para PDFs) y genera resúmenes.');sub('Flujo de trabajo');bul('1. Vincular carpeta Drive al caso.');bul('2. Importar desde Drive — auto-clasifica cada archivo.');bul('3. Procesar con IA: descarga PDF → Claude extrae texto → resumen.');bul('4. Generar Párrafos Modelo estilo Vista Fiscal.');sub('Párrafos Modelo');par('Genera párrafos formales con "Que," e indicación de fojas. Nivel 1 (3-5 oraciones), Nivel 2 (5-8), Nivel 3 (10-20 oraciones para declaraciones).');
+    /* 6 */ addP();sect('6. Funciones del Asistente IA (F0-F12)');par('12 funciones especializadas accesibles desde la pestaña Chat IA del expediente y desde la sección Funciones IA del sidebar:');MANUAL.functions.forEach((f,i)=>num(i+1,f.c+' — '+f.n,f.d));box('Todas las funciones operan bajo la Directiva Anti-Alucinación. F11 y F12 no aparecen en la lista de Funciones IA del sidebar; se acceden directamente desde Gestión (Transcripción) y Recursos (Oficios).','warn');
 
-    /* 7 */ addP();sect('7. Google Drive');par('Conexión mediante service account. Estructura de carpetas: dictámenes, normativa, jurisprudencia, doctrina, libros, temáticas, casos y modelos.');
+    /* 7 */ addP();sect('7. Gestión de Expedientes');par('Cada expediente se organiza en pestañas dentro del panel central:');MANUAL.tabs.forEach((t,i)=>num(i+1,t.n,t.d));
 
-    /* 8 */ sect('8. Módulos Especializados');num(1,'Ley 21.369','Checklist de cumplimiento.');num(2,'Jurisprudencia (F10)','Con verificación anti-alucinación.');num(3,'Casos Externos','Análisis con IA.');num(4,'Herramientas PDF','Comprimir, dividir, fusionar, OCR.');num(5,'Párrafos','Repositorio reutilizable.');num(6,'Estadísticas','Dashboard con gráficos.');num(7,'Modelos RAG','Desde resoluciones propias.');
+    /* 8 */ addP();sect('8. Biblioteca (8 pestañas)');par('La Biblioteca unifica en una sola vista todos los recursos documentales, normativos y herramientas auxiliares. Se accede desde Recursos > Biblioteca en el sidebar.');MANUAL.biblioteca.forEach((b,i)=>num(i+1,b.tab,b.d));
 
-    /* 9 */ addP();sect('9. Biblioteca de Normas');par('Fuente permanente: normativa, dictámenes CGR, doctrina, libros y jurisprudencia. F8 (Informe en Derecho) accede a todas las colecciones con máxima profundidad.');
+    /* 9 */ addP();sect('9. Plantillas y Actas');par(MANUAL.plantillasMT.desc);
+    sub('Fases procesales');MANUAL.plantillasMT.fases.forEach((f,i)=>num(i+1,f.fase+' ('+f.count+' plantillas)',f.desc));
+    sub('Sistema de firmas');par(MANUAL.plantillasMT.firmas);
+    box('Las plantillas se acceden desde Gestión > Plantillas y Actas, pestaña "Resoluciones Mero Trámite". Incluyen filtros por fase, tipo de procedimiento y búsqueda libre.','tip');
 
-    /* 10 */ sect('10. Directiva Anti-Alucinación');sub('Hechos');bul('Solo afirma hechos del expediente. Marca [NO CONSTA] si falta.');sub('Normativa');bul('Solo cita artículos y leyes reales. Prioriza Biblioteca.');bul('Dictámenes CGR: solo con certeza. Marca [VERIFICAR] ante duda.');sub('Confianza');bul('[CERTEZA ALTA] — fuente verificada.');bul('[VERIFICAR] — referencia probable.');bul('[NO ENCONTRADA] — no localizado.');box('REVISE SIEMPRE las respuestas antes de incorporarlas a documentos formales.','warn');
+    /* 10 */ addP();sect('10. Análisis Jurisprudencial (3 modos)');par('Módulo especializado con búsqueda semántica en Qdrant y generación streaming con IA. Diferente de F10 (Chat Jurisprudencial) que es conversacional. Se accede desde Recursos > Análisis Jurisprudencial.');MANUAL.analisisJuris.forEach((a,i)=>num(i+1,a.modo,a.d));
 
-    /* 11 */ addP();sect('11. Buenas Prácticas');sub('Recomendaciones');MANUAL.bestDo.forEach(d=>bul(d));sub('Evitar');MANUAL.bestAvoid.forEach(a=>{doc.setFillColor(...CC.rd);chk(6);doc.circle(M+2,y+3,1,'F');doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.tx);doc.splitTextToSize(a,pw-8).forEach((l,i)=>{chk(5.5);doc.text(l,M+6,y+4);if(i>0)y+=5;});y+=6.5;});
+    /* 11 */ addP();sect('11. Diligencias y Extractos');par('Importa documentos desde Drive, clasifica automáticamente, extrae texto con IA (OCR para PDFs) y genera resúmenes.');sub('Flujo de trabajo');bul('1. Vincular carpeta Drive al caso.');bul('2. Importar desde Drive — auto-clasifica cada archivo.');bul('3. Procesar con IA: descarga PDF → Claude extrae texto → resumen.');bul('4. Generar Párrafos Modelo estilo Vista Fiscal.');sub('Párrafos Modelo');par('Genera párrafos formales con "Que," e indicación de fojas. Nivel 1 (3-5 oraciones), Nivel 2 (5-8), Nivel 3 (10-20 oraciones para declaraciones).');
 
-    /* 12 */ addP();sect('12. Solución de Problemas');MANUAL.trouble.forEach(t=>{chk(14);doc.setFontSize(9.5);doc.setFont('helvetica','bold');rgb(CC.tx);doc.text('• '+t.p,M,y+4);y+=6;doc.setFont('helvetica','normal');rgb(CC.gn);doc.text('  → '+t.s,M+4,y+4);y+=8;});
+    /* 12 */ sect('12. Google Drive');par('Conexión mediante service account. Estructura de carpetas: dictámenes, normativa, jurisprudencia, doctrina, libros, temáticas, casos y modelos. Sincronización desde la pestaña Drive del expediente o desde Biblioteca > Drive.');
 
-    /* 13 */ addP();sect('13. Novedades v'+MANUAL_VERSION);
-    bul('Historial de chat IA aislado por expediente.');
-    bul('Pestaña Diligencias con importación masiva desde Drive.');
-    bul('OCR de PDFs con Claude para extracción de texto real.');
-    bul('Párrafos Modelo Vista Fiscal con 3 niveles de detalle.');
-    bul('Directiva Anti-Alucinación reforzada en F0-F11.');
-    bul('F8 Informe en Derecho con estructura obligatoria y estilo humano.');
-    bul('Sistema de niveles de confianza: CERTEZA ALTA / VERIFICAR / NO ENCONTRADA.');
-    bul('Manual Operativo descargable desde pantalla de bienvenida.');
+    /* 13 */ addP();sect('13. Directiva Anti-Alucinación');sub('Hechos');bul('Solo afirma hechos del expediente. Marca [NO CONSTA] si falta.');sub('Normativa');bul('Solo cita artículos y leyes reales. Prioriza Biblioteca.');bul('Dictámenes CGR: solo con certeza. Marca [VERIFICAR] ante duda.');sub('Confianza');bul('[CERTEZA ALTA] — fuente verificada.');bul('[VERIFICAR] — referencia probable.');bul('[NO ENCONTRADA] — no localizado.');box('REVISE SIEMPRE las respuestas antes de incorporarlas a documentos formales.','warn');
+
+    /* 14 */ addP();sect('14. Buenas Prácticas');sub('Recomendaciones');MANUAL.bestDo.forEach(d=>bul(d));sub('Evitar');MANUAL.bestAvoid.forEach(a=>{doc.setFillColor(...CC.rd);chk(6);doc.circle(M+2,y+3,1,'F');doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.tx);doc.splitTextToSize(a,pw-8).forEach((l,i)=>{chk(5.5);doc.text(l,M+6,y+4);if(i>0)y+=5;});y+=6.5;});
+
+    /* 15 */ addP();sect('15. Solución de Problemas');MANUAL.trouble.forEach(t=>{chk(14);doc.setFontSize(9.5);doc.setFont('helvetica','bold');rgb(CC.tx);doc.text('• '+t.p,M,y+4);y+=6;doc.setFont('helvetica','normal');rgb(CC.gn);doc.text('  → '+t.s,M+4,y+4);y+=8;});
+
+    /* 16 */ addP();sect('16. Propiedad Intelectual del Software');
+    sub('Derecho de Autor — '+MANUAL.ipProtection.copyright.law);par(MANUAL.ipProtection.copyright.art8);par(MANUAL.ipProtection.copyright.art10);
+    sub('Registro de inscripción (DDI)');par(MANUAL.ipProtection.copyright.registro);
+    sub('Registro de Marca — '+MANUAL.ipProtection.trademark.law);par(MANUAL.ipProtection.trademark.desc);
+    sub('Clasificación de Niza aplicable');MANUAL.ipProtection.trademark.niza.forEach(n=>bul('Clase '+n.clase+': '+n.desc));
+    box(MANUAL.ipProtection.trademark.nota,'info');
+
+    /* 17 */ addP();sect('17. Novedades v'+MANUAL_VERSION);
+    bul('Biblioteca unificada con 8 pestañas (Libros, Normas, Normativa, Párrafos, Modelos RAG, Drive, PDF, Chat IA).');
+    bul('44 plantillas de resolución de mero trámite integradas en Plantillas y Actas.');
+    bul('Análisis Jurisprudencial restaurado con 3 modos especializados.');
+    bul('Sidebar reestructurado: Gestión, Funciones IA y Recursos.');
+    bul('F7 dedicado exclusivamente a Vista Fiscal.');
+    bul('Modelos RAG con inyección de contexto en F7/F9.');
+    bul('Firmas diferenciadas por tipo de procedimiento (IS vs SA/PD).');
+    bul('Descripción técnica de arquitectura SPA y módulos.');
+    bul('Sección de propiedad intelectual: Ley 17.336 y registro de marca INAPI.');
+    bul('Manual Operativo actualizado a v'+MANUAL_VERSION+'.');
 
     /* FOOTER */
     const tot=doc.internal.getNumberOfPages();
