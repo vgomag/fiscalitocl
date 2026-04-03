@@ -67,7 +67,7 @@ async function uploadSesDoc(file,category,description,docDate){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
+          model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens:16000,
           messages:[{role:'user',content:[
             {type:'document',source:{type:'base64',media_type:mediaType,data:base64}},
@@ -137,7 +137,7 @@ async function sendSesChat(quickQ){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
         max_tokens:4000,
         system:`Eres Fiscalito, asistente experto en la Ley 21.369 y las directrices de la Superintendencia de Educación Superior (SES) de Chile.
 
