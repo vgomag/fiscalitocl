@@ -206,6 +206,15 @@ export default async (req) => {
     }
 
     const { action } = body;
+    /* Validar acción permitida */
+    const ALLOWED_ACTIONS = ['list-collections', 'collection-info', 'create-collection', 'delete-collection', 'search', 'ingest'];
+    if (!action || !ALLOWED_ACTIONS.includes(action)) {
+      return new Response(JSON.stringify({ error: 'Acción no válida. Permitidas: ' + ALLOWED_ACTIONS.join(', ') }), { status: 400, headers });
+    }
+    /* Validar nombre de colección (alfanumérico + guiones, max 64 chars) */
+    if (body.collection && !/^[a-zA-Z0-9_-]{1,64}$/.test(body.collection)) {
+      return new Response(JSON.stringify({ error: 'Nombre de colección inválido (alfanumérico, max 64 chars)' }), { status: 400, headers });
+    }
     let qdrantUrl = Netlify.env.get('QDRANT_URL');
     const qdrantKey = Netlify.env.get('QDRANT_API_KEY');
     if (!qdrantUrl) throw new Error('QDRANT_URL not configured');
@@ -259,6 +268,11 @@ export default async (req) => {
     if (action === 'ingest') {
       const { collection, documents, chunkSize = 1000, chunkOverlap = 200, sanitize = false } = body;
       if (!collection || !documents?.length) throw new Error('collection and documents required');
+      if (documents.length > 50) throw new Error('Máximo 50 documentos por lote');
+      /* Validar texto de cada documento (max 100KB por doc) */
+      for (const doc of documents) {
+        if (doc.text && doc.text.length > 102400) doc.text = doc.text.substring(0, 102400);
+      }
 
       await ensureCollection(qdrantUrl, qdrantKey, collection, 768);
       const saJson = Netlify.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
