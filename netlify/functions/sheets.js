@@ -121,17 +121,17 @@ exports.handler = async (event) => {
     const { action, spreadsheetId, sheetName, range, values, row } = body;
 
     if (!spreadsheetId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'spreadsheetId requerido' }) };
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'spreadsheetId requerido' }) };
     }
 
     /* ── INFO: metadata del spreadsheet ── */
     if (action === 'info') {
       const res = await sheetsRequest('GET', `/${spreadsheetId}?fields=spreadsheetId,properties.title,sheets.properties`, token);
       if (res.status >= 400) {
-        return { statusCode: res.status, headers, body: JSON.stringify({ ok: false, error: 'Error accediendo al Sheet. ¿Está compartido con la Service Account?', details: res.data }) };
+        return { statusCode: res.status, headers: CORS, body: JSON.stringify({ ok: false, error: 'Error accediendo al Sheet. ¿Está compartido con la Service Account?', details: res.data }) };
       }
       return {
-        statusCode: 200, headers,
+        statusCode: 200, headers: CORS,
         body: JSON.stringify({
           ok: true,
           title: res.data.properties?.title,
@@ -151,10 +151,10 @@ exports.handler = async (event) => {
       const encodedRange = encodeURIComponent(r);
       const res = await sheetsRequest('GET', `/${spreadsheetId}/values/${encodedRange}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`, token);
       if (res.status >= 400) {
-        return { statusCode: res.status, headers, body: JSON.stringify({ ok: false, error: 'Error leyendo el Sheet', details: res.data }) };
+        return { statusCode: res.status, headers: CORS, body: JSON.stringify({ ok: false, error: 'Error leyendo el Sheet', details: res.data }) };
       }
       return {
-        statusCode: 200, headers,
+        statusCode: 200, headers: CORS,
         body: JSON.stringify({
           ok: true,
           range: res.data.range,
@@ -167,7 +167,7 @@ exports.handler = async (event) => {
     /* ── APPEND: agregar fila al final ── */
     if (action === 'append') {
       if (!row || !Array.isArray(row)) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'row (array) requerido para append' }) };
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'row (array) requerido para append' }) };
       }
       const r = sheetName ? `'${sheetName}'!A1` : 'A1';
       const encodedRange = encodeURIComponent(r);
@@ -178,10 +178,10 @@ exports.handler = async (event) => {
         { values: [row] }
       );
       if (res.status >= 400) {
-        return { statusCode: res.status, headers, body: JSON.stringify({ ok: false, error: 'Error agregando fila', details: res.data }) };
+        return { statusCode: res.status, headers: CORS, body: JSON.stringify({ ok: false, error: 'Error agregando fila', details: res.data }) };
       }
       return {
-        statusCode: 200, headers,
+        statusCode: 200, headers: CORS,
         body: JSON.stringify({
           ok: true,
           updatedRange: res.data.updates?.updatedRange,
@@ -193,7 +193,7 @@ exports.handler = async (event) => {
     /* ── UPDATE: actualizar celda o rango específico ── */
     if (action === 'update') {
       if (!range || !values) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'range y values requeridos para update' }) };
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'range y values requeridos para update' }) };
       }
       const encodedRange = encodeURIComponent(range);
       const res = await sheetsRequest(
@@ -203,10 +203,10 @@ exports.handler = async (event) => {
         { values: Array.isArray(values[0]) ? values : [values] }
       );
       if (res.status >= 400) {
-        return { statusCode: res.status, headers, body: JSON.stringify({ ok: false, error: 'Error actualizando', details: res.data }) };
+        return { statusCode: res.status, headers: CORS, body: JSON.stringify({ ok: false, error: 'Error actualizando', details: res.data }) };
       }
       return {
-        statusCode: 200, headers,
+        statusCode: 200, headers: CORS,
         body: JSON.stringify({
           ok: true,
           updatedRange: res.data.updatedRange,
@@ -215,10 +215,10 @@ exports.handler = async (event) => {
       };
     }
 
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Acción no soportada: ' + action + '. Acciones válidas: info, read, append, update' }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Acción no soportada: ' + action + '. Acciones válidas: info, read, append, update' }) };
 
   } catch (err) {
     console.error('sheets.js error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message || 'Error interno' }) };
+    return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message || 'Error interno' }) };
   }
 };
