@@ -11,6 +11,29 @@ const https = require('https');
 const { callAnthropic: _sharedCall, MODEL_SONNET } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 
+/**
+ * Generate Vista Fiscal — Generación automática de vista fiscal con IA.
+ * Crea borradores de vista fiscal (sanción, sobreseimiento, medida cautelar).
+ *
+ * @route POST /.netlify/functions/generate-vista
+ * @param {Object} body
+ * @param {string} body.mode - 'sancion' | 'sobreseimiento' | 'art129'
+ * @param {Object} body.caseData - Datos del caso (name, rol, caratula, etc.)
+ * @param {Array<{diligencia_label, fecha_diligencia?, ai_summary?}>} [body.diligencias] - Documentos del caso
+ * @param {Array<{name, role, estamento?, carrera?}>} [body.participants] - Participantes del procedimiento
+ * @param {Array<{event_date, title, description?}>} [body.chronology] - Cronología de eventos
+ * @param {string} [body.caseId] - ID del caso
+ * @returns {Object}
+ *   {
+ *     vista: string,
+ *     mode: string,
+ *     caseName: string,
+ *     usage: {inputTokens, outputTokens}
+ *   }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario
+ */
+
 /* Wrapper que usa Sonnet con timeout largo para generación de vistas */
 function callAnthropic(apiKey, system, userMsg, maxTokens) {
   return _sharedCall(apiKey, system, userMsg, {
