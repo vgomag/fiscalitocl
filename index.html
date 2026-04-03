@@ -604,7 +604,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   <aside class="sidebar">
     <!-- LOGO -->
     <div class="sidebar-logo">
-      <div class="logo-img-wrap" onclick="document.getElementById('logoUploadInput').click()" title="Haz clic para cambiar el logo">
+      <div class="logo-img-wrap" onclick="document.getElementById('logoUploadInput')?.click()" title="Haz clic para cambiar el logo">
         <img id="sidebarLogoImg" src="https://i.imgur.com/0.png" alt="Fiscalito"/>
         <svg class="logo-upload-overlay" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v8M5 6l3-3 3 3"/><path d="M2 12h12"/></svg>
       </div>
@@ -829,7 +829,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         <!-- Input area -->
         <div class="input-area" style="flex-shrink:0;">
           <div class="input-row">
-            <button class="input-attach" title="Adjuntar documento" onclick="document.getElementById('fnDocInput').click()">
+            <button class="input-attach" title="Adjuntar documento" onclick="document.getElementById('fnDocInput')?.click()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
             <input type="file" id="fnDocInput" accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.wma,.amr,.aiff,.aif,.caf,.webm,.weba,.3gp,.mp4,.m4v,.mov,.avi,.mkv,.wmv,.flv,audio/*,video/*" style="display:none" onchange="handleFnDocUpload(this)" multiple/>
