@@ -263,5 +263,5 @@ function classifyFile(name) {
    agregar en netlify.toml:
 
    [functions."drive-scan"]
-   schedule = "*/15 * * * *"
+   schedule = " * /15 * * * *"
    ══════════════════════════════════ */
