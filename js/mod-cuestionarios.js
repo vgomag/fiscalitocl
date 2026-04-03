@@ -516,50 +516,192 @@ function openCuestionarios(){
   renderCuestionariosView();
 }
 
+/* ── Estado de pestaña activa ── */
+let _cuestActiveTab = 'cuestionarios';
+/* ── Estado filtros mero trámite ── */
+let _mtFase='all', _mtProc='all', _mtSearch='';
+
+function switchCuestTab(tab){
+  _cuestActiveTab=tab;
+  renderCuestionariosView();
+}
+
 function renderCuestionariosView(){
   const el=document.getElementById("viewCuestionarios");if(!el)return;
-  if(!_wizState.tplCode){
-    // Template selection
-    const tplList=Object.values(TEMPLATES);
-    const caseActive=typeof currentCase!=="undefined"&&currentCase;
-    const cases=typeof allCases!=="undefined"?allCases:[];
-    const linkedCase=_wizState.linkedCase||(caseActive?currentCase:null);
-
-    el.innerHTML=`
-      <div style="padding:14px 20px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
-        <div style="font-family:var(--font-serif);font-size:22px;font-weight:400">📋 Cuestionarios y Actas</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Plantillas institucionales para procedimientos disciplinarios · Actas · Resoluciones · Consentimientos</div>
-      </div>
-      <div style="flex:1;overflow-y:auto;padding:16px 20px;max-width:900px;margin:0 auto;width:100%">
-        <div style="background:${linkedCase?'var(--gold-glow)':'rgba(245,158,11,.06)'};border:1px solid ${linkedCase?'rgba(79,70,229,.15)':'rgba(245,158,11,.2)'};border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          ${linkedCase
-            ?`<span>📋 Expediente vinculado: <strong>${h(linkedCase.name)}</strong>${linkedCase.rol?" · "+h(linkedCase.rol):""}</span>
-              <span style="font-size:10px;color:var(--green)">✓ Los datos se auto-rellenarán</span>
-              <button class="btn-sm" style="margin-left:auto;font-size:10px;padding:2px 8px" onclick="cuestUnlinkCase()">Cambiar</button>`
-            :`<span>⚠ Sin expediente vinculado.</span>
-              ${cases.length>0
-                ?`<select id="cuestCaseSelect" style="font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);max-width:300px">
-                    <option value="">— Seleccionar expediente —</option>
-                    ${cases.slice(0,30).map(c=>`<option value="${c.id}">${h(c.name)}${c.rol?" · "+h(c.rol):""}</option>`).join("")}
-                  </select>
-                  <button class="btn-sm" style="font-size:10px;padding:3px 8px" onclick="cuestLinkCase()">Vincular</button>`
-                :'<span style="font-size:10px;color:var(--text-muted)">Abre un caso primero desde la lista de expedientes.</span>'}`}
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
-          ${tplList.map(t=>`
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .12s" onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'" onclick="selectTemplate('${t.code}')">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                <span style="font-size:18px">${t.type==="RES"?"📜":t.type==="ACT"?"📋":"📄"}</span>
-                <span style="font-size:10px;background:var(--gold-glow);border:1px solid var(--gold-dim);color:var(--gold);padding:1px 6px;border-radius:4px;font-weight:600">${h(t.code)}</span>
-              </div>
-              <div style="font-size:13px;font-weight:600;margin-bottom:4px">${h(t.name)}</div>
-              <div style="font-size:11px;color:var(--text-muted)">${t.blocks.length} bloques · ${t.blocks.reduce((a,b)=>a+b.vars.length,0)} campos</div>
-            </div>`).join("")}
-        </div>
-      </div>`;
-  } else {
+  if(_wizState.tplCode){
     renderWizard();
+    return;
   }
+
+  const caseActive=typeof currentCase!=="undefined"&&currentCase;
+  const cases=typeof allCases!=="undefined"?allCases:[];
+  const linkedCase=_wizState.linkedCase||(caseActive?currentCase:null);
+
+  const hasMT=typeof ALL_MERO_TRAMITE!=='undefined'&&ALL_MERO_TRAMITE.length>0;
+  const mtCount=hasMT?ALL_MERO_TRAMITE.length:0;
+  const tplCount=Object.keys(TEMPLATES).length;
+
+  el.innerHTML=`
+    <div style="padding:14px 20px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
+      <div style="font-family:var(--font-serif);font-size:22px;font-weight:400">📋 Cuestionarios, Actas y Plantillas</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Plantillas institucionales · Actas · Resoluciones de mero trámite · Consentimientos</div>
+    </div>
+
+    <!-- Pestañas -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 14px;flex-shrink:0">
+      <button class="tab ${_cuestActiveTab==='cuestionarios'?'active':''}" onclick="switchCuestTab('cuestionarios')">📋 Cuestionarios y Actas (${tplCount})</button>
+      <button class="tab ${_cuestActiveTab==='merotramite'?'active':''}" onclick="switchCuestTab('merotramite')">📜 Resoluciones Mero Trámite (${mtCount})</button>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:16px 20px;max-width:960px;margin:0 auto;width:100%">
+      <!-- Caso vinculado -->
+      <div style="background:${linkedCase?'var(--gold-glow)':'rgba(245,158,11,.06)'};border:1px solid ${linkedCase?'rgba(79,70,229,.15)':'rgba(245,158,11,.2)'};border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${linkedCase
+          ?`<span>📋 Expediente vinculado: <strong>${h(linkedCase.name)}</strong>${linkedCase.rol?" · "+h(linkedCase.rol):""}</span>
+            <span style="font-size:10px;color:var(--green)">✓ Los datos se auto-rellenarán</span>
+            <button class="btn-sm" style="margin-left:auto;font-size:10px;padding:2px 8px" onclick="cuestUnlinkCase()">Cambiar</button>`
+          :`<span>⚠ Sin expediente vinculado.</span>
+            ${cases.length>0
+              ?`<select id="cuestCaseSelect" style="font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);max-width:300px">
+                  <option value="">— Seleccionar expediente —</option>
+                  ${cases.slice(0,30).map(c=>`<option value="${c.id}">${h(c.name)}${c.rol?" · "+h(c.rol):""}</option>`).join("")}
+                </select>
+                <button class="btn-sm" style="font-size:10px;padding:3px 8px" onclick="cuestLinkCase()">Vincular</button>`
+              :'<span style="font-size:10px;color:var(--text-muted)">Abre un caso primero desde la lista de expedientes.</span>'}`}
+      </div>
+
+      <!-- Contenido según pestaña -->
+      ${_cuestActiveTab==='cuestionarios' ? renderCuestTabCuestionarios() : renderCuestTabMeroTramite(linkedCase)}
+    </div>`;
+}
+
+function renderCuestTabCuestionarios(){
+  const tplList=Object.values(TEMPLATES);
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+      ${tplList.map(t=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .12s" onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'" onclick="selectTemplate('${t.code}')">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:18px">${t.type==="RES"?"📜":t.type==="ACT"?"📋":"📄"}</span>
+            <span style="font-size:10px;background:var(--gold-glow);border:1px solid var(--gold-dim);color:var(--gold);padding:1px 6px;border-radius:4px;font-weight:600">${h(t.code)}</span>
+          </div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">${h(t.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${t.blocks.length} bloques · ${t.blocks.reduce((a,b)=>a+b.vars.length,0)} campos</div>
+        </div>`).join("")}
+    </div>`;
+}
+
+function renderCuestTabMeroTramite(linkedCase){
+  if(typeof getMeroTramitePlantillas!=='function'){
+    return '<div style="text-align:center;padding:30px;color:var(--text-muted)">Módulo de plantillas no disponible</div>';
+  }
+  const filtered=getMeroTramitePlantillas({fase:_mtFase,procType:_mtProc,search:_mtSearch});
+
+  return `
+    <!-- Filtros -->
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:10px;font-weight:600;color:var(--text-muted)">FASE:</span>
+      <button class="rag-filter-btn ${_mtFase==='all'?'active':''}" onclick="_mtFase='all';renderCuestionariosView()">Todas</button>
+      <button class="rag-filter-btn ${_mtFase==='indagatoria'?'active':''}" onclick="_mtFase='indagatoria';renderCuestionariosView()">Indagatoria (32)</button>
+      <button class="rag-filter-btn ${_mtFase==='discusion'?'active':''}" onclick="_mtFase='discusion';renderCuestionariosView()">Discusión/Defensa (12)</button>
+      <span style="font-size:10px;font-weight:600;color:var(--text-muted);margin-left:10px">TIPO:</span>
+      <button class="rag-filter-btn ${_mtProc==='all'?'active':''}" onclick="_mtProc='all';renderCuestionariosView()">Todos</button>
+      <button class="rag-filter-btn ${_mtProc==='IS'?'active':''}" onclick="_mtProc='IS';renderCuestionariosView()">IS</button>
+      <button class="rag-filter-btn ${_mtProc==='SA'?'active':''}" onclick="_mtProc='SA';renderCuestionariosView()">SA</button>
+      <button class="rag-filter-btn ${_mtProc==='PD'?'active':''}" onclick="_mtProc='PD';renderCuestionariosView()">PD</button>
+    </div>
+
+    <!-- Búsqueda -->
+    <div style="margin-bottom:12px">
+      <input class="search-box" style="width:100%;max-width:400px" placeholder="Buscar plantilla por nombre o código…"
+        value="${h(_mtSearch)}" oninput="_mtSearch=this.value;renderCuestionariosView()"/>
+    </div>
+
+    <!-- Lista -->
+    ${filtered.length===0
+      ?'<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:12px">Sin plantillas para este filtro</div>'
+      :`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+        ${filtered.map(p=>{
+          const faseLabel=p.fase==='indagatoria'?'Indagatoria':'Discusión';
+          return `
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .12s"
+            onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'"
+            onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
+            onclick="useMeroTramiteTemplate('${p.code}')">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+              <span style="font-size:16px">📜</span>
+              <span style="font-size:9px;background:var(--gold-glow);border:1px solid var(--gold-dim);color:var(--gold);padding:1px 6px;border-radius:4px;font-weight:600;font-family:var(--font-mono)">${h(p.code)}</span>
+              <span style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(5,150,105,.08);color:var(--green)">${faseLabel}</span>
+              <span style="font-size:9px;color:var(--text-muted)">${p.applicableTo.join(' / ')}</span>
+            </div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:4px">${h(p.name)}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${h(p.desc)}</div>
+          </div>`;
+        }).join("")}
+      </div>`}`;
+}
+
+/* ── Usar plantilla mero trámite: previsualizar y copiar/enviar a F9 ── */
+function useMeroTramiteTemplate(code){
+  if(typeof ALL_MERO_TRAMITE==='undefined')return;
+  const tmpl=ALL_MERO_TRAMITE.find(t=>t.code===code);
+  if(!tmpl)return;
+  const linkedCase=_wizState.linkedCase||(typeof currentCase!=='undefined'?currentCase:null);
+  const procType=linkedCase?.tipo_procedimiento||'SA';
+  const procKey=procType.toUpperCase().includes('INVESTIGACI')?'IS':procType.toUpperCase().includes('DISCIPL')?'PD':'SA';
+  const resolved=typeof resolveTemplate==='function'?resolveTemplate(tmpl,procKey):tmpl.structure;
+
+  // Mostrar preview en modal
+  if(typeof openMiniModal==='function'){
+    const titleEl=document.getElementById('miniModalTitle');
+    const bodyEl=document.getElementById('miniModalBody');
+    if(titleEl)titleEl.textContent='📜 '+tmpl.name+' ('+procKey+')';
+    if(bodyEl)bodyEl.innerHTML=`
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">${h(tmpl.desc)} · Aplica a: ${tmpl.applicableTo.join(', ')}</div>
+      <div style="font-size:12px;line-height:1.7;max-height:400px;overflow-y:auto;white-space:pre-wrap;background:var(--surface2);padding:14px;border-radius:var(--radius);border:1px solid var(--border);font-family:var(--font-body)">${h(resolved)}</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-save" style="padding:6px 14px;font-size:12px" onclick="mtCopyToClipboard()">📋 Copiar texto</button>
+        <button class="btn-save" style="padding:6px 14px;font-size:12px;background:var(--gold)" onclick="mtSendToChat()">💬 Enviar a Chat (F9)</button>
+      </div>`;
+    // Guardar texto para copiar/enviar
+    window._mtPreviewText=resolved;
+    window._mtPreviewName=tmpl.name;
+    const saveBtn=document.getElementById('miniModalSaveBtn');
+    if(saveBtn)saveBtn.style.display='none';
+    openMiniModal();
+  } else {
+    // Fallback sin modal
+    mtSendToChatDirect(tmpl.name,resolved);
+  }
+}
+
+function mtCopyToClipboard(){
+  if(window._mtPreviewText){
+    navigator.clipboard.writeText(window._mtPreviewText);
+    if(typeof showToast==='function')showToast('✓ Plantilla copiada al portapapeles');
+  }
+}
+
+function mtSendToChat(){
+  if(typeof closeMiniModal==='function')closeMiniModal();
+  mtSendToChatDirect(window._mtPreviewName||'',window._mtPreviewText||'');
+}
+
+function mtSendToChatDirect(name,text){
+  // Navegar a caso + F9 y precargar
+  if(typeof pickFn==='function')pickFn('F9');
+  if(typeof showView==='function'&&typeof currentCase!=='undefined'&&currentCase)showView('viewCase');
+  if(typeof showTab==='function')showTab('tabChat');
+  setTimeout(function(){
+    const inp=document.getElementById('inputBox');
+    if(inp){
+      inp.value='Adapta esta plantilla de resolución de mero trámite ('+name+') al expediente actual. Completa los campos {variable} con los datos reales del caso:\\n\\n'+text.substring(0,3000);
+      inp.focus();
+      inp.style.height='auto';
+      inp.style.height=Math.min(inp.scrollHeight,200)+'px';
+    }
+  },300);
+  if(typeof showToast==='function')showToast('📜 Plantilla cargada en F9 — envía para que Fiscalito la adapte');
 }
 
 async function selectTemplate(code){
