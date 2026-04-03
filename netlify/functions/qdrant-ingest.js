@@ -154,6 +154,31 @@ async function _checkRL(token, endpoint) {
   } catch (e) { return { allowed: true }; }
 }
 
+/**
+ * Qdrant Ingest — Gestión de colecciones vectoriales y ingesta de documentos.
+ * Maneja ingestión de documentos, búsqueda vectorial y gestión de colecciones.
+ *
+ * @route POST /.netlify/functions/qdrant-ingest
+ * @param {Object} body
+ * @param {string} body.action - 'list-collections' | 'collection-info' | 'create-collection' | 'delete-collection' | 'search' | 'ingest'
+ * @param {string} [body.collection] - Nombre de colección
+ * @param {string} [body.query] - Texto a buscar (para search)
+ * @param {number} [body.limit] - Límite de resultados (para search, default: 5)
+ * @param {Array<{id, text, metadata?}>} [body.documents] - Documentos a ingestar
+ * @param {number} [body.chunkSize] - Tamaño de chunks (default: 1000)
+ * @param {number} [body.chunkOverlap] - Solapamiento entre chunks (default: 200)
+ * @param {boolean} [body.sanitize] - Sanitizar PII (default: false)
+ * @param {number} [body.vectorSize] - Dimensiones del vector (default: 768)
+ * @returns {Object}
+ *   - list-collections: colecciones disponibles
+ *   - collection-info: metadata de colección
+ *   - create-collection: {success: boolean}
+ *   - ingest: {success: true, totalPoints: number, errors?: Array}
+ *   - search: resultados vectoriales
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 30 req/hora por usuario
+ */
+
 /* ── Handler ── */
 export default async (req) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
