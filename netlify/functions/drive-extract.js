@@ -110,6 +110,25 @@ async function _checkRL(token, endpoint) {
   } catch (e) { return { allowed: true }; }
 }
 
+/**
+ * Drive Extract — Extracción de texto de archivos Drive con Claude Vision.
+ * Descarga archivos de Drive y extrae texto completo preservando estructura.
+ *
+ * @route POST /.netlify/functions/drive-extract
+ * @param {Object} body
+ * @param {string} body.fileId - ID del archivo en Google Drive
+ * @returns {Object}
+ *   {
+ *     success: true,
+ *     text: string,
+ *     fileName: string,
+ *     mimeType: string,
+ *     chars: number
+ *   }
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 30 req/hora por usuario
+ */
+
 /* ── Handler ── */
 export default async (req) => {
   const CORS = {
