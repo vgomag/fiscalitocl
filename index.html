@@ -3956,8 +3956,8 @@ async function driveLinkUrl(){
   if(!currentCase||!session)return;
   const inp=document.getElementById('driveUrlInput');
   const url=inp?.value.trim();
-  if(!url){return alert('Pega un enlace de Google Drive.');}
-  if(!url.includes('drive.google.com')){return alert('El enlace debe ser de Google Drive.');}
+  if(!url){return showToast('⚠ Pega un enlace de Google Drive.');}
+  if(!url.includes('drive.google.com')){return showToast('⚠ El enlace debe ser de Google Drive.');}
   const{error}=await sb.from('cases').update({drive_folder_url:url,updated_at:new Date().toISOString()}).eq('id',currentCase.id);
   if(error)return showToast('⚠ Error: '+error.message);
   currentCase.drive_folder_url=url;
