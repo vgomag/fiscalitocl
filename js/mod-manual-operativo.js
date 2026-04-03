@@ -180,7 +180,7 @@ async function downloadManualOperativo(){
     const sect=t=>{chk(16);doc.setFillColor(...CC.p);doc.rect(M,y,3,10,'F');doc.setFontSize(14);doc.setFont('helvetica','bold');rgb(CC.dk);doc.text(t,M+8,y+7);y+=16;};
     const sub=t=>{chk(10);doc.setFontSize(11);doc.setFont('helvetica','bold');rgb(CC.tx);doc.text(t,M,y+5);y+=10;};
     const par=t=>{doc.setFontSize(9.5);doc.setFont('helvetica','normal');rgb(CC.mu);doc.splitTextToSize(t,pw).forEach(l=>{chk(6);doc.text(l,M,y+4);y+=5.5;});y+=3;};
-    const bul=t=>{doc.setFillColor(...CC.p);chk(6);doc.circle(M+2,y+3,1,'F');doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.tx);doc.splitTextToSize(t,pw-8).forEach((l,i)=>{chk(5.5);doc.text(l,M+6,y+4);if(i>0)y+=5;});y+=6.5;};
+    const bul=t=>{doc.setFillColor(...CC.p);chk(6);doc.circle(M+2,y+3,1,'F');doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.tx);doc.splitTextToSize(t,pw-8).forEach((l,i)=>{if(i>0){y+=5;chk(5.5);}doc.text(l,M+6,y+4);});y+=6.5;};
     const num=(n,t,d)=>{chk(12);doc.setFontSize(10);doc.setFont('helvetica','bold');rgb(CC.p);doc.text(n+'.',M,y+4);rgb(CC.dk);doc.text(t,M+8,y+4);y+=6;if(d){doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.mu);doc.splitTextToSize(d,pw-8).forEach(l=>{chk(5);doc.text(l,M+8,y+3);y+=5;});y+=2;}};
     const box=(t,c)=>{const cl=c==='warn'?CC.rd:c==='tip'?CC.gn:CC.p;doc.setFontSize(9);doc.setFont('helvetica','normal');const ls=doc.splitTextToSize(t,pw-12);const h=ls.length*5.5+8;chk(h);doc.setFillColor(...cl);doc.rect(M,y,2.5,h,'F');doc.setFillColor(...CC.bg);doc.rect(M+2.5,y,pw-2.5,h,'F');rgb(CC.tx);ls.forEach((l,i)=>doc.text(l,M+8,y+6+i*5.5));y+=h+4;};
 
@@ -241,7 +241,7 @@ async function downloadManualOperativo(){
 
     /* 13 */ addP();sect('13. Directiva Anti-Alucinación');sub('Hechos');bul('Solo afirma hechos del expediente. Marca [NO CONSTA] si falta.');sub('Normativa');bul('Solo cita artículos y leyes reales. Prioriza Biblioteca.');bul('Dictámenes CGR: solo con certeza. Marca [VERIFICAR] ante duda.');sub('Confianza');bul('[CERTEZA ALTA] — fuente verificada.');bul('[VERIFICAR] — referencia probable.');bul('[NO ENCONTRADA] — no localizado.');box('REVISE SIEMPRE las respuestas antes de incorporarlas a documentos formales.','warn');
 
-    /* 14 */ addP();sect('14. Buenas Prácticas');sub('Recomendaciones');MANUAL.bestDo.forEach(d=>bul(d));sub('Evitar');MANUAL.bestAvoid.forEach(a=>{doc.setFillColor(...CC.rd);chk(6);doc.circle(M+2,y+3,1,'F');doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.tx);doc.splitTextToSize(a,pw-8).forEach((l,i)=>{chk(5.5);doc.text(l,M+6,y+4);if(i>0)y+=5;});y+=6.5;});
+    /* 14 */ addP();sect('14. Buenas Prácticas');sub('Recomendaciones');MANUAL.bestDo.forEach(d=>bul(d));sub('Evitar');MANUAL.bestAvoid.forEach(a=>{doc.setFillColor(...CC.rd);chk(6);doc.circle(M+2,y+3,1,'F');doc.setFontSize(9);doc.setFont('helvetica','normal');rgb(CC.tx);doc.splitTextToSize(a,pw-8).forEach((l,i)=>{if(i>0){y+=5;chk(5.5);}doc.text(l,M+6,y+4);});y+=6.5;});
 
     /* 15 */ addP();sect('15. Solución de Problemas');MANUAL.trouble.forEach(t=>{chk(14);doc.setFontSize(9.5);doc.setFont('helvetica','bold');rgb(CC.tx);doc.text('• '+t.p,M,y+4);y+=6;doc.setFont('helvetica','normal');rgb(CC.gn);doc.text('  → '+t.s,M+4,y+4);y+=8;});
 
