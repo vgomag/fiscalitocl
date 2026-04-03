@@ -1,3 +1,20 @@
+/**
+ * Chat Stream — Streaming SSE para respuestas de Claude en tiempo real.
+ * Endpoint de baja latencia usando Netlify Edge Functions.
+ * Reenvía el stream SSE de Anthropic directamente al cliente.
+ *
+ * @route POST /api/chat-stream
+ * @param {Object} body
+ * @param {string} [body.model] - Modelo Claude a usar (default: claude-sonnet-4-20250514)
+ * @param {number} [body.max_tokens] - Máximo de tokens (default: 2000)
+ * @param {string} [body.system] - System prompt
+ * @param {Array<{role:string, content:string}>} body.messages - Mensajes conversacionales
+ * @returns {Response}
+ *   SSE stream con eventos de tipo "content_block_start", "content_block_delta", "message_stop"
+ *   Cada delta contiene: {type:'content_block_delta', delta:{type:'text_delta', text:'...'}}
+ * @auth Requiere x-auth-token (JWT Supabase)
+ * @rateLimit 60 req/hora por usuario (heredado del endpoint /chat)
+ */
 export default async (req) => {
   const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
 

@@ -201,7 +201,7 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: typeof CLAUDE_HAIKU !== 'undefined' ? CLAUDE_HAIKU : 'claude-haiku-4-5-20251001',
       max_tokens: maxTokens || 5000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMsg }]
@@ -647,7 +647,7 @@ async function f11HandleDocUpload(file){
       const r = await authFetch(_CHAT_EP, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:4000,
+          model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514', max_tokens:4000,
           messages:[{
             role:'user',
             content:[
