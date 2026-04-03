@@ -610,7 +610,7 @@ Usa lenguaje formal, preciso y cita las fuentes por nombre.`,
         <div class="skill-summary-content">${typeof md === 'function' ? md(reply) : reply}</div>
       </div>`;
   } catch (err) {
-    box.innerHTML = `<div style="color:var(--red);font-size:11.5px">⚠ Error: ${err.message}</div>`;
+    box.innerHTML = `<div style="color:var(--red);font-size:11.5px">⚠ Error: ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
 }
 

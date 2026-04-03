@@ -1695,7 +1695,7 @@ async function f11LoadPrevTranscriptions(){
     window._f11PrevTranscriptions = diligencias;
 
   } catch(e){
-    listEl.innerHTML = `<div style="padding:10px;font-size:11px;color:var(--red)">Error: ${e.message}</div>`;
+    listEl.innerHTML = `<div style="padding:10px;font-size:11px;color:var(--red)">Error: ${typeof esc==='function'?esc(e.message):e.message}</div>`;
     console.error('LoadPrev error:', e);
   }
 }

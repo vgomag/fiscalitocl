@@ -199,6 +199,8 @@
   /* ── Interceptar operaciones Supabase para monitoreo ── */
   function monkeyPatchSupabase(){
     if(typeof sb === 'undefined') return;
+    if(window._syncMonitorFetchPatched) return;
+    window._syncMonitorFetchPatched = true;
     // Interceptar fetch global para detectar errores de Supabase
     const origFetch = window.fetch;
     window.fetch = function(){

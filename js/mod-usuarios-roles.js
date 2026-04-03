@@ -277,7 +277,7 @@ async function renderUsersTab(body) {
     </table>
     </div>`;
   } catch (err) {
-    body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${err.message}</div>`;
+    body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
 }
 
@@ -400,7 +400,7 @@ async function renderUsageTab(body) {
     </table>
     </div>`;
   } catch (err) {
-    body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${err.message}</div>`;
+    body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
 }
 
@@ -482,7 +482,7 @@ async function renderAuditTab(body) {
       </table>
     </div>`;
   } catch (err) {
-    body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${err.message}</div>`;
+    body.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
 }
 

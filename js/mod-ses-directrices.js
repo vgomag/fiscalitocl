@@ -170,7 +170,7 @@ ${docsContext||'No hay directrices cargadas aún.'}`,
 
   }catch(err){
     const typing=document.getElementById('sesTyping');if(typing)typing.remove();
-    msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px">⚠️ ${err.message}</div>`;
+    msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px">⚠️ ${typeof esc==='function'?esc(err.message):err.message}</div>`;
   }
 }
 

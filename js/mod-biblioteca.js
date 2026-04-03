@@ -1298,7 +1298,7 @@ ${[normasCtx, normativaInternaCtx, booksCtx].filter(Boolean).join('\n\n---\n\n')
     }
   } catch (err) {
     const typing = document.getElementById('bibChatTyping');
-    if (typing) typing.innerHTML = `<div class="ley-chat-msg-body"><div class="ley-chat-msg-bub" style="color:var(--red)">⚠️ Error: ${err.message}</div></div>`;
+    if (typing) typing.innerHTML = `<div class="ley-chat-msg-body"><div class="ley-chat-msg-bub" style="color:var(--red)">⚠️ Error: ${typeof esc==='function'?esc(err.message):err.message}</div></div>`;
   } finally {
     biblioteca.chatLoading = false;
   }
