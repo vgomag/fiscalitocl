@@ -118,18 +118,21 @@ REGLAS:
 };
 
 export default async (req) => {
+  const CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,x-auth-token',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
   if (req.method === 'OPTIONS') {
     return new Response('', {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,x-auth-token'
-      }
+      status: 204,
+      headers: CORS
     });
   }
 
   if (req.method !== 'POST') {
-    return json({ error: 'Method Not Allowed' }, 405);
+    return json({ error: 'Method Not Allowed' }, 405, CORS);
   }
 
   /* Auth opcional — no bloquear si no hay token */
@@ -143,8 +146,12 @@ export default async (req) => {
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
 
     const body = await req.json();
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 1000000) {
+      return json({ error: 'Payload too large' }, 413, CORS);
+    }
     const { rawText, mode, caseContext, baseDocText } = body;
-    if (!rawText) return json({ error: 'rawText requerido' }, 400);
+    if (!rawText) return json({ error: 'rawText requerido' }, 400, CORS);
 
     const systemPrompt = PROMPTS[mode] || PROMPTS.directa;
     let fullPrompt = systemPrompt;
@@ -188,20 +195,19 @@ export default async (req) => {
 
     if (!structured) throw new Error('No se generó texto estructurado');
 
-    return json({ ok: true, structuredText: structured, charCount: structured.length });
+    return json({ ok: true, structuredText: structured, charCount: structured.length }, 200, CORS);
 
   } catch (err) {
-    return json({ error: err.message }, 400);
+    return json({ error: err.message }, 400, CORS);
   }
 };
 
-function json(data, status) {
+function json(data, status, cors = {}) {
   return new Response(JSON.stringify(data), {
     status: status || 200,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,x-auth-token'
+      ...cors
     }
   });
 }
