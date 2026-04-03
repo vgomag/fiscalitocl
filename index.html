@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self' https://*.supabase.co https://*.netlify.app https://api.anthropic.com https://*.googleapis.com wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self' https://*.supabase.co https://*.netlify.app https://api.anthropic.com https://*.googleapis.com wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"/>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Fiscalito — Asistente Jurídico</title>
@@ -1689,7 +1689,7 @@ function updateMultiSelectDisplay(wrapId){
   const wrap=document.getElementById(wrapId);if(!wrap)return;
   const display=wrap.querySelector('.multi-select-display');
   const checked=[...wrap.querySelectorAll('input[type=checkbox]:checked')].map(cb=>cb.value);
-  display.innerHTML=checked.length?checked.map(v=>`<span class="ms-tag">${v}</span>`).join(''):'<span style="color:var(--text-muted);font-size:12px">— Seleccionar —</span>';
+  display.innerHTML=checked.length?checked.map(v=>`<span class="ms-tag">${typeof esc==='function'?esc(v):v}</span>`).join(''):'<span style="color:var(--text-muted);font-size:12px">— Seleccionar —</span>';
 }
 /* Attach change listeners with event delegation to handle dynamic recreation */
 document.addEventListener('DOMContentLoaded',()=>{
@@ -3084,7 +3084,7 @@ async function sendMessage(){
       <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="navigator.clipboard.writeText(this.closest('.msg').querySelector('.msg-bub').innerText);showToast('✓ Copiado')" title="Copiar al portapapeles">📋 Copiar</button>
       <button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="exportChatResponseToWord(this)" title="Descargar como Word">📄 Word</button>
     </div>`:'');
-    msgDiv.innerHTML=`<div class="msg-av-icon">⚖️</div><div class="msg-body"><div class="msg-tag">${activeFn} · ${fn?.name||'Fiscalito'}</div><div class="msg-bub"></div><div class="msg-actions-placeholder"></div></div>`;
+    msgDiv.innerHTML=`<div class="msg-av-icon">⚖️</div><div class="msg-body"><div class="msg-tag">${typeof esc==='function'?esc(activeFn):activeFn} · ${typeof esc==='function'?esc(fn?.name||'Fiscalito'):(fn?.name||'Fiscalito')}</div><div class="msg-bub"></div><div class="msg-actions-placeholder"></div></div>`;
     const msgsC=document.getElementById('msgs');
     msgsC.appendChild(msgDiv);
 
