@@ -1263,7 +1263,7 @@ async function f11Paso3_GenerarActa(){
         .replace(/_{30,}/g, '<div style="border-bottom:1px solid #333;width:60%;margin:12px auto 4px"></div>')
         .replace(/\n/g, '<br>');
     }
-    document.getElementById('f11FinalSection').style.display = 'block';
+    const _fs=document.getElementById('f11FinalSection');if(_fs)_fs.style.display = 'block';
 
     _f11UpdateSteps();
     showToast('✅ Paso 3 completado: acta lista para firmar');
