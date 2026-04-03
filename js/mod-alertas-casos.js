@@ -207,10 +207,10 @@ function renderAlertPanel(){
           <span>${sevIcons[a.severity]}</span>
           <span class="alert-case-name">${typeof esc === 'function' ? esc(a.caseName) : a.caseName}</span>
           ${a.caseRol ? `<span style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${typeof esc === 'function' ? esc(a.caseRol) : a.caseRol}</span>` : ''}
-          <button class="alert-dismiss" onclick="event.stopPropagation();dismissAlertById('${a.id}')" title="Descartar">✕</button>
+          <button class="alert-dismiss" onclick="event.stopPropagation();dismissAlertById('${typeof esc === 'function' ? esc(a.id) : a.id}')" title="Descartar">✕</button>
         </div>
         <div class="alert-message">${typeof esc === 'function' ? esc(a.message) : a.message}</div>
-        <button class="alert-goto" onclick="alertGoToCase('${a.caseId}')">Ver caso →</button>
+        <button class="alert-goto" onclick="alertGoToCase('${typeof esc === 'function' ? esc(a.caseId) : a.caseId}')">Ver caso →</button>
       </div>`;
   });
 

@@ -269,11 +269,11 @@ function renderSesDirectivas(){
                 </div>
               </div>
               <div style="display:flex;gap:4px;flex-shrink:0">
-                ${d.extracted_text?`<button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="document.getElementById('sesView_${d.id}').style.display=document.getElementById('sesView_${d.id}').style.display==='none'?'block':'none'" title="Ver texto">👁️</button>`:''}
-                <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="deleteSesDoc('${d.id}','${esc(d.file_name)}')" title="Eliminar">🗑️</button>
+                ${d.extracted_text?`<button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="document.getElementById('sesView_${typeof esc === 'function' ? esc(d.id) : d.id}').style.display=document.getElementById('sesView_${typeof esc === 'function' ? esc(d.id) : d.id}').style.display==='none'?'block':'none'" title="Ver texto">👁️</button>`:''}
+                <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="deleteSesDoc('${typeof esc === 'function' ? esc(d.id) : d.id}','${esc(d.file_name)}')" title="Eliminar">🗑️</button>
               </div>
             </div>
-            ${d.extracted_text?`<div id="sesView_${d.id}" style="display:none;margin:4px 0 8px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);max-height:300px;overflow-y:auto;font-size:11px;font-family:var(--font-mono);white-space:pre-wrap;color:var(--text-dim)">${esc(d.extracted_text.substring(0,5000))}${d.extracted_text.length>5000?'\n\n[...truncado, '+d.extracted_text.length+' chars total]':''}</div>`:''}
+            ${d.extracted_text?`<div id="sesView_${typeof esc === 'function' ? esc(d.id) : d.id}" style="display:none;margin:4px 0 8px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);max-height:300px;overflow-y:auto;font-size:11px;font-family:var(--font-mono);white-space:pre-wrap;color:var(--text-dim)">${esc(d.extracted_text.substring(0,5000))}${d.extracted_text.length>5000?'\n\n[...truncado, '+d.extracted_text.length+' chars total]':''}</div>`:''}
           `).join('')}
         </div>`;
     }).join('')}
@@ -295,7 +295,7 @@ function renderSesChatUI(){
       <!-- Chips -->
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
         ${['¿Qué plazos establece la SES?','¿Cuáles son las obligaciones de reporte?','Resume las directrices sobre acoso','¿Qué sanciones contempla la SES?','¿Qué dice sobre medidas de resguardo?'].map(q=>
-          `<button class="btn-sm" style="font-size:9px;padding:2px 7px" onclick="sendSesChat('${q.replace(/'/g,"\\'")}')">${q.length>30?q.substring(0,30)+'…':q}</button>`
+          `<button class="btn-sm" style="font-size:9px;padding:2px 7px" onclick="sendSesChat('${typeof esc === 'function' ? esc(q) : q}')">${q.length>30?q.substring(0,30)+'…':q}</button>`
         ).join('')}
       </div>
 

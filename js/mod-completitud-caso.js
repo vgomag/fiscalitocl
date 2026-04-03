@@ -170,12 +170,14 @@
   }
 
   /* ── Patchear renderCaseHeader para inyectar indicador ── */
+  if(window._completitudPatched) return;
   const _origRenderCaseHeader = window.renderCaseHeader;
   window.renderCaseHeader = function(){
     if(typeof _origRenderCaseHeader==='function') _origRenderCaseHeader();
     // Dar tiempo al render original
     setTimeout(renderCompleteness, 100);
   };
+  window._completitudPatched = true;
 
   /* ── API pública ── */
   window._completitud = { refresh: renderCompleteness };
