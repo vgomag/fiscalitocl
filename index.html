@@ -1722,7 +1722,7 @@ function showNewCaseModal(){
 function closeCaseModal(){document.getElementById('caseModal').style.display='none';}
 async function saveCaseModal(){
   let name=document.getElementById('fName').value.trim();
-  if(!name)return alert('El nombre es obligatorio.');
+  if(!name)return showToast('⚠ El nombre es obligatorio.');
 
   /* ═══ Auto-dedup: limpiar info duplicada ═══ */
   const resVal=document.getElementById('fResolucion').value.trim();
@@ -1820,7 +1820,7 @@ async function confirmDeleteCase(){
   if(!currentCase)return;
   if(!confirm(`¿Eliminar el expediente "${currentCase.name}"?`))return;
   const{error}=await sb.from('cases').update({deleted_at:new Date().toISOString()}).eq('id',currentCase.id);
-  if(error)return alert('Error: '+error.message);
+  if(error)return showToast('⚠ Error: '+error.message);
   allCases=allCases.filter(c=>c.id!==currentCase.id);
   currentCase=null;showView('viewWelcome');renderCaseList();updateCatCounts();showToast('✓ Expediente eliminado');
 }
@@ -1940,7 +1940,7 @@ async function saveInformeFinal(caseId){
   if(!ta)return;
   const val=ta.value.trim()||null;
   const{error}=await sb.from('cases').update({informe_final:val,updated_at:new Date().toISOString()}).eq('id',caseId);
-  if(error){alert('Error: '+error.message);return;}
+  if(error){showToast('⚠ Error: '+error.message);return;}
   const idx=allCases.findIndex(c=>c.id===caseId);
   if(idx>=0)allCases[idx].informe_final=val;
   if(currentCase?.id===caseId)currentCase.informe_final=val;
@@ -2128,7 +2128,7 @@ async function moveCase(caseId,newCat){
   }
 
   const{error}=await sb.from('cases').update(payload).eq('id',caseId);
-  if(error){alert('Error: '+error.message);return;}
+  if(error){showToast('⚠ Error: '+error.message);return;}
   const idx=allCases.findIndex(x=>x.id===caseId);
   if(idx>=0){
     allCases[idx].categoria=newCat;
@@ -3449,12 +3449,12 @@ function editParticipante(p){
     document.getElementById('mPartRut').value=p.rut||'';
   }
   window._miniModalSave=async()=>{
-    const name=document.getElementById('mPartName').value.replace(/[\n\r]+/g,' ').trim();if(!name)return alert('El nombre es obligatorio.');
+    const name=document.getElementById('mPartName').value.replace(/[\n\r]+/g,' ').trim();if(!name)return showToast('⚠ El nombre es obligatorio.');
     const payload={role:document.getElementById('mPartRole').value,name,estamento:document.getElementById('mPartEst').value.trim()||null,email:document.getElementById('mPartEmail').value.trim()||null,carrera:document.getElementById('mPartCarrera').value.trim()||null,dependencia:document.getElementById('mPartDep').value.trim()||null,rut:document.getElementById('mPartRut').value.trim()||null,updated_at:new Date().toISOString()};
     let err;
     if(isNew){const r=await sb.from('case_participants').insert({...payload,case_id:currentCase.id,user_id:session.user.id});err=r.error;}
     else{const r=await sb.from('case_participants').update(payload).eq('id',p.id);err=r.error;}
-    if(err)return alert('Error: '+err.message);
+    if(err)return showToast('⚠ Error: '+err.message);
     closeMiniModal();await loadParticipantes();showToast('✓ Participante guardado');
   };
   openMiniModal();
@@ -3524,7 +3524,7 @@ async function saveResolucion(){
   const notes=document.getElementById('resNotes').value.trim();
   if(!number&&!facts){alert('Ingresa al menos el N° de resolución o una descripción.');return;}
   const{error}=await sb.from('resoluciones').insert({case_id:currentCase.id,user_id:session.user.id,resolution_type:type,resolution_number:number||null,resolution_date:date||null,authority:authority||null,fiscal_designado:fiscal||null,facts_description:facts||null,notes:notes||null});
-  if(error)return alert('Error: '+error.message);
+  if(error)return showToast('⚠ Error: '+error.message);
   await loadResoluciones();showToast('✓ Resolución guardada');
 }
 async function deleteResolucion(id){
@@ -3771,7 +3771,7 @@ async function addNewPendiente(prefillTitle,prefillDesc){
   window._miniModalSave=async()=>{
     const title=document.getElementById('mPendTitle').value.trim();if(!title)return alert('El título es obligatorio.');
     const{error}=await sb.from('acciones_pendientes').insert({case_id:currentCase.id,user_id:session.user.id,title,description:document.getElementById('mPendDesc').value.trim()||null,due_date:document.getElementById('mPendDate').value||null,priority:document.getElementById('mPendPri').value,status:'pendiente',source:prefillTitle?'chat':'manual'});
-    if(error)return alert('Error: '+error.message);
+    if(error)return showToast('⚠ Error: '+error.message);
     closeMiniModal();await loadAcciones();showToast('✓ Pendiente creado');
   };
   openMiniModal();
@@ -3864,7 +3864,7 @@ async function addNewNota(prefillTitle,prefillContent){
   window._miniModalSave=async()=>{
     const content=document.getElementById('mNotaContent').value.trim();if(!content)return alert('El contenido es obligatorio.');
     const{error}=await sb.from('case_notes').insert({case_id:currentCase.id,user_id:session.user.id,title:document.getElementById('mNotaTitle').value.trim()||null,content,source:prefillContent?'chat':'manual'});
-    if(error)return alert('Error: '+error.message);
+    if(error)return showToast('⚠ Error: '+error.message);
     closeMiniModal();await loadNotas();showToast('✓ Nota guardada');
   };
   openMiniModal();
@@ -3891,7 +3891,7 @@ async function addNewNotaWithSource(prefillTitle,prefillContent,source){
   window._miniModalSave=async()=>{
     const content=document.getElementById('mNotaContent').value.trim();if(!content)return alert('El contenido es obligatorio.');
     const{error}=await sb.from('case_notes').insert({case_id:currentCase.id,user_id:session.user.id,title:document.getElementById('mNotaTitle').value.trim()||null,content,source:document.getElementById('mNotaSource').value});
-    if(error)return alert('Error: '+error.message);
+    if(error)return showToast('⚠ Error: '+error.message);
     closeMiniModal();await loadNotas();showToast('✓ Nota guardada');
   };
   openMiniModal();
@@ -3959,7 +3959,7 @@ async function driveLinkUrl(){
   if(!url){return alert('Pega un enlace de Google Drive.');}
   if(!url.includes('drive.google.com')){return alert('El enlace debe ser de Google Drive.');}
   const{error}=await sb.from('cases').update({drive_folder_url:url,updated_at:new Date().toISOString()}).eq('id',currentCase.id);
-  if(error)return alert('Error: '+error.message);
+  if(error)return showToast('⚠ Error: '+error.message);
   currentCase.drive_folder_url=url;
   const idx=allCases.findIndex(c=>c.id===currentCase.id);
   if(idx>=0)allCases[idx].drive_folder_url=url;
@@ -4189,7 +4189,7 @@ async function driveImportApply(){
   if(ex.medida_cautelar_detalle)setIfNew('medida_cautelar_detalle',ex.medida_cautelar_detalle);
 
   const{error}=await sb.from('cases').update(payload).eq('id',currentCase.id);
-  if(error)return alert('Error: '+error.message);
+  if(error)return showToast('⚠ Error: '+error.message);
   /* Update local state */
   Object.assign(currentCase,payload);
   const idx=allCases.findIndex(c=>c.id===currentCase.id);

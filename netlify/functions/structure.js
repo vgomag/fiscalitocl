@@ -177,10 +177,10 @@ export default async (req) => {
     return json({ error: 'Method Not Allowed' }, 405, CORS);
   }
 
-  /* Auth opcional — no bloquear si no hay token */
+  /* Auth obligatoria */
   const authToken = req.headers.get('x-auth-token') || '';
   if (!authToken) {
-    console.warn('[structure] Sin x-auth-token, continuando sin auth');
+    return json({ error: 'No autorizado — token requerido' }, 401, CORS);
   }
 
   try {
