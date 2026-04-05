@@ -97,6 +97,7 @@ let loading=false, activeTab="dashboard";
 let seccionesAbiertas={};
 let chatMessages=[], chatLoading=false;
 let aiReport=null, generatingReport=false;
+let classifyingDoc=null; // {file, fileName, filePath, fileSize, fileType, extractedText, suggestedItems:[], uploading:false}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const h=t=>(t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -180,6 +181,20 @@ s.textContent=`
 .ley-form-group label{display:block;font-size:12px;font-weight:600;margin-bottom:3px}
 .ley-actions-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .ley-report-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;max-height:60vh;overflow-y:auto}
+.ley-classify-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1001;display:flex;align-items:center;justify-content:center}
+.ley-classify-modal{background:var(--surface,#fff);border-radius:14px;padding:24px;width:95%;max-width:640px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.ley-classify-modal h3{margin:0 0 6px;font-size:17px}
+.ley-classify-modal .subtitle{font-size:12px;color:var(--text-muted);margin-bottom:16px}
+.ley-classify-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:.15s}
+.ley-classify-item:hover{background:var(--hover)}
+.ley-classify-item.suggested{border-color:var(--accent);background:rgba(79,70,229,.04)}
+.ley-classify-item input[type=checkbox]{margin-top:2px;flex-shrink:0}
+.ley-classify-item .item-info{flex:1;font-size:12px;line-height:1.4}
+.ley-classify-item .item-info .sec-label{font-size:10px;color:var(--text-muted);font-weight:600}
+.ley-classify-item .ai-badge{font-size:9px;padding:1px 6px;border-radius:8px;background:#ede9fe;color:#6d28d9;font-weight:600;white-space:nowrap}
+.ley-upload-zone{border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:.2s}
+.ley-upload-zone:hover,.ley-upload-zone.dragover{border-color:var(--accent);background:rgba(79,70,229,.03)}
+.ley-upload-zone.processing{border-color:#f59e0b;background:#fffbeb}
 .ley-ev-check{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
 .ley-ev-check.ev-ok{border-left:3px solid #16a34a;background:#f0fdf4}
 .ley-ev-check.ev-pending{border-left:3px solid #f59e0b;background:#fffbeb}
@@ -410,7 +425,7 @@ function globalStats(){
 const TABS=[
   {id:"dashboard",label:"📊 Semáforo SES"},
   {id:"respuesta",label:"📑 Respuesta Fiscalización SES"},
-  {id:"documentos",label:"📁 Documentos"},
+  {id:"documentos",label:"📁 Documentos y Evidencias"},
   {id:"chat",label:"💬 Chat IA"}
 ];
 
