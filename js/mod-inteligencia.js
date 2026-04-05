@@ -132,7 +132,8 @@
       sancion: { text: '', modelsUsed: [], usage: null },
       sobreseimiento: { text: '', modelsUsed: [], usage: null },
       estrategias: { text: '', modelsUsed: [], usage: null },
-      genero: { text: '', modelsUsed: [], usage: null }
+      genero: { text: '', modelsUsed: [], usage: null },
+      art129: { text: '', modelsUsed: [], usage: null }
     },
     parrafosOpen: {}
   };
@@ -889,11 +890,21 @@
   window._ia = {
     analyzePrescription: analyzePrescription,
     analyzeStage: analyzeStage,
-    generateVista: generateVista,
+    generateSection: generateSection,
+    switchVfTab: switchVfTab,
+    toggleVfParrafos: toggleVfParrafos,
+    copySection: copySection,
+    copyUnified: copyUnified,
+    sendSectionToChat: sendSectionToChat,
+    useParrafoInSection: useParrafoInSection,
+    copyParrafoText: copyParrafoText,
+    sendParrafoToChat: sendParrafoToChat,
     runOcrBatch: runOcrBatch,
     runOcrMasivo: runOcrMasivo,
-    copyVista: copyVista,
-    sendVistaToChat: sendVistaToChat
+    // Backward compatibility
+    generateVista: function(){ generateSection('completa'); },
+    copyVista: function(){ copySection('completa'); },
+    sendVistaToChat: function(){ sendSectionToChat('completa'); }
   };
 
   /* ── Init ── */
