@@ -151,7 +151,7 @@ function extractModelSections(fullText, maxLen) {
 function buildCaseContext(data, modelReports) {
   const { caseData, diligencias, participants, chronology } = data;
   const c = caseData || {};
-  const isInforme = data.mode === 'informe';
+  const isInforme = data.mode === 'informe' || data.mode === 'hechos';
 
   let ctx = `EXPEDIENTE: ${c.name || 'Sin nombre'}\n`;
   ctx += `ROL: ${c.nueva_resolucion || c.rol || '—'}\n`;
@@ -284,6 +284,104 @@ ESTRUCTURA:
 5. PETITORIO
 ${STYLE_RULES}`,
 
+  vistos: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
+
+Genera EXCLUSIVAMENTE la sección de VISTOS de una vista fiscal / informe de la investigadora para un procedimiento disciplinario.
+
+ESTRUCTURA OBLIGATORIA DE ESTA SECCIÓN:
+1. Identificación de la resolución que ordena instruir el procedimiento (número, fecha, autoridad que la dicta)
+2. Rango de fojas del expediente ("rolan de fojas 01 a [XX]")
+3. Enumeración COMPLETA de toda la normativa aplicable al caso:
+   - Estatuto Administrativo (D.F.L. N°29 de 2005, arts. aplicables)
+   - Ley N°19.880 sobre procedimientos administrativos
+   - Ley N°18.575, LOCBGAE
+   - Protocolos internos de la UMAG aplicables según el tipo de procedimiento
+   - Reglamentos específicos (Reglamento de Personal, Reglamento Disciplinario, etc.)
+   - Si es caso de acoso sexual: Ley N°21.369 y protocolo institucional
+   - Si es caso de acoso laboral: Ley N°20.607
+   - Toda otra norma relevante según la materia investigada
+4. Cada norma citada con su número, fecha y descripción oficial completa
+5. Terminar la sección con ".-"
+
+IMPORTANTE: NO incluir considerandos, análisis ni conclusiones. Solo los VISTOS.
+${STYLE_RULES}
+- Esta sección debe ser detallada y exhaustiva en la enumeración normativa`,
+
+  hechos: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
+
+Genera EXCLUSIVAMENTE la sección de HECHOS ACREDITADOS Y PRUEBA (CONSIDERANDOS) de una vista fiscal / informe de la investigadora.
+
+ESTRUCTURA OBLIGATORIA DE ESTA SECCIÓN:
+1. Un numeral por CADA diligencia o pieza del expediente, siguiendo el orden de fojas
+2. Cada numeral inicia con: "Que, a fojas [XX], consta [tipo de documento]..."
+3. DESARROLLAR EN EXTENSO el contenido de cada diligencia:
+   - Nombres completos con tratamiento formal ("doña", "don")
+   - Cargos institucionales
+   - Fechas exactas
+   - Síntesis jurídica del contenido
+4. Si es una declaración: resumir lo declarado con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...")
+5. Si es un documento administrativo: describir su contenido y relevancia procesal
+6. Usar expresiones del derecho administrativo chileno: "obra", "rola", "consta", "se desprende", "se advierte"
+7. NO resumir telegráficamente. Cada considerando debe ser un párrafo completo y detallado
+8. Los considerandos se numeran: "1.      Que,..."
+
+IMPORTANTE: NO incluir VISTOS, análisis jurídico ni propuesta. Solo los CONSIDERANDOS con los hechos y la prueba.
+${STYLE_RULES}
+- Extensión: cada diligencia merece su propio considerando detallado. Un expediente con 12 diligencias debería tener al menos 12 considerandos sustantivos`,
+
+  estrategias: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
+
+Genera una sección de ESTRATEGIAS PREVENTIVAS Y RECOMENDACIONES INSTITUCIONALES basándote en los hechos investigados en el procedimiento disciplinario.
+
+ESTRUCTURA OBLIGATORIA:
+1. ANÁLISIS DE FACTORES DE RIESGO — Identificar qué condiciones institucionales, organizacionales o normativas contribuyeron a que ocurrieran los hechos investigados
+2. RECOMENDACIONES PREVENTIVAS — Proponer medidas concretas para evitar la repetición de situaciones similares:
+   - Medidas organizacionales (restructuración de funciones, supervisión, controles)
+   - Medidas formativas (capacitaciones, talleres, difusión de normativa)
+   - Medidas normativas (actualización de reglamentos, creación de protocolos)
+   - Medidas de apoyo (acompañamiento a víctimas, derivación a unidades competentes)
+3. PLAN DE IMPLEMENTACIÓN SUGERIDO — Cronograma y responsables sugeridos para las medidas propuestas
+4. SEGUIMIENTO — Indicadores de cumplimiento y mecanismos de monitoreo
+
+IMPORTANTE: Las recomendaciones deben ser ESPECÍFICAS al caso y factibles dentro del marco institucional de la UMAG. No incluir recomendaciones genéricas.
+${STYLE_RULES}
+- Tono propositivo pero formal
+- Fundamentar cada recomendación en la normativa aplicable y en los hechos del caso`,
+
+  genero: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
+
+Genera un ANÁLISIS CON PERSPECTIVA DE GÉNERO del procedimiento disciplinario, conforme a la normativa vigente y los estándares internacionales.
+
+ESTRUCTURA OBLIGATORIA:
+1. MARCO NORMATIVO DE GÉNERO APLICABLE:
+   - Convención CEDAW y Convención de Belém do Pará
+   - Ley N°21.369 sobre acoso sexual, violencia y discriminación de género en educación superior
+   - Ley N°20.609, Ley Zamudio (antidiscriminación)
+   - Ley N°20.607 sobre acoso laboral (cuando aplique)
+   - Protocolo institucional de la UMAG contra la violencia de género
+   - Política de igualdad de género de la UMAG (si existe)
+
+2. ANÁLISIS DE LOS HECHOS CON ENFOQUE DE GÉNERO:
+   - Identificar si existen relaciones asimétricas de poder entre las partes
+   - Evaluar si los hechos investigados tienen componentes de violencia o discriminación de género
+   - Analizar estereotipos de género que pudieran estar presentes en la situación
+   - Valorar el impacto diferenciado de los hechos según género
+
+3. ESTÁNDARES DE DEBIDA DILIGENCIA:
+   - Evaluar si la investigación cumplió con los estándares de debida diligencia en materia de género
+   - Verificar si se adoptaron medidas de protección adecuadas
+   - Analizar si se respetó el derecho a ser oída/o en condiciones de igualdad
+
+4. CONCLUSIONES Y RECOMENDACIONES CON PERSPECTIVA DE GÉNERO:
+   - Impacto del enfoque de género en la calificación de los hechos
+   - Recomendaciones específicas para la resolución del caso
+   - Medidas reparatorias con enfoque de género (si corresponde)
+
+IMPORTANTE: El análisis debe ser técnico y fundado en normativa, no meramente declarativo. Debe conectar la teoría de género con los hechos específicos del caso.
+${STYLE_RULES}
+- Citar normativa internacional y nacional de género
+- Usar terminología técnica de género: "perspectiva de género", "relaciones asimétricas de poder", "violencia de género", "debida diligencia reforzada"`,
+
   informe: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
 Tu tarea es generar un borrador completo de INFORME DE LA INVESTIGADORA / VISTA FISCAL para un procedimiento disciplinario o investigación sumaria. Este documento es el informe final que la fiscal investigadora o actuaria presenta a la autoridad instructora.
 
@@ -360,7 +458,7 @@ exports.handler = async (event) => {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json', ...CORS },
-        body: JSON.stringify({ error: 'mode inválido. Use: informe, sancion, sobreseimiento, art129' })
+        body: JSON.stringify({ error: 'mode inválido. Use: informe, sancion, sobreseimiento, art129, vistos, hechos, estrategias, genero' })
       };
     }
 
@@ -375,7 +473,17 @@ exports.handler = async (event) => {
 
     const context = buildCaseContext(data, modelReports);
     const system = SYSTEM_PROMPTS[mode];
-    const docLabel = mode === 'informe' ? 'informe de la investigadora' : 'vista fiscal';
+    const DOC_LABELS = {
+      informe: 'informe de la investigadora',
+      sancion: 'vista fiscal con propuesta de sanción',
+      sobreseimiento: 'vista fiscal con propuesta de sobreseimiento',
+      art129: 'solicitud de medida cautelar',
+      vistos: 'sección de VISTOS (normativa aplicable y antecedentes)',
+      hechos: 'sección de HECHOS ACREDITADOS Y PRUEBA (considerandos)',
+      estrategias: 'sección de ESTRATEGIAS PREVENTIVAS',
+      genero: 'análisis CON PERSPECTIVA DE GÉNERO'
+    };
+    const docLabel = DOC_LABELS[mode] || 'vista fiscal';
     const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}`;
 
     // Estimar tokens (aprox 4 chars per token)
@@ -389,8 +497,9 @@ exports.handler = async (event) => {
       };
     }
 
-    // Modo informe necesita más tokens de salida para documentos extensos
-    const maxOutputTokens = mode === 'informe' ? 16000 : 8000;
+    // Tokens de salida según modo: informe completo necesita más
+    const TOKEN_MAP = { informe: 16000, hechos: 12000, sancion: 8000, sobreseimiento: 8000, vistos: 4000, estrategias: 6000, genero: 6000, art129: 6000 };
+    const maxOutputTokens = TOKEN_MAP[mode] || 8000;
     const res = await callAnthropic(apiKey, system, userMsg, maxOutputTokens);
 
     if (res.error) {
