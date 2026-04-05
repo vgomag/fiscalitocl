@@ -301,49 +301,28 @@
     const isInforme = mode === 'informe';
 
     const loadingLabel = isInforme ? 'informe de la investigadora' : 'vista fiscal';
-    el.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Generando ${loadingLabel}… (esto puede tomar hasta ${isInforme?'2 minutos':'1 minuto'})</div>`;
+    el.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Generando ${loadingLabel}… (esto puede tomar hasta ${isInforme?'2 minutos':'1 minuto'})<br><span style="font-size:10px">El sistema buscará automáticamente modelos de expedientes terminados similares</span></div>`;
 
     try {
-      // En modo informe, cargar texto completo de diligencias + modelos de referencia
+      // En modo informe, cargar texto completo de diligencias con fojas
       const diligenciaFields = isInforme
         ? 'diligencia_label,file_name,fecha_diligencia,ai_summary,extracted_text,fojas'
         : 'diligencia_label,file_name,fecha_diligencia,ai_summary';
 
-      const queries = [
+      const [diligenciasRes, participantsRes, chronologyRes] = await Promise.all([
         sb.from('diligencias').select(diligenciaFields).eq('case_id', c.id).order('fecha_diligencia',{ascending:true}),
         sb.from('case_participants').select('name,role,estamento,carrera').eq('case_id', c.id),
         sb.from('cronologia').select('event_date,title,description').eq('case_id', c.id).order('event_date',{ascending:true})
-      ];
+      ]);
 
-      // Para modo informe, cargar modelos de referencia de casos terminados
-      if (isInforme) {
-        queries.push(
-          sb.from('cases').select('name,informe_final')
-            .eq('estado', 'cerrado')
-            .not('informe_final', 'is', null)
-            .neq('id', c.id)
-            .limit(2)
-        );
-      }
-
-      const results = await Promise.all(queries);
-      const [diligenciasRes, participantsRes, chronologyRes] = results;
-
-      // Preparar modelos de referencia si existen
-      let modelReports = [];
-      if (isInforme && results[3] && results[3].data) {
-        modelReports = results[3].data
-          .filter(m => m.informe_final && m.informe_final.length > 200)
-          .map(m => ({ caseName: m.name, text: m.informe_final }));
-      }
-
+      // Los modelos de referencia ahora se buscan AUTOMÁTICAMENTE en el backend
+      // según tipo_procedimiento + protocolo del caso activo
       const result = await apiFetch('generate-vista', {
         caseId: c.id,
         caseData: c,
         diligencias: diligenciasRes.data || [],
         participants: participantsRes.data || [],
         chronology: chronologyRes.data || [],
-        modelReports,
         mode
       });
 
@@ -355,13 +334,21 @@
       const modeLabels = {informe:'Informe de la Investigadora',sancion:'Sanción',sobreseimiento:'Sobreseimiento',art129:'Medida Cautelar Art. 129'};
       let html = `<div class="ia-result">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <span style="font-weight:600">Vista Fiscal — ${escH(modeLabels[mode]||mode)}</span>
+          <span style="font-weight:600">${escH(modeLabels[mode]||mode)}</span>
           <div style="display:flex;gap:6px">
             <button class="ia-btn ia-btn-secondary" onclick="window._ia.copyVista()" style="padding:4px 10px;font-size:11px">📋 Copiar</button>
             <button class="ia-btn ia-btn-secondary" onclick="window._ia.sendVistaToChat()" style="padding:4px 10px;font-size:11px">💬 Enviar a Chat</button>
           </div>
-        </div>
-        <div id="iaVistaText" style="white-space:pre-wrap">${escH(result.vista||'')}</div>`;
+        </div>`;
+
+      // Mostrar qué modelos de referencia se usaron
+      if(result.modelsUsed && result.modelsUsed.length){
+        html += `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(79,70,229,.06);border:1px solid rgba(79,70,229,.12);border-radius:6px;font-size:10px;color:var(--text-dim)">
+          📚 Modelos de estilo usados: <strong>${result.modelsUsed.map(m=>escH(m)).join(', ')}</strong>
+        </div>`;
+      }
+
+      html += `<div id="iaVistaText" style="white-space:pre-wrap">${escH(result.vista||'')}</div>`;
 
       if(result.usage){
         html += `<div style="margin-top:8px;font-size:10px;color:var(--text-muted);text-align:right">Tokens: ${result.usage.inputTokens||0} in / ${result.usage.outputTokens||0} out</div>`;
