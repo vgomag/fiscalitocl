@@ -2515,6 +2515,11 @@ function toggleFnDesc(){
 }
 
 function showFnPanel(code){
+  /* ── F7: delegar al módulo de vista fiscal si está cargado ── */
+  if(code==='F7' && typeof renderF7Panel==='function'){
+    renderF7Panel();
+    return;
+  }
   /* ── F11: delegar al módulo de transcripción si está cargado ── */
   if(code==='F11' && typeof renderF11Panel==='function'){
     renderF11Panel();
@@ -4514,6 +4519,7 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <!-- mod-completitud-caso.js removido: monitoreo no utilizado -->
 <script src="/js/mod-etapas-procesales.js"></script>
 <script src="/js/mod-importador-masivo.js"></script>
+<script src="/js/mod-vista-fiscal.js"></script>
 <script src="/js/mod-inteligencia.js"></script>
 <script src="/js/mod-automatizacion.js"></script>
 <!-- mod-modo-guiado.js removido: redundante con funciones F0-F12 del chat -->
