@@ -362,6 +362,8 @@ ESTRUCTURA OBLIGATORIA DE ESTA SECCIÓN:
 5. Terminar la sección con ".-"
 
 IMPORTANTE: NO incluir considerandos, análisis ni conclusiones. Solo los VISTOS.
+
+REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA, examina cómo estructuran su sección de VISTOS — qué normativa citan, en qué orden, con qué formato y nivel de detalle. Replica EXACTAMENTE esa misma estructura, formato y nivel de exhaustividad normativa, adaptando solo los datos al caso actual.
 ${STYLE_RULES}
 - Esta sección debe ser detallada y exhaustiva en la enumeración normativa`,
 
@@ -384,6 +386,8 @@ ESTRUCTURA OBLIGATORIA DE ESTA SECCIÓN:
 8. Los considerandos se numeran: "1.      Que,..."
 
 IMPORTANTE: NO incluir VISTOS, análisis jurídico ni propuesta. Solo los CONSIDERANDOS con los hechos y la prueba.
+
+REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA, observa cómo redactan cada considerando — la extensión, el nivel de detalle, las expresiones jurídicas, cómo citan las fojas y cómo describen cada diligencia. Tu redacción debe ser INDISTINGUIBLE en estilo y profundidad de los considerandos de los modelos.
 ${STYLE_RULES}
 - Extensión: cada diligencia merece su propio considerando detallado. Un expediente con 12 diligencias debería tener al menos 12 considerandos sustantivos`,
 
