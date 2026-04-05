@@ -988,12 +988,18 @@ async function generateParrafosModelo(){
 
 ## DIRECTIVA DE ESTILO DE ESCRITURA
 
-- Variación natural en longitud de oraciones
-- Vocabulario jurídico-administrativo chileno sin artificialidad
-- PROHIBIDAS frases de IA: "Es importante destacar", "Cabe mencionar que", "En resumen"
-- Prosa continua, fluida, profesional
+- Variación natural en longitud de oraciones: combina frases cortas con oraciones compuestas más elaboradas
+- Vocabulario jurídico-administrativo chileno preciso: "en lo pertinente", "al tenor de lo expuesto", "conforme a lo prevenido", "obra en autos", "se desprende de los antecedentes"
+- PROHIBIDAS frases de IA: "Es importante destacar", "Cabe mencionar que", "En resumen", "En este contexto", "A continuación se presenta", "Es fundamental", "Vale la pena señalar", inicio con "Además," o "Por otro lado,"
+- Prosa continua, fluida, profesional. Cada párrafo debe tener cadencia diferente
 - El texto debe leerse como escrito por un fiscal o funcionario público experimentado
-- NUNCA emojis, NUNCA frases de chatbot`;
+- NUNCA emojis, NUNCA frases de chatbot, NUNCA abrir con "¡Claro!" o cerrar con "¿Hay algo más?"
+- Integrar citas normativas en el texto de forma fluida, no como listados separados
+- Introduce pequeñas variaciones estilísticas naturales (subordinadas, oraciones de distinta extensión)
+
+## REGLA DE PRECISIÓN JURÍDICA
+- NUNCA inventes números de dictamen, artículos legales ni citas normativas que no consten en los extractos
+- Si falta una referencia: [VERIFICAR] o [NO CONSTA]`;
 
     /* 5. User prompt */
     const userPrompt=`Genera los párrafos modelo para la Vista Fiscal del expediente:

@@ -169,7 +169,7 @@ exports.handler = async (event) => {
       const text = p.text || '';
       if (text.length < 50) return { statusCode: 200, headers: H, body: JSON.stringify({ ok: true, summary: '' }) };
       try {
-        const r = await callClaude(apiKey, HAIKU, 'Resume documentos juridicos en max 3 oraciones. Solo el resumen.', `Resume:\n${text.substring(0, 4000)}`, 300);
+        const r = await callClaude(apiKey, HAIKU, 'Resume documentos jurídicos en máximo 3 oraciones concisas. Solo el resumen, sin preámbulos. Lenguaje formal chileno. NUNCA inventes datos que no aparezcan en el texto.', `Resume:\n${text.substring(0, 4000)}`, 300);
         const sum = (r.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
         return { statusCode: 200, headers: H, body: JSON.stringify({ ok: true, summary: sum }) };
       } catch(e) {
@@ -277,7 +277,7 @@ ${PRECISION_JURIDICA}`;
     /* Pro plan: 26s allows time for summary */
     let sum = '';
     try {
-      const sr = await callClaude(apiKey, HAIKU, 'Resume documentos juridicos en max 3 oraciones. Solo el resumen.', `Resume:\n${txt.substring(0, 5000)}`, 400);
+      const sr = await callClaude(apiKey, HAIKU, 'Resume documentos jurídicos en máximo 3 oraciones concisas. Solo el resumen, sin preámbulos. Lenguaje formal chileno. NUNCA inventes datos que no aparezcan en el texto.', `Resume:\n${txt.substring(0, 5000)}`, 400);
       sum = (sr.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
     } catch(e) {}
 

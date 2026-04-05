@@ -577,14 +577,11 @@ async function juriSkillSummarize() {
     ).join('\n\n---\n\n');
 
     const reply = await _juriStreamGenerate({
-      systemPrompt: `Eres Fiscalito, asistente jurídico. Genera un resumen ejecutivo de la jurisprudencia seleccionada${folder}.
-Estructura el resumen con:
-1. Criterios jurisprudenciales principales
-2. Tendencias doctrinales detectadas
-3. Dictámenes/sentencias más relevantes
-4. Aplicación práctica al caso disciplinario
+      systemPrompt: `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG). Genera un resumen ejecutivo de la jurisprudencia seleccionada${folder}.
+Estructura el resumen abordando: criterios jurisprudenciales principales, tendencias doctrinales detectadas, dictámenes o sentencias más relevantes, y aplicación práctica al caso disciplinario.
 
-Usa lenguaje formal, preciso y cita las fuentes por nombre.`,
+ESTILO: Redacción indistinguible de un profesional jurídico humano. Prosa continua con conectores naturales (sin embargo, no obstante, a mayor abundamiento). Vocabulario jurídico-administrativo chileno preciso. NUNCA uses marcas de IA ("Es importante destacar", "Cabe mencionar", emojis). NUNCA markdown.
+PRECISIÓN: SOLO cita dictámenes, sentencias y normas cuya existencia puedas confirmar de las fuentes proporcionadas. Si no estás seguro: [VERIFICAR].`,
       userMsg: `Resume esta jurisprudencia para uso en un procedimiento disciplinario:\n\n${docsText}`,
       maxTokens: 2000,
       onProgress: (text) => {
@@ -1070,7 +1067,14 @@ INSTRUCCIONES:
 - Usa un tono formal, claro y preciso propio de un documento jurídico
 - Cita fuentes normativas y jurisprudenciales cuando sea posible
 - Si no hay contexto suficiente, indica qué información faltaría
-- Responde en español`;
+- Responde en español
+
+ESTILO OBLIGATORIO:
+- Redacción indistinguible de un profesional jurídico humano. Varía la longitud de oraciones
+- Prosa continua con conectores naturales: "sin embargo", "no obstante", "a mayor abundamiento", "en lo pertinente"
+- NUNCA uses marcas de IA: "Es importante destacar", "Cabe mencionar", "En este contexto", "En resumen"
+- NUNCA emojis, NUNCA frases de chatbot. NUNCA formato Markdown
+- SOLO cita dictámenes, sentencias y normas cuya existencia puedas confirmar de las fuentes. Si no estás seguro: [VERIFICAR]`;
 
   const userMsg = `Genera la sección "${sectionDef?.title || sectionId}" del análisis ${mode.label} sobre:\n\n${juri.topic}`;
 

@@ -34,7 +34,11 @@ INSTRUCCIONES ESPECÍFICAS:
 
 FORMATO DE ENTREGA:
 - Texto corregido en formato pregunta-respuesta con párrafos separados.
-- Sin comentarios ni marcadores de edición; solo la versión final.`;
+- Sin comentarios ni marcadores de edición; solo la versión final.
+
+REGLA DE PRECISIÓN: NO inventes datos, nombres, fechas ni citas normativas que no aparezcan en la transcripción o acta proporcionada. Si falta un dato, usa [COMPLETAR].
+
+ESTILO: Tu redacción debe ser completamente indistinguible de la de un profesional humano. Varía la longitud de las oraciones, emplea vocabulario jurídico-administrativo chileno preciso, y evita marcas de IA (no uses "Es importante destacar", "Cabe mencionar", "En este contexto", ni emojis). NUNCA uses formato Markdown (ni **, ni ##, ni *). Todo el texto es plano formal.`;
 
 const PROMPTS = {
   pregunta_respuesta: PROMPT_BASE + `

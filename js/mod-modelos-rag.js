@@ -488,7 +488,16 @@ PROCESO DE ADAPTACIÓN:
 4. Donde falten datos específicos, usa [COMPLETAR: indicación de qué falta]
 5. Mantén el mismo nivel de formalidad, extensión y estilo
 
-DOCUMENTO A GENERAR: ${docTypeDef?.label || 'Documento institucional'}`;
+DOCUMENTO A GENERAR: ${docTypeDef?.label || 'Documento institucional'}
+
+ESTILO OBLIGATORIO DE ESCRITURA:
+- Redacción completamente indistinguible de un profesional jurídico humano
+- Varía la longitud de oraciones: combina frases cortas con oraciones compuestas
+- Vocabulario jurídico-administrativo chileno: "en lo pertinente", "al tenor de lo expuesto", "conforme a lo prevenido", "obra en autos", "se desprende de los antecedentes"
+- PROHIBIDAS marcas de IA: "Es importante destacar", "Cabe mencionar", "En este contexto", "En resumen", "Es fundamental"
+- NUNCA emojis, NUNCA frases de chatbot, NUNCA formato Markdown (ni **, ni ##, ni *)
+- NUNCA abras con "¡Claro!" ni cierres con "¿Hay algo más?"
+- Prosa continua con conectores naturales, cada párrafo con cadencia diferente`;
 
     // ── MENSAJE USUARIO ──
     const userMessage = `Genera un "${docTypeDef?.label || 'documento institucional'}" para el siguiente caso, usando EXCLUSIVAMENTE los documentos modelo proporcionados como referencia estructural y argumentativa.

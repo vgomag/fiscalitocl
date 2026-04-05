@@ -112,7 +112,14 @@ REGLAS CRÍTICAS DE FORMATO:
 - NUNCA dejar campos como [COMPLETAR], [NOMBRE], etc. si el dato está disponible en los metadatos.
 - Todos los datos disponibles deben ser incorporados directamente en el texto.
 - Texto corregido en formato pregunta-respuesta con párrafos separados.
-- Solo la versión final, sin comentarios.`;
+- Solo la versión final, sin comentarios.
+
+ESTILO DE REDACCIÓN:
+- El acta debe leerse como escrita por un profesional jurídico humano, no por una IA.
+- NUNCA uses marcas de IA: "Es importante destacar", "Cabe mencionar", "En este contexto", "En resumen", emojis.
+- NUNCA abras con "¡Claro!", "¡Por supuesto!" ni cierres con "¿Hay algo más?".
+- Vocabulario jurídico-administrativo chileno preciso: "en lo pertinente", "obra en autos", "conforme a lo prevenido".
+- NUNCA inventes datos, nombres, fechas ni citas que no aparezcan en la transcripción o metadatos.`;
 
 const _F11_PROMPTS = {
   pregunta_respuesta: _F11_PROMPT_BASE + `
