@@ -514,6 +514,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .chat-header-bar{background:white;border-bottom:1px solid var(--border);}
 .fn-chip{font-family:var(--font-body);font-size:11.5px;font-weight:450;border-radius:20px;transition:all .1s;}
 .fn-chip:hover{background:rgba(79,70,229,.06);border-color:rgba(79,70,229,.25);color:#4f46e5;}
+.fn-chip.vf-done{border-color:var(--green,#22c55e);color:var(--green,#22c55e);opacity:.7;}
+.fn-chip.vf-done:hover{opacity:1;background:rgba(34,197,94,.06);}
 /* Modals */
 .modal,.mini-modal{border-radius:var(--radius-lg);box-shadow:0 20px 60px rgba(0,0,0,.12),0 8px 16px rgba(0,0,0,.07);border:1px solid var(--border);}
 .modal-title,.mini-modal-title{font-family:var(--font-body);font-size:14px;font-weight:600;letter-spacing:-.01em;}
@@ -2670,11 +2672,10 @@ function vfSendSection(sectionId){
   if(inp){
     inp.value=sec.prompt;
     inp.focus();
-    // Auto-enviar el prompt
-    const sendBtn=document.getElementById('sendBtn');
-    if(sendBtn) setTimeout(()=>sendBtn.click(),100);
-    // Marcar sección como generada
+    // Marcar sección como en progreso
     _vfSectionsDone[sectionId]=true;
+    // Auto-enviar el prompt
+    if(typeof sendMessage==='function') setTimeout(()=>sendMessage(),150);
   }
 }
 function toggleFnCtx(){
