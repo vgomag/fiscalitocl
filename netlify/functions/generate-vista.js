@@ -596,7 +596,7 @@ exports.handler = async (event) => {
 
     const { mode } = data;
 
-    if (!mode || !SYSTEM_PROMPTS[mode]) {
+    if (!mode || !SYSTEM_PROMPTS_BASE[mode]) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json', ...CORS },
@@ -614,7 +614,7 @@ exports.handler = async (event) => {
     }
 
     const context = buildCaseContext(data, modelReports);
-    const system = SYSTEM_PROMPTS[mode];
+    const system = buildSystemPrompt(mode, data.participants || []);
     const DOC_LABELS = {
       informe: 'informe de la investigadora',
       sancion: 'vista fiscal con propuesta de sanción',
