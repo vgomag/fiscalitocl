@@ -593,48 +593,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 });
 
-/* ── PANEL F7 — AGREGAR BOTÓN DE PÁRRAFOS ── */
-// Adds a "Párrafos Modelo" toggle button to F7 panel
-const _origF7Panel = null;
+/* ── PANEL F7 — Párrafos integrados en mod-vista-fiscal.js ── */
+/* La inyección de párrafos en F7 ahora se maneja dentro de mod-vista-fiscal.js
+   mediante las sub-pestañas de la vista fiscal. Este hook ya no es necesario. */
 
-document.addEventListener('DOMContentLoaded', () => {
-  const origSFP = window.showFnPanel;
-  window.showFnPanel = function(code) {
-    // Call original first
-    if (code !== 'F11') { // F11 handled by transcripcion module
-      origSFP && origSFP.call(this, code);
-    }
-    // After F7 renders, append párrafos button
-    if (code === 'F7') {
-      setTimeout(() => {
-        const panel = document.getElementById('fnPanel');
-        if (!panel) return;
-        // Add párrafos section at end of panel
-        const parrafosToggle = document.createElement('div');
-        parrafosToggle.style.cssText = 'width:100%;max-width:700px;margin-top:4px;';
-        parrafosToggle.innerHTML = `
-          <button class="fn-panel-link" style="width:100%;justify-content:space-between;cursor:pointer"
-            onclick="toggleParrafosPanel(this)">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:13px">📝</span>
-              <span style="font-size:11.5px;color:var(--text-dim)">Párrafos Modelo para Vista Fiscal</span>
-            </div>
-            <span style="font-size:11px;color:var(--gold);font-weight:500">Ver párrafos →</span>
-          </button>
-          <div id="parrafosPanel" style="display:none"></div>`;
-        panel.appendChild(parrafosToggle);
-      }, 50);
-    }
-  };
-});
-
+/* toggleParrafosPanel se mantiene por compatibilidad con otros módulos */
 function toggleParrafosPanel(btn) {
   const panel = document.getElementById('parrafosPanel');
   if (!panel) return;
   const isOpen = panel.style.display !== 'none';
   panel.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) panel.innerHTML = buildParrafosPanel(currentCase);
-  btn.querySelector('span:last-child').textContent = isOpen ? 'Ver párrafos →' : 'Ocultar párrafos ↑';
+  if (!isOpen) panel.innerHTML = buildParrafosPanel(typeof currentCase !== 'undefined' ? currentCase : null);
+  if(btn && btn.querySelector('span:last-child')) btn.querySelector('span:last-child').textContent = isOpen ? 'Ver párrafos →' : 'Ocultar párrafos ↑';
 }
 
 /* ── ESTILOS ── */
