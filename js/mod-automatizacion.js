@@ -368,7 +368,7 @@
       </p>
       ${result.reason ? `<p style="margin:0 0 10px;font-size:11px;color:var(--text-dim,#999);line-height:1.4;">${esc(result.reason)}</p>` : ''}
       <div style="display:flex;gap:8px;">
-        <button onclick="window.automate.applyAdvance('${esc(caso.id)}','${esc(result.suggestedStage)}');this.parentElement.parentElement.remove();"
+        <button data-case-id="${esc(caso.id)}" data-stage="${esc(result.suggestedStage)}" onclick="window.automate.applyAdvance(this.dataset.caseId,this.dataset.stage);this.parentElement.parentElement.remove();"
           style="background:var(--gold,#d4a843);color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer;">
           ✓ Aplicar
         </button>
@@ -724,6 +724,7 @@
     const observer = new MutationObserver(()=>{
       if(document.getElementById('tabInteligencia') && !document.getElementById('automationPanelContent')){
         injectIntoIATab();
+        observer.disconnect();
       }
     });
     observer.observe(document.body, {childList:true, subtree:true});
