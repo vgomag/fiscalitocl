@@ -2835,7 +2835,8 @@ async function sendMessage(){
     // Inyectar directiva compartida de escritura humanizada en TODAS las funciones
     fnInstr=fnInstr+'\n\n'+SHARED_WRITING_DIRECTIVE;
     const ctxInput=document.getElementById('fnCtxInput')?.value.trim()||'';
-    const _withTimeout=(p,ms=8000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+    const _ctxTimeout=(activeFn==='F7'||activeFn==='F8')?20000:8000;
+    const _withTimeout=(p,ms=_ctxTimeout)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
     let caseContext='';
     if(currentCase){
       const fmtArrCtx=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
@@ -2883,9 +2884,10 @@ async function sendMessage(){
             const mt=(d.mime_type||'').toLowerCase();
             return /\.(docx|xlsx|xls|csv|doc)$/i.test(fn)||mt.includes('google-apps.document')||mt.includes('google-apps.spreadsheet')||mt.includes('wordprocessingml')||mt.includes('spreadsheetml');
           };
+          /* Extraer Word/Excel/CSV on-the-fly */
           const _needsExtract=rDil.data.filter(d=>d.drive_file_id&&!d.extracted_text&&_isDocType(d));
           if(_needsExtract.length>0){
-            const MAX_FETCH=10; // máximo archivos a descargar on-the-fly
+            const MAX_FETCH=_isVista?25:10;
             const toFetch=_needsExtract.slice(0,MAX_FETCH);
             await Promise.all(toFetch.map(async(dil)=>{
               try{
@@ -2913,11 +2915,36 @@ async function sendMessage(){
                 if(text){
                   if(text.length>50000)text=text.substring(0,50000)+'\n[...truncado]';
                   dil.extracted_text=text;
-                  // Guardar en Supabase para futuras consultas
                   sb.from('diligencias').update({extracted_text:text,is_processed:true,processing_status:'completed'}).eq('id',dil.id).then(({error})=>{if(error)console.warn('No se pudo guardar texto extraído para',dil.file_name,error);});
                 }
               }catch(exErr){console.warn('Error extrayendo diligencia',dil.file_name,':',exErr);}
             }));
+          }
+          /* Extraer PDFs on-the-fly vía OCR (solo para F7/F8 y si no tienen extracted_text) */
+          if(_isVista){
+            const _isPdf=d=>{
+              const fn=(d.file_name||'').toLowerCase();
+              const mt=(d.mime_type||'').toLowerCase();
+              return fn.endsWith('.pdf')||mt.includes('application/pdf');
+            };
+            const _needsOCR=rDil.data.filter(d=>d.drive_file_id&&!d.extracted_text&&_isPdf(d));
+            if(_needsOCR.length>0){
+              const MAX_OCR=15; // máximo PDFs a procesar on-the-fly
+              const toOCR=_needsOCR.slice(0,MAX_OCR);
+              await Promise.all(toOCR.map(async(dil)=>{
+                try{
+                  const ocrRes=await authFetch('/.netlify/functions/ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name})});
+                  if(!ocrRes.ok)return;
+                  const ocrData=await ocrRes.json();
+                  if(ocrData.ok&&ocrData.text&&ocrData.text.length>50){
+                    let text=ocrData.text;
+                    if(text.length>50000)text=text.substring(0,50000)+'\n[...truncado]';
+                    dil.extracted_text=text;
+                    sb.from('diligencias').update({extracted_text:text,is_processed:true,processing_status:'completed'}).eq('id',dil.id).then(({error})=>{if(error)console.warn('No se pudo guardar OCR para',dil.file_name,error);});
+                  }
+                }catch(ocrErr){console.warn('Error OCR diligencia',dil.file_name,':',ocrErr);}
+              }));
+            }
           }
         }
         /* Diligencias — context budget adaptativo según función */
@@ -2925,8 +2952,8 @@ async function sendMessage(){
           const isVistaOrInforme=activeFn==='F7'||activeFn==='F8';
           const isIRAC=activeFn==='F5';
           const isAnalisis=activeFn==='F6';
-          const MAX_CHARS=isVistaOrInforme?150000:isIRAC?6000:isAnalisis?15000:8000;
-          const MAX_PER_DIL=isVistaOrInforme?5000:isIRAC?300:isAnalisis?800:300;
+          const MAX_CHARS=isVistaOrInforme?200000:isIRAC?6000:isAnalisis?15000:8000;
+          const MAX_PER_DIL=isVistaOrInforme?12000:isIRAC?300:isAnalisis?800:300;
           const MAX_DILS=200;
           let usedChars=0;
 
