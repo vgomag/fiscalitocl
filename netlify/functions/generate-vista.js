@@ -255,12 +255,23 @@ function buildCaseContext(data, modelReports) {
 
   // Modelos de referencia AUTOMÁTICOS (desde casos terminados)
   if (modelReports && modelReports.length) {
+    const modeLabel = data.mode || 'informe';
     ctx += '\n═══════════════════════════════════════════════════════════════\n';
     ctx += 'MODELOS DE REFERENCIA — Informes finales de expedientes terminados\n';
-    ctx += 'INSTRUCCIÓN: Replica fielmente el ESTILO, TONO, ESTRUCTURA y\n';
-    ctx += 'LENGUAJE INSTITUCIONAL de estos modelos. Conserva el razonamiento\n';
-    ctx += 'jurídico y el lenguaje administrativo. NO copies hechos de estos\n';
-    ctx += 'modelos — solo usa su estilo como guía.\n';
+    ctx += '═══════════════════════════════════════════════════════════════\n';
+    ctx += 'INSTRUCCIONES OBLIGATORIAS SOBRE LOS MODELOS:\n';
+    ctx += '1. Replica fielmente el ESTILO, TONO, ESTRUCTURA y LENGUAJE\n';
+    ctx += '   INSTITUCIONAL de estos modelos.\n';
+    ctx += '2. Conserva el razonamiento jurídico y el lenguaje administrativo\n';
+    ctx += '   exactamente como aparece en los modelos.\n';
+    ctx += '3. NUNCA copies hechos, nombres ni datos de estos modelos\n';
+    ctx += '   — solo su estructura, estilo y vocabulario jurídico.\n';
+    ctx += '4. Si los modelos contienen una sección de ' + modeLabel.toUpperCase() + ',\n';
+    ctx += '   replica su formato, extensión y nivel de detalle.\n';
+    ctx += '5. Si los modelos citan normativa, usa las MISMAS citas formales\n';
+    ctx += '   (número de decreto, ley, artículo) adaptándolas al caso actual.\n';
+    ctx += '6. El documento generado debe ser INDISTINGUIBLE en estilo de\n';
+    ctx += '   los modelos proporcionados.\n';
     ctx += '═══════════════════════════════════════════════════════════════\n\n';
 
     // Calcular espacio por modelo
