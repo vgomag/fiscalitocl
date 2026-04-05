@@ -148,7 +148,7 @@ async function loadDiligenciasTab(){
         <div style="display:flex;gap:3px;justify-content:center">
           <button class="btn-action" title="Ver extracto completo" onclick="viewDiligenciaDetail('${d.id}')">👁️</button>
           ${!d.is_processed?`<button class="btn-action" title="Procesar con IA" onclick="processDiligenciaOCR('${d.id}')">🔄</button>`:''}
-          ${/expediente|completo|foliado/i.test(d.file_name)?`<button class="btn-action" title="Analizar expediente — identificar diligencias" onclick="analyzeExpediente('${d.id}')" style="color:var(--gold);font-weight:bold">🔍</button>`:''}
+          ${d.is_processed?`<button class="btn-action" title="Analizar PDF — identificar diligencias individuales dentro de este documento" onclick="analyzeExpediente('${d.id}')" style="color:var(--gold);font-weight:bold">🔍</button>`:(/\.pdf/i.test(d.file_name||'')?`<button class="btn-action" title="Extraer texto y analizar diligencias del PDF" onclick="processAndAnalyzePdf('${d.id}')" style="color:var(--gold)">🔍</button>`:'')}
           ${d.is_processed&&!d.ai_summary?`<button class="btn-action" title="Generar resumen" onclick="generateDiligenciaSummary('${d.id}')">✨</button>`:''}
           <button class="btn-action" title="Editar tipo/fecha" onclick="editDiligenciaModal('${d.id}')">✎</button>
           <button class="btn-action" title="Eliminar" onclick="deleteDiligencia('${d.id}')" style="color:var(--red)">🗑</button>
@@ -626,22 +626,28 @@ async function analyzeExpediente(dilId){
 /* ── Analizar todas las diligencias pendientes ── */
 async function analyzeAllPending(){
   if(!currentCase)return;
-  const{data}=await sb.from('diligencias').select('id,file_name,is_processed,drive_file_id')
+  const{data}=await sb.from('diligencias').select('id,file_name,is_processed,drive_file_id,extracted_text')
     .eq('case_id',currentCase.id).eq('is_processed',false);
   if(!data?.length){showToast('✅ Todas procesadas');return;}
 
   const withDrive=data.filter(d=>d.drive_file_id);
   if(!withDrive.length){showToast('⚠️ Sin archivos Drive para procesar');return;}
 
-  showToast(`⏳ Procesando ${withDrive.length} documento(s)…`);
+  showToast(`⏳ Procesando ${withDrive.length} documento(s)… Cada PDF será analizado por diligencias múltiples`);
   for(const d of withDrive){
-    const isExpediente=/expediente|completo|foliado/i.test(d.file_name);
-    if(isExpediente){
-      await analyzeExpediente(d.id);
-    } else {
+    const isPdf=/\.pdf/i.test(d.file_name);
+    // Paso 1: extraer texto si no tiene
+    if(!d.extracted_text || d.extracted_text.length < 200){
       await processDiligenciaOCR(d.id);
+      await new Promise(r=>setTimeout(r,1000));
+    }
+    // Paso 2: analizar por diligencias múltiples si es PDF
+    if(isPdf){
+      try{await analyzeExpediente(d.id);}catch(e){console.warn('Análisis múltiple:',e.message);}
+      await new Promise(r=>setTimeout(r,1500));
     }
   }
+  showToast('✅ Análisis completado');
 }
 
 /* ── Generar resumen IA para diligencia ya procesada ── */
@@ -670,18 +676,44 @@ async function generateDiligenciaSummary(dilId){
   }catch(err){showToast('❌ '+err.message);}
 }
 
-/* ── Procesar TODAS las pendientes ── */
+/* ── Procesar TODAS las pendientes (con detección de expedientes) ── */
 async function processAllDiligencias(){
   if(!currentCase)return;
-  const{data}=await sb.from('diligencias').select('id,file_name')
+  const{data}=await sb.from('diligencias').select('id,file_name,drive_file_id')
     .eq('case_id',currentCase.id).eq('is_processed',false);
   if(!data?.length){showToast('Sin diligencias pendientes');return;}
-  showToast(`⏳ Procesando ${data.length} diligencias…`);
-  for(const d of data){
+
+  const withDrive=data.filter(d=>d.drive_file_id);
+  if(!withDrive.length){showToast('⚠️ Sin archivos Drive para procesar');return;}
+
+  showToast(`⏳ Procesando ${withDrive.length} documento(s)… (cada PDF será analizado por diligencias múltiples)`);
+  for(const d of withDrive){
+    // Primero extraer texto
     await processDiligenciaOCR(d.id);
-    await new Promise(r=>setTimeout(r,1500)); // rate limit
+    await new Promise(r=>setTimeout(r,1000));
+    // Luego analizar si contiene múltiples diligencias (para PDFs)
+    if(/\.pdf/i.test(d.file_name)){
+      try{await analyzeExpediente(d.id);}catch(e){console.warn('Análisis múltiple:',e.message);}
+      await new Promise(r=>setTimeout(r,1500));
+    }
   }
   showToast('✅ Proceso masivo completado');
+}
+
+/* ── Procesar PDF y luego analizar diligencias múltiples ── */
+async function processAndAnalyzePdf(dilId){
+  if(!currentCase||!session)return;
+  showToast('📄 Paso 1/2: Extrayendo texto del PDF…');
+  await processDiligenciaOCR(dilId);
+  // Verificar que se extrajo texto
+  const{data:updated}=await sb.from('diligencias').select('extracted_text,is_processed').eq('id',dilId).single();
+  if(updated&&updated.is_processed&&updated.extracted_text&&updated.extracted_text.length>200){
+    showToast('🔍 Paso 2/2: Analizando diligencias dentro del PDF…');
+    await new Promise(r=>setTimeout(r,500));
+    await analyzeExpediente(dilId);
+  } else {
+    showToast('⚠️ Texto insuficiente para analizar diligencias múltiples');
+  }
 }
 
 /* ── Resumir TODAS sin resumen ── */

@@ -100,6 +100,24 @@ function listDriveFolder(folderId, token){
   });
 }
 
+/* ── Listado recursivo de Drive (hasta 3 niveles de profundidad) ── */
+async function listDriveFolderRecursive(folderId, token, depth, maxDepth){
+  if(depth > maxDepth) return [];
+  const items = await listDriveFolder(folderId, token);
+  let allFiles = [];
+  for(const item of items){
+    if(item.mimeType === 'application/vnd.google-apps.folder'){
+      try{
+        const children = await listDriveFolderRecursive(item.id, token, depth + 1, maxDepth);
+        allFiles = allFiles.concat(children);
+      }catch(e){ /* skip folder errors */ }
+    } else {
+      allFiles.push(item);
+    }
+  }
+  return allFiles;
+}
+
 /* ══════════════════════════════════
    SUPABASE CLIENT (Server-side)
    ══════════════════════════════════ */
@@ -238,8 +256,8 @@ exports.handler = async (event) => {
         if (!m) continue;
         const folderId = m[1];
 
-        /* Listar archivos del Drive */
-        const driveFiles = await listDriveFolder(folderId, gToken);
+        /* Listar archivos del Drive (recursivo hasta 3 niveles) */
+        const driveFiles = await listDriveFolderRecursive(folderId, gToken, 0, 3);
 
         /* Obtener diligencias existentes */
         const existing = await supabaseFetch(SB_URL, SB_KEY,
@@ -257,17 +275,33 @@ exports.handler = async (event) => {
 
         if (newFiles.length > 0) {
           /* Insertar como diligencias pendientes */
-          const records = newFiles.map(f => ({
-            case_id: caso.id,
-            file_name: f.name,
-            drive_file_id: f.id,
-            drive_web_link: f.webViewLink || '',
-            mime_type: f.mimeType || '',
-            diligencia_type: classifyFile(f.name),
-            diligencia_label: classifyFile(f.name).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            is_processed: false,
-            processing_status: 'pending'
-          }));
+          /* Mapa de labels legibles para tipos clasificados */
+          const TYPE_LABELS = {
+            denuncia:'Denuncia', resolucion_inicio:'Resolución de Inicio', resolucion:'Resolución',
+            declaracion_testigo:'Declaración Testigo', declaracion_denunciante:'Declaración Denunciante',
+            declaracion_denunciado:'Declaración Denunciado', acta:'Acta', oficio:'Oficio',
+            informe:'Informe', notificacion:'Notificación', cargos:'Formulación de Cargos',
+            descargos:'Descargos', vista_fiscal:'Vista Fiscal', prueba_documental:'Prueba Documental',
+            otro:'Documento'
+          };
+
+          const records = newFiles.map((f, i) => {
+            const tipo = classifyFile(f.name);
+            const label = (TYPE_LABELS[tipo] || 'Documento') + ': ' + f.name.replace(/\.[^.]+$/, '');
+            return {
+              case_id: caso.id,
+              file_name: f.name,
+              drive_file_id: f.id,
+              drive_web_link: f.webViewLink || '',
+              mime_type: f.mimeType || '',
+              diligencia_type: tipo,
+              diligencia_label: label,
+              fecha_diligencia: f.modifiedTime ? f.modifiedTime.split('T')[0] : null,
+              is_processed: false,
+              processing_status: 'pending',
+              order_index: i
+            };
+          });
 
           await supabaseFetch(SB_URL, SB_KEY, 'diligencias', 'POST', records);
         }
