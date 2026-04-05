@@ -11,6 +11,7 @@
 const https = require('https');
 const { callAnthropic: _sharedCall, MODEL_SONNET } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { buildSharedDirectives, MODELO_SANCION, MODELO_SOBRESEIMIENTO, PARRAFOS_MODELO, HUMAN_WRITING_STYLE, PRECISION_JURIDICA, getNormativeContext } = require('./shared/writing-style');
 
 /* Wrapper que usa Sonnet con timeout largo para generación de vistas */
 function callAnthropic(apiKey, system, userMsg, maxTokens) {
