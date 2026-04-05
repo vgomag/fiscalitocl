@@ -130,6 +130,7 @@
           <p class="desc">Genera un borrador de vista fiscal con IA basándose en los datos del expediente.</p>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <select id="iaVistaMode" class="ia-select">
+              <option value="informe">Informe de la Investigadora</option>
               <option value="sancion">Propuesta de Sanción</option>
               <option value="sobreseimiento">Sobreseimiento</option>
               <option value="art129">Medida Cautelar (Art. 129)</option>
@@ -297,16 +298,44 @@
     const el = document.getElementById('iaVistaResult');
     if(!el) return;
     const mode = document.getElementById('iaVistaMode')?.value || 'sancion';
+    const isInforme = mode === 'informe';
 
-    el.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Generando vista fiscal… (esto puede tomar hasta 1 minuto)</div>';
+    const loadingLabel = isInforme ? 'informe de la investigadora' : 'vista fiscal';
+    el.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Generando ${loadingLabel}… (esto puede tomar hasta ${isInforme?'2 minutos':'1 minuto'})</div>`;
 
     try {
-      // Cargar datos en paralelo
-      const [diligenciasRes, participantsRes, chronologyRes] = await Promise.all([
-        sb.from('diligencias').select('diligencia_label,file_name,fecha_diligencia,ai_summary').eq('case_id', c.id).order('fecha_diligencia',{ascending:true}),
+      // En modo informe, cargar texto completo de diligencias + modelos de referencia
+      const diligenciaFields = isInforme
+        ? 'diligencia_label,file_name,fecha_diligencia,ai_summary,extracted_text,fojas'
+        : 'diligencia_label,file_name,fecha_diligencia,ai_summary';
+
+      const queries = [
+        sb.from('diligencias').select(diligenciaFields).eq('case_id', c.id).order('fecha_diligencia',{ascending:true}),
         sb.from('case_participants').select('name,role,estamento,carrera').eq('case_id', c.id),
         sb.from('cronologia').select('event_date,title,description').eq('case_id', c.id).order('event_date',{ascending:true})
-      ]);
+      ];
+
+      // Para modo informe, cargar modelos de referencia de casos terminados
+      if (isInforme) {
+        queries.push(
+          sb.from('cases').select('name,informe_final')
+            .eq('estado', 'cerrado')
+            .not('informe_final', 'is', null)
+            .neq('id', c.id)
+            .limit(2)
+        );
+      }
+
+      const results = await Promise.all(queries);
+      const [diligenciasRes, participantsRes, chronologyRes] = results;
+
+      // Preparar modelos de referencia si existen
+      let modelReports = [];
+      if (isInforme && results[3] && results[3].data) {
+        modelReports = results[3].data
+          .filter(m => m.informe_final && m.informe_final.length > 200)
+          .map(m => ({ caseName: m.name, text: m.informe_final }));
+      }
 
       const result = await apiFetch('generate-vista', {
         caseId: c.id,
@@ -314,6 +343,7 @@
         diligencias: diligenciasRes.data || [],
         participants: participantsRes.data || [],
         chronology: chronologyRes.data || [],
+        modelReports,
         mode
       });
 
@@ -322,7 +352,7 @@
         return;
       }
 
-      const modeLabels = {sancion:'Sanción',sobreseimiento:'Sobreseimiento',art129:'Medida Cautelar Art. 129'};
+      const modeLabels = {informe:'Informe de la Investigadora',sancion:'Sanción',sobreseimiento:'Sobreseimiento',art129:'Medida Cautelar Art. 129'};
       let html = `<div class="ia-result">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <span style="font-weight:600">Vista Fiscal — ${escH(modeLabels[mode]||mode)}</span>

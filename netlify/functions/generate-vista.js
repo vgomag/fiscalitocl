@@ -45,6 +45,7 @@ function callAnthropic(apiKey, system, userMsg, maxTokens) {
 function buildCaseContext(data) {
   const { caseData, diligencias, participants, chronology } = data;
   const c = caseData || {};
+  const isInforme = data.mode === 'informe';
 
   let ctx = `EXPEDIENTE: ${c.name || 'Sin nombre'}\n`;
   ctx += `ROL: ${c.nueva_resolucion || c.rol || '—'}\n`;
@@ -67,14 +68,22 @@ function buildCaseContext(data) {
     ctx += '\n';
   }
 
-  // Diligencias (resumen)
+  // Diligencias — en modo informe incluir texto completo para CONSIDERANDOS detallados
   if (diligencias && diligencias.length) {
     ctx += `DILIGENCIAS (${diligencias.length} documentos):\n`;
-    diligencias.slice(0, 20).forEach((d, i) => {
+    const maxDiligencias = isInforme ? 30 : 20;
+    diligencias.slice(0, maxDiligencias).forEach((d, i) => {
+      const fojas = d.fojas || '';
       ctx += `${i + 1}. ${d.diligencia_label || d.file_name || 'Doc ' + (i + 1)}`;
+      if (fojas) ctx += ` (fojas ${fojas})`;
       if (d.fecha_diligencia) ctx += ` [${d.fecha_diligencia}]`;
-      if (d.ai_summary) ctx += `\n   Resumen: ${d.ai_summary.slice(0, 300)}`;
       ctx += '\n';
+      if (isInforme && d.extracted_text) {
+        // En modo informe, incluir texto completo (hasta 2000 chars por diligencia)
+        ctx += `   CONTENIDO COMPLETO:\n   ${d.extracted_text.slice(0, 2000)}\n`;
+      } else if (d.ai_summary) {
+        ctx += `   Resumen: ${d.ai_summary.slice(0, 300)}\n`;
+      }
     });
     ctx += '\n';
   }
@@ -91,6 +100,18 @@ function buildCaseContext(data) {
   // Observaciones e informe previo
   if (c.observaciones) ctx += `OBSERVACIONES: ${c.observaciones}\n`;
   if (c.informe_final) ctx += `INFORME PREVIO:\n${c.informe_final.slice(0, 2000)}\n`;
+
+  // Modelos de referencia (informes terminados de otros expedientes)
+  if (data.modelReports && data.modelReports.length) {
+    ctx += '\n═══════════════════════════════════════\n';
+    ctx += 'MODELOS DE REFERENCIA (informes finales de expedientes ya terminados):\n';
+    ctx += 'Usa estos como guía de ESTILO, TONO, ESTRUCTURA y LENGUAJE INSTITUCIONAL.\n';
+    ctx += '═══════════════════════════════════════\n\n';
+    data.modelReports.forEach((m, i) => {
+      ctx += `--- MODELO ${i + 1} (Exp. ${m.caseName || '?'}) ---\n`;
+      ctx += (m.text || '').slice(0, 4000) + '\n\n';
+    });
+  }
 
   return ctx;
 }
@@ -149,7 +170,80 @@ REGLAS:
 - Demostrar la urgencia y proporcionalidad de la medida
 - Citar artículo 129 del Estatuto Administrativo
 - No inventar hechos
-- Usar "[COMPLETAR]" donde falte información`
+- Usar "[COMPLETAR]" donde falte información`,
+
+  informe: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
+Tu tarea es generar un borrador completo de INFORME DE LA INVESTIGADORA / VISTA FISCAL para un procedimiento disciplinario o investigación sumaria. Este documento es el informe final que la fiscal investigadora o actuaria presenta a la autoridad instructora.
+
+═══════════════════════════════════════
+MODELO DE ESTILO INSTITUCIONAL
+═══════════════════════════════════════
+
+El informe DEBE replicar fielmente el estilo, tono y lenguaje de los informes institucionales de la UMAG. A continuación se presenta un ejemplo real del estilo esperado que DEBES seguir como modelo:
+
+--- INICIO EJEMPLO DE ESTILO ---
+INFORME DE LA INVESTIGADORA
+____________________________________________________________________
+Punta Arenas, [FECHA]
+VISTOS:
+En el marco de la investigación sumaria, ordenada instruir por Resolución N°[NÚMERO], de fecha [FECHA], de [AUTORIDAD] de la Universidad de Magallanes. Los antecedentes acumulados en el curso de la presente investigación y que rolan de fojas 01 a [ÚLTIMA FOJA] del expediente investigativo; Los reglamentos o normas que rigen esta investigación, donde se incluyen, [NORMAS APLICABLES].-
+
+                      CONSIDERANDO:
+1.      Que, a fojas [XX], consta [DOCUMENTO], mediante el cual se [DESCRIPCIÓN DETALLADA DEL CONTENIDO, incluyendo nombres completos, cargos, fechas exactas y hechos relevantes con lenguaje formal administrativo];
+2.      Que, a fojas [XX], consta [DOCUMENTO SIGUIENTE], [DESCRIPCIÓN DETALLADA]...
+--- FIN EJEMPLO DE ESTILO ---
+
+═══════════════════════════════════════
+ESTRUCTURA OBLIGATORIA
+═══════════════════════════════════════
+
+1. ENCABEZADO:
+   - Título: "INFORME DE LA INVESTIGADORA" (o "VISTA FISCAL" según corresponda)
+   - Línea horizontal de subrayado
+   - Lugar y fecha: "Punta Arenas, [fecha actual]"
+
+2. VISTOS:
+   - Identificación de la resolución que ordena instruir (número, fecha, autoridad)
+   - Rango de fojas del expediente ("rolan de fojas 01 a [XX]")
+   - Enumeración COMPLETA de todos los reglamentos, decretos, protocolos y normas aplicables
+   - Cada norma con su número, fecha y descripción oficial completa
+   - Terminar con ".-"
+
+3. CONSIDERANDO:
+   - Un numeral por CADA diligencia o pieza del expediente, siguiendo el orden de fojas
+   - Cada numeral inicia con: "Que, a fojas [XX], consta [tipo de documento]..."
+   - DESARROLLAR EN EXTENSO el contenido de cada diligencia: nombres completos con tratamiento formal ("doña", "don"), cargos institucionales, fechas exactas, y una síntesis jurídica del contenido
+   - Si es una declaración: resumir lo declarado con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...")
+   - Si es un documento administrativo: describir su contenido y relevancia procesal
+   - Usar expresiones propias del derecho administrativo chileno: "obra", "rola", "consta", "se desprende", "se advierte"
+   - NO resumir telegráficamente. Cada considerando debe ser un párrafo completo y detallado
+
+4. ANÁLISIS JURÍDICO (cuando corresponda):
+   - Subsunción de los hechos en las normas aplicables
+   - Valoración de la prueba reunida
+   - Razonamiento jurídico formal
+
+5. CONCLUSIÓN / POR TANTO:
+   - Resumen de los hechos establecidos
+   - Propuesta fundamentada (sanción, sobreseimiento, etc.)
+
+═══════════════════════════════════════
+REGLAS DE ESTILO IMPERATIVAS
+═══════════════════════════════════════
+
+- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). El documento es texto plano formal
+- Redacción en TERCERA PERSONA, formal, jurídica, administrativa
+- Usar tratamiento "doña" / "don" antes de nombres propios
+- Citar SIEMPRE la foja donde consta cada antecedente
+- Los considerandos se numeran con números arábigos seguidos de punto y tabulación: "1.      Que,..."
+- Párrafos extensos y detallados, NO telegráficos
+- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto", "en mérito de lo anterior"
+- Citar normas con su denominación oficial completa (Decreto N°XX/SU/YYYY, Ley N°XX.XXX, DFL N°XX)
+- Fechas en formato extenso: "de fecha 25 de octubre de 2024"
+- NO inventar hechos ni pruebas que no estén en el contexto proporcionado
+- Usar "[COMPLETAR]" donde falte información específica
+- Si se proporcionan MODELOS DE REFERENCIA de otros expedientes, usarlos como guía de estilo y tono, pero NUNCA copiar hechos de esos modelos al informe actual
+- Extensión: el documento debe ser TAN EXTENSO como lo requiera el expediente. Cada diligencia merece su propio considerando detallado. Un expediente con 12 diligencias debería tener al menos 12 considerandos sustantivos`
 };
 
 exports.handler = async (event) => {
@@ -193,11 +287,13 @@ exports.handler = async (event) => {
 
     const context = buildCaseContext(data);
     const system = SYSTEM_PROMPTS[mode];
-    const userMsg = `Con base en la siguiente información del expediente, genera el borrador de vista fiscal:\n\n${context}`;
+    const docLabel = mode === 'informe' ? 'informe de la investigadora' : 'vista fiscal';
+    const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}`;
 
     // Estimar tokens (aprox 4 chars per token)
     const inputTokens = Math.ceil((system.length + userMsg.length) / 4);
-    if (inputTokens > 30000) {
+    const maxInput = mode === 'informe' ? 60000 : 30000;
+    if (inputTokens > maxInput) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json', ...CORS },
@@ -205,7 +301,9 @@ exports.handler = async (event) => {
       };
     }
 
-    const res = await callAnthropic(apiKey, system, userMsg, 8000);
+    // Modo informe necesita más tokens de salida para documentos extensos
+    const maxOutputTokens = mode === 'informe' ? 16000 : 8000;
+    const res = await callAnthropic(apiKey, system, userMsg, maxOutputTokens);
 
     if (res.error) {
       return {
