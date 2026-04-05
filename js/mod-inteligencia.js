@@ -792,27 +792,6 @@
     }
   }
 
-  /* ── Utilidades de Vista ── */
-  function copyVista(){
-    const el = document.getElementById('iaVistaText');
-    if(!el) return;
-    navigator.clipboard.writeText(el.textContent).then(function(){
-      if(typeof showToast==='function') showToast('Vista copiada al portapapeles','success');
-    });
-  }
-
-  function sendVistaToChat(){
-    const el = document.getElementById('iaVistaText');
-    if(!el) return;
-    const text = el.textContent;
-    if(typeof showTab==='function') showTab('tabChat');
-    const input = document.getElementById('chatInput');
-    if(input){
-      input.value = 'Revisa y mejora esta vista fiscal:\n\n' + text.substring(0,3000);
-      input.dispatchEvent(new Event('input'));
-    }
-  }
-
   /* ── OCR masivo: procesar TODOS los casos con diligencias sin texto ── */
   async function runOcrMasivo(){
     const el = document.getElementById('iaOcrResult');
