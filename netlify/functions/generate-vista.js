@@ -324,17 +324,23 @@ function buildCaseContext(data, modelReports) {
 /* ── Prompts por modo ── */
 const STYLE_RULES = `
 REGLAS DE ESTILO IMPERATIVAS (aplicar a TODO el documento):
-- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). El documento es texto plano formal
-- Redacción en TERCERA PERSONA, formal, jurídica, administrativa
-- Usar tratamiento "doña" / "don" antes de nombres propios
-- Citar SIEMPRE la foja donde consta cada antecedente
-- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto", "en mérito de lo anterior"
-- Citar normas con denominación oficial completa (Decreto N°XX/SU/YYYY, Ley N°XX.XXX, DFL N°XX)
-- Fechas en formato extenso: "de fecha 25 de octubre de 2024"
-- NO inventar hechos ni pruebas que no estén en el contexto proporcionado
-- Usar "[COMPLETAR]" donde falte información específica
-- Si se proporcionan MODELOS DE REFERENCIA: replicar su estilo y tono fielmente, pero NUNCA copiar hechos de esos modelos
-- Párrafos extensos y detallados, NO telegráficos`;
+- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). El documento es texto plano formal.
+- Redacción en TERCERA PERSONA, formal, jurídica, administrativa.
+- Usar tratamiento "doña" / "don" antes de nombres propios.
+- Citar SIEMPRE la foja donde consta cada antecedente: "de fojas XX a YY del expediente, consta..."
+- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto", "en mérito de lo anterior", "al tenor de lo expuesto", "conforme a lo prevenido".
+- Citar normas con denominación oficial completa (Decreto N°XX/SU/YYYY, Ley N°XX.XXX, DFL N°XX).
+- Fechas en formato extenso: "de fecha 25 de octubre de 2024".
+- NO inventar hechos ni pruebas que no estén en el contexto proporcionado.
+- Usar "[COMPLETAR]" o "[NO CONSTA]" donde falte información específica.
+- Si se proporcionan MODELOS DE REFERENCIA: replicar su estilo y tono fielmente, pero NUNCA copiar hechos de esos modelos.
+- Párrafos extensos y detallados, NO telegráficos.
+- Cada considerando termina con punto y coma (;) excepto el último que termina con punto (.).
+- Los numerales de los considerandos siguen formato: "1.      Que,..."
+- Individualización completa de cada persona: nombre completo, RUT si consta, cargo, calidad procesal.
+- Las declaraciones se sintetizan con DETALLE (no genéricamente), con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...").
+- Los testimonios de oídas se identifican expresamente como tales.
+` + HUMAN_WRITING_STYLE;
 
 const SYSTEM_PROMPTS = {
   sancion: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
