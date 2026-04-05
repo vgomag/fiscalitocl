@@ -94,6 +94,7 @@ const PLAN_MEJORA_DEFAULT=[
 let items=[], docs=[], evidencias={}, planMejora=[], conclusion={};
 let seccionMeta={};
 let loading=false, activeTab="dashboard";
+let seccionesAbiertas={};
 let chatMessages=[], chatLoading=false;
 let aiReport=null, generatingReport=false;
 
@@ -130,9 +131,17 @@ s.textContent=`
 .ley-section-card.risk-ok{border-left:4px solid #16a34a}
 .ley-section-card.risk-warning{border-left:4px solid #f59e0b}
 .ley-section-card.risk-critical{border-left:4px solid #ef4444}
-.ley-section-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.ley-section-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
 .ley-section-header .title{font-weight:600;font-size:14px}
 .ley-section-header .stats{display:flex;gap:8px;font-size:11px}
+.ley-section-header .chevron{transition:transform .25s ease;font-size:12px;margin-left:8px;color:var(--text-muted)}
+.ley-section-header .chevron.open{transform:rotate(90deg)}
+.ley-section-items{max-height:0;overflow:hidden;transition:max-height .3s ease;margin-top:0}
+.ley-section-items.open{max-height:2000px;margin-top:10px}
+.ley-section-item-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px}
+.ley-section-item-row:last-child{border-bottom:none}
+.ley-section-item-row .item-status{flex-shrink:0;width:20px;text-align:center}
+.ley-section-item-row .item-text{flex:1;line-height:1.4}
 .ley-st{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
 .ley-st-ok{background:#dcfce7;color:#166534}
 .ley-st-parc{background:#fef3c7;color:#92400e}
@@ -444,6 +453,26 @@ function renderBody(){
 
   const renderers={dashboard:renderDashboard,respuesta:renderRespuesta,documentos:renderDocumentos,chat:renderChat};
   el.innerHTML=reportHTML+(renderers[activeTab]||renderers.dashboard)();
+
+  // Bind toggle for collapsible section cards in semáforo
+  if(activeTab==="dashboard"){
+    el.querySelectorAll(".ley-section-header[data-secid]").forEach(hdr=>{
+      hdr.onclick=()=>{
+        const sid=hdr.dataset.secid;
+        seccionesAbiertas[sid]=!seccionesAbiertas[sid];
+        const card=hdr.closest(".ley-section-card");
+        const itemsDiv=card.querySelector(".ley-section-items");
+        const chevron=hdr.querySelector(".chevron");
+        if(seccionesAbiertas[sid]){
+          itemsDiv.classList.add("open");
+          if(chevron)chevron.classList.add("open");
+        }else{
+          itemsDiv.classList.remove("open");
+          if(chevron)chevron.classList.remove("open");
+        }
+      };
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -477,8 +506,20 @@ function renderDashboard(){
   secs.forEach(sec=>{
     const secSt=sec.no_cumple>0?"no_cumple":sec.parcial>0||sec.sin_evaluar>sec.total/2?"parcial":"cumple";
     const stCfg=STATUS_CFG[secSt];
+    const isOpen=!!seccionesAbiertas[sec.id];
+    let itemsHtml="";
+    if(sec.items&&sec.items.length){
+      sec.items.forEach(it=>{
+        const itSt=STATUS_CFG[it.status]||STATUS_CFG.sin_evaluar;
+        itemsHtml+=`<div class="ley-section-item-row">
+          <span class="item-status">${itSt.icon}</span>
+          <span class="item-text">${h(it.requirement||it.item_exigido||"")}</span>
+          <span class="ley-st ${itSt.cls}">${itSt.label}</span>
+        </div>`;
+      });
+    }
     html+=`<div class="ley-section-card risk-${sec.risk}">
-      <div class="ley-section-header">
+      <div class="ley-section-header" data-secid="${sec.id}">
         <span class="title">${sec.icon} ${sec.num}) ${h(sec.label)} — <span style="color:${stCfg.color}">${stCfg.icon} ${stCfg.label}</span></span>
         <span class="stats">
           <span style="color:#16a34a">✅${sec.cumple}</span>
@@ -486,9 +527,11 @@ function renderDashboard(){
           <span style="color:#ef4444">❌${sec.no_cumple}</span>
           <span style="color:#9ca3af">⬜${sec.sin_evaluar}</span>
           ${sec.sinVerif?`<span style="color:#ef4444">📎${sec.sinVerif} sin verif.</span>`:""}
+          <span class="chevron${isOpen?" open":""}">▶</span>
         </span>
       </div>
       <div class="ley-progress" style="margin-top:8px"><div class="ley-progress-fill" style="width:${sec.pct}%;background:${stCfg.color}"></div></div>
+      <div class="ley-section-items${isOpen?" open":""}">${itemsHtml}</div>
     </div>`;
   });
 
