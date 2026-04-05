@@ -1,38 +1,16 @@
 /**
- * GENERATE-VISTA.JS — Generación de Vista Fiscal con IA
- * ──────────────────────────────────────────────────────
- * Genera un borrador completo de vista fiscal (opinión del fiscal investigador)
- * basándose en los datos del caso, diligencias, participantes y cronología.
+ * GENERATE-VISTA.JS — Generación de Vista Fiscal / Informe con IA
+ * ──────────────────────────────────────────────────────────────────
+ * Genera borradores de vista fiscal, informe de la investigadora, etc.
+ * BUSCA AUTOMÁTICAMENTE modelos de referencia en casos terminados de Supabase
+ * para conservar el estilo institucional, razonamiento jurídico y lenguaje administrativo.
  *
  * POST { caseId, caseData, diligencias, participants, chronology, mode }
- *   mode: "sancion" | "sobreseimiento" | "art129" (medida cautelar art 129)
+ *   mode: "informe" | "sancion" | "sobreseimiento" | "art129"
  */
 const https = require('https');
 const { callAnthropic: _sharedCall, MODEL_SONNET } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
-
-/**
- * Generate Vista Fiscal — Generación automática de vista fiscal con IA.
- * Crea borradores de vista fiscal (sanción, sobreseimiento, medida cautelar).
- *
- * @route POST /.netlify/functions/generate-vista
- * @param {Object} body
- * @param {string} body.mode - 'sancion' | 'sobreseimiento' | 'art129'
- * @param {Object} body.caseData - Datos del caso (name, rol, caratula, etc.)
- * @param {Array<{diligencia_label, fecha_diligencia?, ai_summary?}>} [body.diligencias] - Documentos del caso
- * @param {Array<{name, role, estamento?, carrera?}>} [body.participants] - Participantes del procedimiento
- * @param {Array<{event_date, title, description?}>} [body.chronology] - Cronología de eventos
- * @param {string} [body.caseId] - ID del caso
- * @returns {Object}
- *   {
- *     vista: string,
- *     mode: string,
- *     caseName: string,
- *     usage: {inputTokens, outputTokens}
- *   }
- * @auth Requiere x-auth-token (JWT Supabase)
- * @rateLimit 60 req/hora por usuario
- */
 
 /* Wrapper que usa Sonnet con timeout largo para generación de vistas */
 function callAnthropic(apiKey, system, userMsg, maxTokens) {
@@ -41,8 +19,136 @@ function callAnthropic(apiKey, system, userMsg, maxTokens) {
   });
 }
 
+/* ══════════════════════════════════════════════
+   SUPABASE: Buscar modelos de referencia
+   ══════════════════════════════════════════════ */
+function supabaseFetch(sbUrl, sbKey, path) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(sbUrl + '/rest/v1/' + path);
+    const req = https.request({
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: {
+        'apikey': sbKey,
+        'Authorization': 'Bearer ' + sbKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    }, (res) => {
+      let d = ''; res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d || '[]')); } catch { resolve([]); } });
+    });
+    req.on('error', () => resolve([]));
+    req.on('timeout', () => { req.destroy(); resolve([]); });
+    req.end();
+  });
+}
+
+/**
+ * Busca hasta 3 informes finales de casos terminados que coincidan con el
+ * tipo_procedimiento y protocolo del caso activo. Si no encuentra match exacto,
+ * amplía la búsqueda solo por tipo_procedimiento.
+ */
+async function fetchModelReports(caseData, mode) {
+  const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return [];
+
+  const tipo = caseData.tipo_procedimiento || '';
+  const protocolo = caseData.protocolo || '';
+  const caseId = caseData.id || '';
+
+  // Mapear modo a resultado esperado para buscar modelos más relevantes
+  const resultadoFilter = (mode === 'sancion') ? '&resultado=eq.Sanción'
+    : (mode === 'sobreseimiento') ? '&resultado=eq.Sobreseimiento' : '';
+
+  // 1) Intentar match exacto: mismo tipo + protocolo + resultado
+  let path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+    + `&categoria=eq.terminado&informe_final=not.is.null`
+    + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
+    + `&protocolo=eq.${encodeURIComponent(protocolo)}`
+    + resultadoFilter
+    + `&id=neq.${encodeURIComponent(caseId)}`
+    + `&order=nueva_resolucion.desc&limit=3`;
+
+  let models = await supabaseFetch(sbUrl, sbKey, path);
+
+  // 2) Si no hay suficientes, ampliar: mismo tipo + resultado (sin protocolo)
+  if ((!models || models.length < 2) && tipo) {
+    path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+      + `&categoria=eq.terminado&informe_final=not.is.null`
+      + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
+      + resultadoFilter
+      + `&id=neq.${encodeURIComponent(caseId)}`
+      + `&order=nueva_resolucion.desc&limit=3`;
+    const extra = await supabaseFetch(sbUrl, sbKey, path);
+    if (extra && extra.length) {
+      const existingIds = new Set((models || []).map(m => m.nueva_resolucion));
+      extra.forEach(m => { if (!existingIds.has(m.nueva_resolucion)) models.push(m); });
+      models = models.slice(0, 3);
+    }
+  }
+
+  // 3) Fallback general: cualquier terminado con informe
+  if (!models || models.length === 0) {
+    path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+      + `&categoria=eq.terminado&informe_final=not.is.null`
+      + `&id=neq.${encodeURIComponent(caseId)}`
+      + `&order=nueva_resolucion.desc&limit=2`;
+    models = await supabaseFetch(sbUrl, sbKey, path);
+  }
+
+  return (models || []).filter(m => m.informe_final && m.informe_final.length > 500);
+}
+
+/**
+ * Extrae las secciones más relevantes de un informe modelo para no exceder tokens.
+ * Prioriza: VISTOS (estructura normativa), primer CONSIDERANDO (estilo), y POR TANTO.
+ */
+function extractModelSections(fullText, maxLen) {
+  if (!fullText || fullText.length <= maxLen) return fullText || '';
+
+  const sections = [];
+  let remaining = maxLen;
+
+  // Extraer VISTOS (contiene la estructura normativa)
+  const vistosMatch = fullText.match(/VISTOS?:?\s*\n([\s\S]*?)(?=\n\s*CONSIDERANDO|$)/i);
+  if (vistosMatch) {
+    const vistos = 'VISTOS:\n' + vistosMatch[1].slice(0, Math.min(1500, remaining));
+    sections.push(vistos);
+    remaining -= vistos.length;
+  }
+
+  // Extraer primeros 3 CONSIDERANDOs (muestra el estilo de redacción)
+  const considMatch = fullText.match(/CONSIDERANDO:?\s*\n([\s\S]*?)(?=\n\s*(?:ANÁLISIS|POR TANTO|EN MÉRITO|CONCLUSI[OÓ]N)|$)/i);
+  if (considMatch && remaining > 500) {
+    const considText = considMatch[1];
+    // Tomar los primeros 3 numerales
+    const numerales = considText.match(/\d+\.\s+Que[\s\S]*?(?=\n\d+\.\s+Que|\n\s*(?:ANÁLISIS|POR TANTO)|$)/gi);
+    if (numerales) {
+      let considSection = 'CONSIDERANDO:\n';
+      for (let i = 0; i < Math.min(3, numerales.length) && remaining > 200; i++) {
+        const numeral = numerales[i].slice(0, 800);
+        considSection += numeral + '\n';
+        remaining -= numeral.length;
+      }
+      if (numerales.length > 3) considSection += `[... ${numerales.length - 3} considerandos más ...]\n`;
+      sections.push(considSection);
+    }
+  }
+
+  // Extraer POR TANTO / CONCLUSIÓN
+  const porTantoMatch = fullText.match(/(POR TANTO|EN MÉRITO|CONCLUSI[OÓ]N):?\s*\n([\s\S]*?)$/i);
+  if (porTantoMatch && remaining > 300) {
+    sections.push(porTantoMatch[0].slice(0, Math.min(1000, remaining)));
+  }
+
+  return sections.join('\n\n[...]\n\n');
+}
+
 /* ── Construir contexto del caso ── */
-function buildCaseContext(data) {
+function buildCaseContext(data, modelReports) {
   const { caseData, diligencias, participants, chronology } = data;
   const c = caseData || {};
   const isInforme = data.mode === 'informe';
@@ -68,7 +174,7 @@ function buildCaseContext(data) {
     ctx += '\n';
   }
 
-  // Diligencias — en modo informe incluir texto completo para CONSIDERANDOS detallados
+  // Diligencias — en modo informe incluir texto completo
   if (diligencias && diligencias.length) {
     ctx += `DILIGENCIAS (${diligencias.length} documentos):\n`;
     const maxDiligencias = isInforme ? 30 : 20;
@@ -79,7 +185,6 @@ function buildCaseContext(data) {
       if (d.fecha_diligencia) ctx += ` [${d.fecha_diligencia}]`;
       ctx += '\n';
       if (isInforme && d.extracted_text) {
-        // En modo informe, incluir texto completo (hasta 2000 chars por diligencia)
         ctx += `   CONTENIDO COMPLETO:\n   ${d.extracted_text.slice(0, 2000)}\n`;
       } else if (d.ai_summary) {
         ctx += `   Resumen: ${d.ai_summary.slice(0, 300)}\n`;
@@ -101,15 +206,24 @@ function buildCaseContext(data) {
   if (c.observaciones) ctx += `OBSERVACIONES: ${c.observaciones}\n`;
   if (c.informe_final) ctx += `INFORME PREVIO:\n${c.informe_final.slice(0, 2000)}\n`;
 
-  // Modelos de referencia (informes terminados de otros expedientes)
-  if (data.modelReports && data.modelReports.length) {
-    ctx += '\n═══════════════════════════════════════\n';
-    ctx += 'MODELOS DE REFERENCIA (informes finales de expedientes ya terminados):\n';
-    ctx += 'Usa estos como guía de ESTILO, TONO, ESTRUCTURA y LENGUAJE INSTITUCIONAL.\n';
-    ctx += '═══════════════════════════════════════\n\n';
-    data.modelReports.forEach((m, i) => {
-      ctx += `--- MODELO ${i + 1} (Exp. ${m.caseName || '?'}) ---\n`;
-      ctx += (m.text || '').slice(0, 4000) + '\n\n';
+  // Modelos de referencia AUTOMÁTICOS (desde casos terminados)
+  if (modelReports && modelReports.length) {
+    ctx += '\n═══════════════════════════════════════════════════════════════\n';
+    ctx += 'MODELOS DE REFERENCIA — Informes finales de expedientes terminados\n';
+    ctx += 'INSTRUCCIÓN: Replica fielmente el ESTILO, TONO, ESTRUCTURA y\n';
+    ctx += 'LENGUAJE INSTITUCIONAL de estos modelos. Conserva el razonamiento\n';
+    ctx += 'jurídico y el lenguaje administrativo. NO copies hechos de estos\n';
+    ctx += 'modelos — solo usa su estilo como guía.\n';
+    ctx += '═══════════════════════════════════════════════════════════════\n\n';
+
+    // Calcular espacio por modelo
+    const maxPerModel = isInforme ? 5000 : 3000;
+
+    modelReports.forEach((m, i) => {
+      const label = m.name || m.nueva_resolucion || '?';
+      const tipoInfo = [m.tipo_procedimiento, m.protocolo, m.resultado].filter(Boolean).join(' / ');
+      ctx += `--- MODELO ${i + 1}: Exp. ${label} (${tipoInfo}) ---\n`;
+      ctx += extractModelSections(m.informe_final, maxPerModel) + '\n\n';
     });
   }
 
@@ -117,43 +231,46 @@ function buildCaseContext(data) {
 }
 
 /* ── Prompts por modo ── */
+const STYLE_RULES = `
+REGLAS DE ESTILO IMPERATIVAS (aplicar a TODO el documento):
+- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). El documento es texto plano formal
+- Redacción en TERCERA PERSONA, formal, jurídica, administrativa
+- Usar tratamiento "doña" / "don" antes de nombres propios
+- Citar SIEMPRE la foja donde consta cada antecedente
+- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto", "en mérito de lo anterior"
+- Citar normas con denominación oficial completa (Decreto N°XX/SU/YYYY, Ley N°XX.XXX, DFL N°XX)
+- Fechas en formato extenso: "de fecha 25 de octubre de 2024"
+- NO inventar hechos ni pruebas que no estén en el contexto proporcionado
+- Usar "[COMPLETAR]" donde falte información específica
+- Si se proporcionan MODELOS DE REFERENCIA: replicar su estilo y tono fielmente, pero NUNCA copiar hechos de esos modelos
+- Párrafos extensos y detallados, NO telegráficos`;
+
 const SYSTEM_PROMPTS = {
   sancion: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
 
 Genera un borrador de VISTA FISCAL con propuesta de SANCIÓN para un procedimiento disciplinario.
 
 ESTRUCTURA OBLIGATORIA:
-1. VISTOS — Identificación del expediente, resolución instructora, partes
-2. CONSIDERANDO — Hechos probados, valoración de prueba, análisis jurídico
+1. VISTOS — Identificación del expediente, resolución instructora, reglamentos y normas aplicables
+2. CONSIDERANDO — Un numeral por cada diligencia/pieza del expediente. Cada uno inicia con "Que, a fojas [XX], consta..."
 3. CALIFICACIÓN JURÍDICA — Normas infringidas, subsunción de conductas
 4. CIRCUNSTANCIAS — Atenuantes y agravantes
 5. PROPUESTA DE SANCIÓN — Tipo de sanción propuesta con fundamento
 6. CONCLUSIÓN — Resumen y solicitud
-
-REGLAS:
-- Redacción formal, jurídica, en tercera persona
-- Citar normas específicas (Estatuto Administrativo, protocolo aplicable, reglamento UMAG)
-- Fundamentar cada conclusión en pruebas del expediente
-- No inventar hechos ni pruebas que no estén en el contexto
-- Usar "[COMPLETAR]" donde falte información específica
-- Extensión: 3-5 páginas equivalentes`,
+${STYLE_RULES}
+- Extensión: 3-5 páginas equivalentes. Cada diligencia merece su propio considerando detallado`,
 
   sobreseimiento: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
 
 Genera un borrador de VISTA FISCAL con propuesta de SOBRESEIMIENTO para un procedimiento disciplinario.
 
 ESTRUCTURA OBLIGATORIA:
-1. VISTOS — Identificación del expediente
-2. CONSIDERANDO — Análisis de los hechos investigados
-3. FUNDAMENTOS DEL SOBRESEIMIENTO — Por qué no se configura la falta disciplinaria
+1. VISTOS — Identificación del expediente, resolución instructora, normas aplicables
+2. CONSIDERANDO — Un numeral por cada diligencia/pieza del expediente. Cada uno inicia con "Que, a fojas [XX], consta..."
+3. FUNDAMENTOS DEL SOBRESEIMIENTO — Por qué no se configura la falta disciplinaria o por qué la prueba es insuficiente
 4. CONCLUSIÓN — Propuesta formal de sobreseimiento
-
-REGLAS:
-- Redacción formal, jurídica, en tercera persona
-- Explicar por qué los hechos no configuran falta o por qué la prueba es insuficiente
-- No inventar hechos ni pruebas
-- Usar "[COMPLETAR]" donde falte información
-- Extensión: 2-3 páginas equivalentes`,
+${STYLE_RULES}
+- Extensión: 2-4 páginas equivalentes`,
 
   art129: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
 
@@ -165,33 +282,10 @@ ESTRUCTURA:
 3. FUNDAMENTOS DE DERECHO — Art. 129 Estatuto Administrativo y normativa aplicable
 4. MEDIDA SOLICITADA — Tipo de medida cautelar (ej: suspensión preventiva, cambio funciones)
 5. PETITORIO
-
-REGLAS:
-- Demostrar la urgencia y proporcionalidad de la medida
-- Citar artículo 129 del Estatuto Administrativo
-- No inventar hechos
-- Usar "[COMPLETAR]" donde falte información`,
+${STYLE_RULES}`,
 
   informe: `Eres Fiscalito, asistente jurídico experto de la Universidad de Magallanes (UMAG).
 Tu tarea es generar un borrador completo de INFORME DE LA INVESTIGADORA / VISTA FISCAL para un procedimiento disciplinario o investigación sumaria. Este documento es el informe final que la fiscal investigadora o actuaria presenta a la autoridad instructora.
-
-═══════════════════════════════════════
-MODELO DE ESTILO INSTITUCIONAL
-═══════════════════════════════════════
-
-El informe DEBE replicar fielmente el estilo, tono y lenguaje de los informes institucionales de la UMAG. A continuación se presenta un ejemplo real del estilo esperado que DEBES seguir como modelo:
-
---- INICIO EJEMPLO DE ESTILO ---
-INFORME DE LA INVESTIGADORA
-____________________________________________________________________
-Punta Arenas, [FECHA]
-VISTOS:
-En el marco de la investigación sumaria, ordenada instruir por Resolución N°[NÚMERO], de fecha [FECHA], de [AUTORIDAD] de la Universidad de Magallanes. Los antecedentes acumulados en el curso de la presente investigación y que rolan de fojas 01 a [ÚLTIMA FOJA] del expediente investigativo; Los reglamentos o normas que rigen esta investigación, donde se incluyen, [NORMAS APLICABLES].-
-
-                      CONSIDERANDO:
-1.      Que, a fojas [XX], consta [DOCUMENTO], mediante el cual se [DESCRIPCIÓN DETALLADA DEL CONTENIDO, incluyendo nombres completos, cargos, fechas exactas y hechos relevantes con lenguaje formal administrativo];
-2.      Que, a fojas [XX], consta [DOCUMENTO SIGUIENTE], [DESCRIPCIÓN DETALLADA]...
---- FIN EJEMPLO DE ESTILO ---
 
 ═══════════════════════════════════════
 ESTRUCTURA OBLIGATORIA
@@ -226,23 +320,8 @@ ESTRUCTURA OBLIGATORIA
 5. CONCLUSIÓN / POR TANTO:
    - Resumen de los hechos establecidos
    - Propuesta fundamentada (sanción, sobreseimiento, etc.)
-
-═══════════════════════════════════════
-REGLAS DE ESTILO IMPERATIVAS
-═══════════════════════════════════════
-
-- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). El documento es texto plano formal
-- Redacción en TERCERA PERSONA, formal, jurídica, administrativa
-- Usar tratamiento "doña" / "don" antes de nombres propios
-- Citar SIEMPRE la foja donde consta cada antecedente
+${STYLE_RULES}
 - Los considerandos se numeran con números arábigos seguidos de punto y tabulación: "1.      Que,..."
-- Párrafos extensos y detallados, NO telegráficos
-- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto", "en mérito de lo anterior"
-- Citar normas con su denominación oficial completa (Decreto N°XX/SU/YYYY, Ley N°XX.XXX, DFL N°XX)
-- Fechas en formato extenso: "de fecha 25 de octubre de 2024"
-- NO inventar hechos ni pruebas que no estén en el contexto proporcionado
-- Usar "[COMPLETAR]" donde falte información específica
-- Si se proporcionan MODELOS DE REFERENCIA de otros expedientes, usarlos como guía de estilo y tono, pero NUNCA copiar hechos de esos modelos al informe actual
 - Extensión: el documento debe ser TAN EXTENSO como lo requiera el expediente. Cada diligencia merece su propio considerando detallado. Un expediente con 12 diligencias debería tener al menos 12 considerandos sustantivos`
 };
 
@@ -271,7 +350,7 @@ exports.handler = async (event) => {
 
     const data = JSON.parse(event.body);
     const bodyStr = JSON.stringify(data);
-    if (bodyStr.length > 1000000) {
+    if (bodyStr.length > 2000000) {
       return { statusCode: 413, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'Payload too large' }) };
     }
 
@@ -281,18 +360,27 @@ exports.handler = async (event) => {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json', ...CORS },
-        body: JSON.stringify({ error: 'mode inválido. Use: sancion, sobreseimiento, art129' })
+        body: JSON.stringify({ error: 'mode inválido. Use: informe, sancion, sobreseimiento, art129' })
       };
     }
 
-    const context = buildCaseContext(data);
+    // ══ BÚSQUEDA AUTOMÁTICA DE MODELOS ══
+    // Buscar informes finales de casos terminados como referencia de estilo
+    let modelReports = [];
+    try {
+      modelReports = await fetchModelReports(data.caseData || {}, mode);
+    } catch (e) {
+      console.warn('fetchModelReports warning:', e.message);
+    }
+
+    const context = buildCaseContext(data, modelReports);
     const system = SYSTEM_PROMPTS[mode];
     const docLabel = mode === 'informe' ? 'informe de la investigadora' : 'vista fiscal';
     const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}`;
 
     // Estimar tokens (aprox 4 chars per token)
     const inputTokens = Math.ceil((system.length + userMsg.length) / 4);
-    const maxInput = mode === 'informe' ? 60000 : 30000;
+    const maxInput = mode === 'informe' ? 80000 : 50000;
     if (inputTokens > maxInput) {
       return {
         statusCode: 400,
@@ -322,6 +410,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         vista: generatedText,
         mode,
+        modelsUsed: modelReports.map(m => m.name || m.nueva_resolucion).filter(Boolean),
         usage: {
           inputTokens: usage.input_tokens || inputTokens,
           outputTokens: usage.output_tokens || 0
