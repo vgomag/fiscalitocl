@@ -1349,6 +1349,7 @@ function render(){
 // ── Public API ──────────────────────────────────────────────────────────────
 window._ley21369={
   updateStatus,updateField,deleteItem,uploadDoc,downloadDoc,deleteDoc,
+  uploadDocWithAI,confirmClassify,cancelClassify,reclassifyDoc,
   sendChat,generateReport,exportExcel,showAddModal,
   toggleEvidencia,updateConclusion,updateSeccionMeta,
   updatePlan,addPlanRow,removePlanRow,
