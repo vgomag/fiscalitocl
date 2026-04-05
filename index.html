@@ -1910,7 +1910,7 @@ window.getActiveCases=function(){
 window.buildCaseSelectorHTML=function(onchangeFn, selectedId){
   const cases=getActiveCases();
   if(!cases.length) return '<span style="color:var(--red);font-size:11px">No hay expedientes activos</span>';
-  const catIcons={genero:'👥',no_genero:'📋',cargos:'⚖️',finalizacion:'✅'};
+  const catIcons={genero:'👥',no_genero:'📋',cargos:'⚖️',probatorio:'📋',finalizacion:'✅'};
   const opts=cases.map(c=>{
     const cat=getCaseCat(c);
     const icon=catIcons[cat]||'📁';
