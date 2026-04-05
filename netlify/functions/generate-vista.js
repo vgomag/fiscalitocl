@@ -299,7 +299,21 @@ function buildCaseContext(data, modelReports) {
       const label = m.name || m.nueva_resolucion || '?';
       const tipoInfo = [m.tipo_procedimiento, m.protocolo, m.resultado].filter(Boolean).join(' / ');
       ctx += `--- MODELO ${i + 1}: Exp. ${label} (${tipoInfo}) ---\n`;
-      ctx += extractModelSections(m.informe_final, maxPerModel, data.mode) + '\n\n';
+      ctx += extractModelSections(m.informe_final, maxPerModel, data.mode) + '\n';
+
+      // Si hay diligencias del modelo, mostrar su estructura como referencia
+      if (m._diligencias && m._diligencias.length > 0) {
+        ctx += '\n  [ESTRUCTURA DE DILIGENCIAS DEL MODELO — Referencia de organización]:\n';
+        m._diligencias.forEach((d, j) => {
+          const fojas = d.fojas_inicio ? ` (f.${d.fojas_inicio}${d.fojas_fin && d.fojas_fin !== d.fojas_inicio ? '-' + d.fojas_fin : ''})` : '';
+          ctx += `  ${j + 1}. ${d.diligencia_label || d.diligencia_type || '?'}${fojas}`;
+          if (d.fecha_diligencia) ctx += ` [${d.fecha_diligencia}]`;
+          if (d.ai_summary) ctx += ` — ${d.ai_summary.slice(0, 120)}`;
+          ctx += '\n';
+        });
+        ctx += '  [Usa esta estructura como referencia para organizar las diligencias del caso actual]\n';
+      }
+      ctx += '\n';
     });
   }
 
