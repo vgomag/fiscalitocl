@@ -2624,13 +2624,84 @@ function showFnPanel(code){
 /* ── F7 Secciones para generación por partes ── */
 const VF_SECTIONS=[
   {id:'vistos',label:'Normativa y Vistos',icon:'⚖️',prompt:'Genera la sección de VISTOS de la vista fiscal: un solo párrafo corrido (NO numerado) con la identificación del procedimiento, resolución que lo instruye, fiscal y actuario designados, rango de fojas del expediente, y toda la normativa aplicable separada por punto y coma (DFL N°29, Ley 19.880, Ley 18.575, protocolos UMAG, etc.). Incluye referencias precisas a fojas.'},
-  {id:'hechos',label:'Hechos y Prueba',icon:'📋',prompt:'Genera los CONSIDERANDOS de HECHOS ACREDITADOS Y PRUEBA de la vista fiscal. Dedica un considerando "Que," a CADA diligencia del expediente, referenciando fojas precisas ("a fojas XX", "de fojas XX a YY"). Para declaraciones, relata con detalle el contenido (3-5 oraciones mínimo). Distingue hechos presenciados vs. de oídas. Numera correlativamente. NUNCA omitas diligencias.'},
-  {id:'analisis',label:'Análisis jurídico',icon:'🔍',prompt:'Genera los CONSIDERANDOS de ANÁLISIS JURÍDICO de la vista fiscal: formulación de cargos y notificación, descargos del inculpado, análisis de defensas, valoración de la prueba (art. 35 Ley 19.880, sana crítica), subsunción jurídico-normativa de los hechos acreditados en las normas infringidas, y gravedad de las infracciones.'},
-  {id:'sancion',label:'Propuesta de sanción',icon:'⚡',prompt:'Genera los CONSIDERANDOS FINALES y POR TANTO con PROPUESTA DE SANCIÓN. Incluye: atenuantes y agravantes (art. 120 DFL N°29), criterios de proporcionalidad, conclusión sobre responsabilidad, y cláusula formal "P O R T A N T O" con artículo 121 letra específica, individualización del inculpado, medida disciplinaria y solicitud de elevación al Rector.'},
-  {id:'sobreseimiento',label:'Propuesta de sobreseimiento',icon:'✅',prompt:'Genera los CONSIDERANDOS FINALES y POR TANTO con PROPUESTA DE SOBRESEIMIENTO. Incluye: hechos establecidos con sub-numeración, análisis de consistencia testimonial, conclusión probatoria, análisis jurídico por denunciado, causal específica de sobreseimiento (prescripción, falta de prueba, atipicidad, etc.), y cláusula "P O R T A N T O, SE SUGIERE" con sobreseimiento definitivo o temporal.'},
+  {id:'diligencias',label:'Relación de diligencias',icon:'📋',prompt:`Genera los CONSIDERANDOS de RELACIÓN DE DILIGENCIAS de la vista fiscal. Esta es la sección más importante y extensa del documento.
+
+INSTRUCCIÓN OBLIGATORIA: Dedica un considerando "Que," a CADA UNA de las diligencias del expediente, en ORDEN CRONOLÓGICO. No omitas NINGUNA.
+
+Para CADA diligencia debes incluir:
+- Número de considerando y "Que,"
+- Tipo de diligencia (declaración, oficio, informe, prueba documental, etc.)
+- Fecha de realización
+- Personas involucradas (nombre completo, cargo, calidad procesal)
+- Referencia de fojas: "a fojas XX" o "de fojas XX a YY del expediente"
+- CONTENIDO SUSTANTIVO DETALLADO (mínimo 5-8 oraciones por diligencia sustantiva):
+
+Reglas por tipo:
+- DECLARACIONES: Relata lo declarado con MÁXIMO DETALLE: hechos narrados cronológicamente, fechas mencionadas, personas referidas, conductas descritas, impacto en el declarante, documentos o correos mencionados. Distingue EXPRESAMENTE hechos presenciados directamente vs. conocidos de oídas ("el declarante señala haber presenciado..." vs. "refiere haber sido informado por terceros que..."). Incluye citas textuales entre comillas cuando estén disponibles.
+- OFICIOS/INFORMES: Qué se solicitó, a quién, fecha, y qué se obtuvo como respuesta. Contenido sustantivo del informe.
+- PRUEBA DOCUMENTAL: Describe el contenido del documento y su relevancia para la investigación.
+- RESOLUCIONES: Número, fecha, autoridad, contenido dispositivo.
+- NOTIFICACIONES: Pueden agruparse solo si son más de 15 rutinarias.
+
+EXTENSIÓN: Sé EXHAUSTIVO. Un expediente con 20 diligencias debe tener al menos 20 considerandos sustantivos. Esta sección típicamente ocupa el 60-70% de la vista fiscal.`},
+  {id:'hechos',label:'Hechos acreditados',icon:'✅',prompt:`Genera los CONSIDERANDOS de HECHOS ACREDITADOS de la vista fiscal. Esta sección se construye EXCLUSIVAMENTE a partir de las diligencias ya relatadas en la sección anterior.
+
+PROCESO OBLIGATORIO:
+1. INDIVIDUALIZACIÓN: Identifica a cada denunciado/inculpado con nombre completo, RUT, cargo, estamento y dependencia.
+2. SÍNTESIS DE LA DENUNCIA: Resume los hechos originalmente denunciados.
+3. ANÁLISIS DE CONSISTENCIA TESTIMONIAL: Cruza las declaraciones entre sí. Identifica:
+   - Testimonios CONCORDANTES (qué hechos confirman múltiples declarantes)
+   - Testimonios CONTRADICTORIOS (discrepancias entre versiones)
+   - Testimonios de OÍDAS vs. PRESENCIALES (cuáles tienen valor probatorio directo)
+   - Prueba DOCUMENTAL que respalda o contradice las declaraciones
+4. HECHOS ACREDITADOS: Lista cada hecho que se tiene por probado, indicando POR QUÉ medios probatorios se acredita ("consta de la declaración de [nombre] a fojas XX, corroborada por el informe de fojas YY y la prueba documental de fojas ZZ").
+5. HECHOS NO ACREDITADOS: Si algún hecho denunciado no logró probarse, señálalo expresamente con la razón ("no se acreditó... por cuanto solo consta la declaración del denunciante sin respaldo probatorio adicional").
+6. VALORACIÓN DE LA PRUEBA: Conforme al art. 35 de la Ley 19.880 y el estándar de sana crítica, valora el conjunto probatorio.
+
+FORMATO: Usar sub-numeración cuando sea necesario (ej: 30.1, 30.2...). Cada hecho acreditado debe ser trazable a piezas específicas del expediente con referencia de fojas.`},
+  {id:'analisis',label:'Análisis jurídico',icon:'🔍',prompt:`Genera los CONSIDERANDOS de ANÁLISIS JURÍDICO de la vista fiscal. Se basa en los hechos acreditados de la sección anterior.
+
+Debe incluir:
+1. FORMULACIÓN DE CARGOS: Si hubo formulación, indica el contenido de cada cargo, su notificación y plazo.
+2. DESCARGOS: Sintetiza los descargos del inculpado y cada argumento de defensa planteado.
+3. ANÁLISIS DE DEFENSAS: Analiza CADA defensa del inculpado contra los hechos acreditados. Fundamenta por qué procede o no cada argumento defensivo.
+4. SUBSUNCIÓN JURÍDICA: Contrasta cada hecho acreditado con la norma infringida. Indica: conducta concreta → artículo/deber infringido → por qué la conducta vulnera la norma.
+5. GRAVEDAD: Califica la gravedad de cada infracción (leve, menos grave, grave, gravísima) con fundamento en la naturaleza de los hechos, el bien jurídico afectado, la reiteración, y la posición del inculpado.
+6. ATENUANTES Y AGRAVANTES (art. 120 DFL N°29): Identifica circunstancias modificatorias con fundamento fáctico.
+
+Usa la normativa correcta según el estamento del denunciado (funcionario: DFL N°29; estudiante: Decreto 21/SU/2025; honorario: Ley Karin).`},
+  {id:'sancion',label:'Propuesta de sanción',icon:'⚡',prompt:`Genera los CONSIDERANDOS FINALES y POR TANTO con PROPUESTA DE SANCIÓN.
+
+Debe incluir:
+1. CONCLUSIÓN sobre responsabilidad administrativa: resumen de hechos acreditados, normas infringidas y gravedad.
+2. PONDERACIÓN de atenuantes y agravantes.
+3. CRITERIOS DE PROPORCIONALIDAD: por qué la sanción propuesta es proporcional a la falta.
+4. Cláusula formal:
+
+P O R T A N T O, SE RESUELVE O SUGIERE:
+
+Que teniendo en consideración lo preceptuado en el artículo 121 y 122 del D.F.L. N° 29 del año 2005, y habiéndose acreditado la responsabilidad administrativa, se propone al Sr. Rector, salvo su superior resolución:
+
+Sancionar a don/doña [NOMBRE_COMPLETO], cédula de identidad N°[RUT], [CARGO_ESTAMENTO], con la medida disciplinaria contemplada en el artículo 121 letra "[LETRA]" del D.F.L. N° 29, [DESCRIPCION_SANCION].
+
+Remítanse los antecedentes y elévese el expediente al Sr. Rector para su Superior Resolución. Es todo cuanto tengo por informar.`},
+  {id:'sobreseimiento',label:'Propuesta de sobreseimiento',icon:'🔄',prompt:`Genera los CONSIDERANDOS FINALES y POR TANTO con PROPUESTA DE SOBRESEIMIENTO.
+
+Debe incluir:
+1. HECHOS ESTABLECIDOS con sub-numeración (N.1, N.2...): individualización de partes, síntesis de denuncia, análisis de consistencia testimonial.
+2. CONCLUSIÓN PROBATORIA: "del análisis conjunto de la prueba, apreciada conforme a la sana crítica, [CONCLUSIÓN]".
+3. ANÁLISIS JURÍDICO: por qué los hechos no configuran infracción, o por qué no se acreditaron, o por qué prescribió la acción.
+4. CAUSAL ESPECÍFICA de sobreseimiento: prescripción (art. 157 EA), falta de prueba, atipicidad, incompetencia, eximentes, inocencia, pérdida de calidad de estudiante, etc.
+5. Cláusula formal:
+
+P O R T A N T O, SE SUGIERE:
+
+Que atendido el mérito de los antecedentes, y de conformidad a [NORMATIVA], se propone el sobreseimiento [definitivo/temporal] de la investigación instruida en contra de [NOMBRE(S)], atendido a que [FUNDAMENTO].
+
+Remítanse los antecedentes y elévese el expediente al Sr. Rector para su superior resolución. Es todo cuanto tengo por informar.`},
   {id:'genero',label:'Perspectiva de género',icon:'🟣',prompt:'Genera un análisis CON PERSPECTIVA DE GÉNERO para la vista fiscal. Incorpora: marco normativo (Ley 21.369, CEDAW, Belém do Pará, protocolo UMAG), asimetría de poder entre las partes, dinámicas de violencia de género, dificultad probatoria inherente, medidas de resguardo adoptadas, y valoración de prueba sin estereotipos de género.'},
   {id:'estrategias',label:'Estrategias preventivas',icon:'🛡️',prompt:'Genera la sección de ESTRATEGIAS PREVENTIVAS de la vista fiscal: medidas institucionales, de capacitación, organizacionales y de seguimiento que la Universidad debería adoptar para prevenir la reiteración de conductas similares. Fundamenta en normativa aplicable.'},
-  {id:'completa',label:'Vista fiscal completa',icon:'📑',prompt:'Genera la VISTA FISCAL COMPLETA con todas las secciones: VISTOS (párrafo corrido con normativa), CONSIDERANDOS numerados (antecedentes procesales, relación de diligencias con fojas, análisis jurídico, valoración de prueba, gravedad, atenuantes/agravantes, conclusión) y POR TANTO (propuesta fundamentada). Sé EXHAUSTIVO: cada diligencia merece su propio considerando.'}
+  {id:'completa',label:'Vista fiscal completa',icon:'📑',prompt:'Genera la VISTA FISCAL COMPLETA con todas las secciones: VISTOS (párrafo corrido con normativa), CONSIDERANDOS numerados (antecedentes procesales, relación completa y detallada de CADA diligencia con fojas, hechos acreditados con cruce de testimonios, análisis jurídico, valoración de prueba, gravedad, atenuantes/agravantes, conclusión) y POR TANTO (propuesta fundamentada). Sé EXHAUSTIVO: cada diligencia merece su propio considerando con mínimo 5 oraciones.'}
 ];
 let _vfSectionsDone={};
 
@@ -2977,7 +3048,17 @@ async function sendMessage(){
           caseContext+=`\n\n## DILIGENCIAS PRACTICADAS (${rDil.data.length} total${dils.length<rDil.data.length?', mostrando '+dils.length+' más relevantes':''})`;
 
           if(isVistaOrInforme){
-            caseContext+='\n⚠️ INSTRUCCIÓN CRÍTICA PARA VISTA FISCAL / INFORME:\n- TODAS las diligencias listadas a continuación DEBEN aparecer en los CONSIDERANDO. No omitas ninguna.\n- Cada diligencia = un considerando "Que," individual (o agrupadas si son >15 rutinarias).\n- Usa el TEXTO COMPLETO proporcionado (no solo el resumen) como base para redactar cada considerando.\n- Incluye SIEMPRE: tipo de diligencia, fecha, personas involucradas, referencia de fojas, y contenido sustantivo.\n- Orden CRONOLÓGICO estricto (las diligencias ya están ordenadas cronológicamente).\n- Las diligencias están ordenadas de la más antigua a la más reciente.\n';
+            caseContext+=`\n⚠️ INSTRUCCIÓN CRÍTICA PARA VISTA FISCAL / INFORME:
+- HAY ${rDil.data.length} DILIGENCIAS EN ESTE EXPEDIENTE. TODAS Y CADA UNA DEBEN APARECER en los CONSIDERANDO. No omitas NINGUNA.
+- Cada diligencia = un considerando "Que," individual. Si hay ${rDil.data.length} diligencias, debe haber al menos ${rDil.data.length} considerandos de relación de hechos.
+- Usa el TEXTO COMPLETO proporcionado (no solo el resumen) como base para redactar cada considerando. Cada considerando debe tener mínimo 3-5 oraciones sustantivas.
+- Para DECLARACIONES: relata con detalle lo declarado, indicando puntos principales del testimonio, hechos narrados, fechas mencionadas, y personas referidas. Distingue hechos presenciados de oídas.
+- Para OFICIOS/INFORMES: indica qué se solicitó, a quién, y qué se obtuvo.
+- Para PRUEBA DOCUMENTAL: describe contenido y relevancia.
+- Incluye SIEMPRE: tipo de diligencia, fecha, personas involucradas, referencia de fojas ("a fojas XX", "de fojas XX a YY"), y contenido sustantivo detallado.
+- Orden CRONOLÓGICO estricto (ya están ordenadas de la más antigua a la más reciente).
+- NUNCA resumas una diligencia en una sola línea. El expediente merece ser reflejado íntegramente.
+`;
           }
 
           dils.forEach((d,i)=>{
