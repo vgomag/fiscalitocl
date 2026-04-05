@@ -3249,7 +3249,7 @@ async function sendMessage(){
 
     const body={
       model:CLAUDE_SONNET,
-      max_tokens:activeFn==='F7'?24000:activeFn==='F8'?16000:activeFn==='F12'?6000:activeFn==='F5'?4096:4000,
+      max_tokens:activeFn==='F7'?32000:activeFn==='F8'?16000:activeFn==='F12'?6000:activeFn==='F5'?4096:4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
       messages:[...historyMsgs,{role:'user',content:userContent}],
       stream:true
