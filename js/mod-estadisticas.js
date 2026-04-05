@@ -50,7 +50,9 @@ function countBusinessDays(startDate,endDate){
   return count;
 }
 
+/* Usar función global unificada de mod-auto-subdivision.js */
 function _statIsGenderCase(name,rol){
+  if(typeof window.isGenderCase==='function') return window.isGenderCase({name:name,rol:rol});
   const p=/\d+\s*[-]?\s*G(?:\s|$|[^a-záéíóúñ])/;
   return p.test(name||'')||(name||'').toUpperCase().includes('-G')||p.test(rol||'');
 }
@@ -66,6 +68,8 @@ function calcPrescripcion(fechaDenuncia,tipoProcedimiento){
   if(diffDays<=365)return{status:'proximo',days:diffDays,label:Math.round(diffDays/30)+' meses',color:STAT_COLORS.gold};
   return{status:'ok',days:diffDays,label:Math.round(diffDays/365)+' años',color:STAT_COLORS.green};
 }
+/* Exponer como función global para evitar duplicación en otros módulos */
+window.calcPrescripcion=calcPrescripcion;
 
 /* ═══ CHART HELPERS ═══ */
 const _statCharts={};
