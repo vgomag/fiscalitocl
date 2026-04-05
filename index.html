@@ -1897,7 +1897,7 @@ window.getCaseCat=function(c){
 };
 
 /* ── Casos activos: solo genero, no_genero, cargos, finalizacion ── */
-const ACTIVE_CATS=new Set(['genero','no_genero','cargos','finalizacion']);
+const ACTIVE_CATS=new Set(['genero','no_genero','cargos','probatorio','finalizacion']);
 window.getActiveCases=function(){
   return (typeof allCases!=='undefined'?allCases:[]).filter(c=>ACTIVE_CATS.has(getCaseCat(c)));
 };
@@ -1948,7 +1948,7 @@ window.fnShowCaseSelector=function(){
 };
 
 function updateCatCounts(){
-  ['genero','no_genero','cargos','finalizacion','terminado'].forEach(cat=>{
+  ['genero','no_genero','cargos','probatorio','finalizacion','terminado'].forEach(cat=>{
     const el=document.getElementById('cnt-'+cat);
     if(el)el.textContent=allCases.filter(c=>getCaseCat(c)===cat).length;
   });
