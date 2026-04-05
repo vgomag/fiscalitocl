@@ -907,6 +907,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         <div class="cat-tab active" onclick="setCatTab('genero')">👥 Género <span class="tab-count" id="cnt-genero">0</span></div>
         <div class="cat-tab" onclick="setCatTab('no_genero')">📋 No Género <span class="tab-count" id="cnt-no_genero">0</span></div>
         <div class="cat-tab" onclick="setCatTab('cargos')">⚖️ Cargos <span class="tab-count" id="cnt-cargos">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('probatorio')">📋 Probatorio <span class="tab-count" id="cnt-probatorio">0</span></div>
         <div class="cat-tab" onclick="setCatTab('finalizacion')">✅ Finalización <span class="tab-count" id="cnt-finalizacion">0</span></div>
         <div class="cat-tab" onclick="setCatTab('terminado')">📦 Terminados <span class="tab-count" id="cnt-terminado">0</span></div>
       </div>
@@ -1881,8 +1882,8 @@ async function confirmDeleteCase(){
 /* ── Tabla view ── */
 function openTabla(){showView('viewTabla');renderTabla();}
 
-const CAT_LABELS={genero:'Género',no_genero:'No Género',cargos:'Cargos',finalizacion:'Finalización',terminado:'Terminado'};
-const VALID_CATS=new Set(['genero','no_genero','cargos','finalizacion','terminado']);
+const CAT_LABELS={genero:'Género',no_genero:'No Género',cargos:'Cargos',probatorio:'Probatorio',finalizacion:'Finalización',terminado:'Terminado'};
+const VALID_CATS=new Set(['genero','no_genero','cargos','probatorio','finalizacion','terminado']);
 /* getCaseCat asignada a window para permitir override por mod-auto-subdivision */
 window.getCaseCat=function(c){
   // 1) Campo categoria guardado en BD — fuente de verdad principal
