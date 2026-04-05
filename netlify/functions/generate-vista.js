@@ -61,7 +61,8 @@ async function fetchModelReports(caseData, mode) {
 
   // Mapear modo a resultado esperado para buscar modelos más relevantes
   const resultadoFilter = (mode === 'sancion') ? '&resultado=eq.Sanción'
-    : (mode === 'sobreseimiento') ? '&resultado=eq.Sobreseimiento' : '';
+    : (mode === 'sobreseimiento') ? '&resultado=eq.Sobreseimiento'
+    : (mode === 'genero') ? '&protocolo=not.is.null' : '';
 
   // 1) Intentar match exacto: mismo tipo + protocolo + resultado
   let path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
@@ -104,47 +105,93 @@ async function fetchModelReports(caseData, mode) {
 
 /**
  * Extrae las secciones más relevantes de un informe modelo para no exceder tokens.
- * Prioriza: VISTOS (estructura normativa), primer CONSIDERANDO (estilo), y POR TANTO.
+ * Adapta la extracción al modo de generación solicitado.
  */
-function extractModelSections(fullText, maxLen) {
+function extractModelSections(fullText, maxLen, mode) {
   if (!fullText || fullText.length <= maxLen) return fullText || '';
 
   const sections = [];
   let remaining = maxLen;
 
-  // Extraer VISTOS (contiene la estructura normativa)
-  const vistosMatch = fullText.match(/VISTOS?:?\s*\n([\s\S]*?)(?=\n\s*CONSIDERANDO|$)/i);
+  // ── Siempre extraer VISTOS (estructura normativa, útil para todos los modos) ──
+  const vistosMatch = fullText.match(/V\s*I\s*S\s*T\s*O\s*S?:?\s*\n([\s\S]*?)(?=\n\s*(?:CONSIDERANDO|C\s*O\s*N\s*S\s*I\s*D\s*E\s*R)|$)/i);
   if (vistosMatch) {
-    const vistos = 'VISTOS:\n' + vistosMatch[1].slice(0, Math.min(1500, remaining));
+    const vistosLen = mode === 'vistos' ? Math.min(3000, remaining) : Math.min(1500, remaining);
+    const vistos = 'VISTOS:\n' + vistosMatch[1].slice(0, vistosLen);
     sections.push(vistos);
     remaining -= vistos.length;
   }
 
-  // Extraer primeros 3 CONSIDERANDOs (muestra el estilo de redacción)
-  const considMatch = fullText.match(/CONSIDERANDO:?\s*\n([\s\S]*?)(?=\n\s*(?:ANÁLISIS|POR TANTO|EN MÉRITO|CONCLUSI[OÓ]N)|$)/i);
-  if (considMatch && remaining > 500) {
-    const considText = considMatch[1];
-    // Tomar los primeros 3 numerales
-    const numerales = considText.match(/\d+\.\s+Que[\s\S]*?(?=\n\d+\.\s+Que|\n\s*(?:ANÁLISIS|POR TANTO)|$)/gi);
-    if (numerales) {
-      let considSection = 'CONSIDERANDO:\n';
-      for (let i = 0; i < Math.min(3, numerales.length) && remaining > 200; i++) {
-        const numeral = numerales[i].slice(0, 800);
-        considSection += numeral + '\n';
-        remaining -= numeral.length;
+  // ── CONSIDERANDOS (hechos acreditados y prueba) ──
+  if (mode !== 'vistos') {
+    const considMatch = fullText.match(/(?:CONSIDERANDO|C\s*O\s*N\s*S\s*I\s*D\s*E\s*R\s*A\s*N\s*D\s*O):?\s*\n([\s\S]*?)(?=\n\s*(?:AN[ÁA]LISIS|CALIFICACI[ÓO]N|POR\s*TANTO|P\s*O\s*R\s*T\s*A\s*N\s*T\s*O|EN\s*M[ÉE]RITO|CONCLUSI[OÓ]N|FUNDAMENTOS?\s*DEL?\s*SOBRESEIMIENTO|PROPUESTA|CIRCUNSTANCIAS|ESTRATEGIAS?\s*PREVENTIVAS?|PERSPECTIVA\s*DE\s*G[ÉE]NERO)|$)/i);
+    if (considMatch && remaining > 500) {
+      const considText = considMatch[1];
+      const numerales = considText.match(/\d+\.\s+Que[\s\S]*?(?=\n\d+\.\s+Que|\n\s*(?:AN[ÁA]LISIS|POR\s*TANTO|CALIFICACI|FUNDAMENTOS|PROPUESTA)|$)/gi);
+      if (numerales) {
+        // Para modo 'hechos', extraer más considerandos
+        const maxNumerales = (mode === 'hechos' || mode === 'informe') ? 5 : 3;
+        let considSection = 'CONSIDERANDO:\n';
+        for (let i = 0; i < Math.min(maxNumerales, numerales.length) && remaining > 200; i++) {
+          const numeral = numerales[i].slice(0, mode === 'hechos' ? 1200 : 800);
+          considSection += numeral + '\n';
+          remaining -= numeral.length;
+        }
+        if (numerales.length > maxNumerales) considSection += `[... ${numerales.length - maxNumerales} considerandos más ...]\n`;
+        sections.push(considSection);
       }
-      if (numerales.length > 3) considSection += `[... ${numerales.length - 3} considerandos más ...]\n`;
-      sections.push(considSection);
     }
   }
 
-  // Extraer POR TANTO / CONCLUSIÓN
-  const porTantoMatch = fullText.match(/(POR TANTO|EN MÉRITO|CONCLUSI[OÓ]N):?\s*\n([\s\S]*?)$/i);
-  if (porTantoMatch && remaining > 300) {
-    sections.push(porTantoMatch[0].slice(0, Math.min(1000, remaining)));
+  // ── ANÁLISIS JURÍDICO / CALIFICACIÓN (para sanción, informe) ──
+  if (mode === 'sancion' || mode === 'informe') {
+    const analisisMatch = fullText.match(/(AN[ÁA]LISIS\s*JUR[ÍI]DICO|CALIFICACI[ÓO]N\s*JUR[ÍI]DICA):?\s*\n([\s\S]*?)(?=\n\s*(?:CIRCUNSTANCIAS|PROPUESTA|POR\s*TANTO|CONCLUSI[OÓ]N)|$)/i);
+    if (analisisMatch && remaining > 300) {
+      const analisis = analisisMatch[0].slice(0, Math.min(1500, remaining));
+      sections.push(analisis);
+      remaining -= analisis.length;
+    }
   }
 
-  return sections.join('\n\n[...]\n\n');
+  // ── FUNDAMENTOS DEL SOBRESEIMIENTO (para sobreseimiento) ──
+  if (mode === 'sobreseimiento') {
+    const sobMatch = fullText.match(/FUNDAMENTOS?\s*(?:DEL?)?\s*SOBRESEIMIENTO:?\s*\n([\s\S]*?)(?=\n\s*(?:CONCLUSI[OÓ]N|POR\s*TANTO)|$)/i);
+    if (sobMatch && remaining > 300) {
+      const sob = sobMatch[0].slice(0, Math.min(1500, remaining));
+      sections.push(sob);
+      remaining -= sob.length;
+    }
+  }
+
+  // ── PERSPECTIVA DE GÉNERO (para modo genero) ──
+  if (mode === 'genero') {
+    const generoMatch = fullText.match(/(PERSPECTIVA\s*DE\s*G[ÉE]NERO|ENFOQUE\s*DE\s*G[ÉE]NERO|AN[ÁA]LISIS.*G[ÉE]NERO):?\s*\n([\s\S]*?)(?=\n\s*(?:CONCLUSI[OÓ]N|POR\s*TANTO|ESTRATEGIAS?)|$)/i);
+    if (generoMatch && remaining > 300) {
+      const genero = generoMatch[0].slice(0, Math.min(2000, remaining));
+      sections.push(genero);
+      remaining -= genero.length;
+    }
+  }
+
+  // ── ESTRATEGIAS PREVENTIVAS (para modo estrategias) ──
+  if (mode === 'estrategias') {
+    const estMatch = fullText.match(/(ESTRATEGIAS?\s*PREVENTIVAS?|RECOMENDACIONES?\s*INSTITUCIONALES?|MEDIDAS?\s*PREVENTIVAS?):?\s*\n([\s\S]*?)(?=\n\s*(?:CONCLUSI[OÓ]N|POR\s*TANTO)|$)/i);
+    if (estMatch && remaining > 300) {
+      const est = estMatch[0].slice(0, Math.min(2000, remaining));
+      sections.push(est);
+      remaining -= est.length;
+    }
+  }
+
+  // ── POR TANTO / CONCLUSIÓN (siempre, excepto para vistos) ──
+  if (mode !== 'vistos') {
+    const porTantoMatch = fullText.match(/(P\s*O\s*R\s*T\s*A\s*N\s*T\s*O|EN\s*M[ÉE]RITO|CONCLUSI[OÓ]N):?\s*\n([\s\S]*?)$/i);
+    if (porTantoMatch && remaining > 300) {
+      sections.push(porTantoMatch[0].slice(0, Math.min(1000, remaining)));
+    }
+  }
+
+  return sections.length ? sections.join('\n\n[...]\n\n') : fullText.slice(0, maxLen);
 }
 
 /* ── Construir contexto del caso ── */
@@ -223,7 +270,7 @@ function buildCaseContext(data, modelReports) {
       const label = m.name || m.nueva_resolucion || '?';
       const tipoInfo = [m.tipo_procedimiento, m.protocolo, m.resultado].filter(Boolean).join(' / ');
       ctx += `--- MODELO ${i + 1}: Exp. ${label} (${tipoInfo}) ---\n`;
-      ctx += extractModelSections(m.informe_final, maxPerModel) + '\n\n';
+      ctx += extractModelSections(m.informe_final, maxPerModel, data.mode) + '\n\n';
     });
   }
 
