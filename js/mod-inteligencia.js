@@ -127,7 +127,7 @@
         <!-- 3. Vista Fiscal -->
         <div class="ia-section">
           <h3>📝 Generar Vista Fiscal</h3>
-          <p class="desc">Genera un borrador de vista fiscal con IA basándose en los datos del expediente.</p>
+          <p class="desc">Genera un borrador usando modelos de estilo de expedientes terminados similares (${escH(c.tipo_procedimiento||'—')} / ${escH(c.protocolo||'—')}).</p>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <select id="iaVistaMode" class="ia-select">
               <option value="informe">Informe de la Investigadora</option>
