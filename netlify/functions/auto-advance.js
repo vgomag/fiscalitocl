@@ -12,6 +12,7 @@
 const https = require('https');
 const { callAnthropic } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { buildLightDirectives } = require('./shared/writing-style');
 
 /* ── Etapas procesales ordenadas ── */
 const STAGES = ['indagatoria', 'cargos', 'descargos', 'prueba', 'vista', 'resolucion', 'cerrado'];
@@ -182,10 +183,12 @@ exports.handler = async (event) => {
 
       if (apiKey && texts.join(' ').length > 200) {
         try {
-          const system = `Eres un asistente jurídico experto en procedimientos disciplinarios universitarios chilenos.
+          const system = `Eres un asistente jurídico experto en procedimientos disciplinarios universitarios chilenos (UMAG).
 Analiza los documentos de un expediente y determina en qué etapa procesal se encuentra.
 Las etapas posibles son: indagatoria, cargos, descargos, prueba, vista, resolucion, cerrado.
-Responde SOLO con un JSON: {"stage":"nombre_etapa","confidence":"alta|media|baja","reason":"breve explicación"}`;
+Responde SOLO con un JSON: {"stage":"nombre_etapa","confidence":"alta|media|baja","reason":"breve explicación"}
+
+${buildLightDirectives()}`;
 
           const userMsg = `Documentos del expediente (extractos):\n\n${texts.slice(0, 5).map((t, i) => `--- Documento ${i + 1} ---\n${t.slice(0, 500)}`).join('\n\n')}`;
 

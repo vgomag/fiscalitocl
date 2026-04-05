@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const https = require('https');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
 const { MODEL_SONNET, MODEL_HAIKU } = require('./shared/anthropic');
+const { PRECISION_JURIDICA } = require('./shared/writing-style');
 
 function base64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -184,8 +185,8 @@ exports.handler = async (event) => {
       const text = p.extractedText || '';
       if (text.length < 50) return { statusCode: 400, headers: H, body: JSON.stringify({ error: 'Texto muy corto para analizar' }) };
 
-      const prompt = `Eres experto en procedimientos disciplinarios de la Administracion Publica chilena.
-Analiza el texto de un expediente e identifica CADA DILIGENCIA que consta en el.
+      const prompt = `Eres experto en procedimientos disciplinarios de la Administración Pública chilena (UMAG).
+Analiza el texto de un expediente e identifica CADA DILIGENCIA que consta en él.
 
 TIPOS: denuncia, resolucion_inicio, resolucion, declaracion_denunciante, declaracion_denunciado, declaracion_testigo, oficio, informe, acta, notificacion, prueba_documental, cargos, descargos, vista_fiscal, otro
 
@@ -197,7 +198,9 @@ RESPONDE SOLO JSON puro (sin backticks ni markdown). Array de objetos:
 - resumen: max 2 oraciones
 - relevancia: alta (declaraciones, cargos, vista fiscal, denuncia), media (oficios, resoluciones, informes), baja (actas rutinarias, notificaciones)
 - NO inventes diligencias. Solo las que constan en el texto.
-- Identifica TODAS, incluso las menores.`;
+- Identifica TODAS, incluso las menores.
+
+${PRECISION_JURIDICA}`;
 
       /* Pro plan: 26s allows larger analysis */
       const chunk = text.substring(0, 60000);

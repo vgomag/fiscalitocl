@@ -15,6 +15,7 @@
 const https = require('https');
 const { callAnthropic } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { buildLightDirectives } = require('./shared/writing-style');
 
 /* ── Plazos de prescripción por tipo (en días) ── */
 const PRESCRIPTION_RULES = {
@@ -376,16 +377,17 @@ exports.handler = async (event) => {
 
     if (includeAI && apiKey && analysis.timeline.length > 0) {
       try {
-        const system = `Eres Fiscalito, asistente jurídico experto en derecho administrativo chileno,
-especializado en prescripción de acciones disciplinarias.
+        const system = `Eres Fiscalito, asistente jurídico experto en derecho administrativo chileno (UMAG), especializado en prescripción de acciones disciplinarias.
 
 Con base en el análisis de plazos proporcionado, genera una RECOMENDACIÓN JURÍDICA breve que incluya:
-1. Evaluación del riesgo de prescripción
-2. Acciones recomendadas para el fiscal investigador
-3. Fundamento normativo (artículos específicos del EA, Ley Karin si aplica)
-4. Plazos críticos próximos
+- Evaluación del riesgo de prescripción
+- Acciones recomendadas para el fiscal investigador
+- Fundamento normativo (artículos específicos del EA, Ley Karin si aplica)
+- Plazos críticos próximos
 
-Sé conciso (máximo 400 palabras). Usa lenguaje jurídico formal pero claro.`;
+Sé conciso (máximo 400 palabras). Usa lenguaje jurídico formal pero claro. No uses formato markdown ni viñetas; redacta en prosa continua con conectores naturales.
+
+${buildLightDirectives()}`;
 
         const userMsg = `ANÁLISIS DE PRESCRIPCIÓN:
 Tipo: ${analysis.tipoProcedimiento}
