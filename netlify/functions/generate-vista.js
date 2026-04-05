@@ -65,7 +65,7 @@ async function fetchModelReports(caseData, mode) {
     : (mode === 'genero') ? '&protocolo=not.is.null' : '';
 
   // 1) Intentar match exacto: mismo tipo + protocolo + resultado
-  let path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+  let path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
     + `&categoria=eq.terminado&informe_final=not.is.null`
     + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
     + `&protocolo=eq.${encodeURIComponent(protocolo)}`
@@ -77,7 +77,7 @@ async function fetchModelReports(caseData, mode) {
 
   // 2) Si no hay suficientes, ampliar: mismo tipo + resultado (sin protocolo)
   if ((!models || models.length < 2) && tipo) {
-    path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+    path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
       + `&categoria=eq.terminado&informe_final=not.is.null`
       + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
       + resultadoFilter
@@ -93,14 +93,32 @@ async function fetchModelReports(caseData, mode) {
 
   // 3) Fallback general: cualquier terminado con informe
   if (!models || models.length === 0) {
-    path = `cases?select=name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+    path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
       + `&categoria=eq.terminado&informe_final=not.is.null`
       + `&id=neq.${encodeURIComponent(caseId)}`
       + `&order=nueva_resolucion.desc&limit=2`;
     models = await supabaseFetch(sbUrl, sbKey, path);
   }
 
-  return (models || []).filter(m => m.informe_final && m.informe_final.length > 500);
+  const validModels = (models || []).filter(m => m.informe_final && m.informe_final.length > 500);
+
+  // Para modos que necesitan estructura de diligencias, enriquecer con info de diligencias del modelo
+  if (validModels.length > 0 && (mode === 'hechos' || mode === 'informe' || mode === 'vistos')) {
+    try {
+      const bestModelId = validModels[0].id;
+      if (bestModelId) {
+        const dilPath = `diligencias?select=diligencia_type,diligencia_label,ai_summary,fojas_inicio,fojas_fin,fecha_diligencia`
+          + `&case_id=eq.${encodeURIComponent(bestModelId)}&is_processed=eq.true`
+          + `&order=order_index.asc&limit=20`;
+        const modelDils = await supabaseFetch(sbUrl, sbKey, dilPath);
+        if (modelDils && modelDils.length > 0) {
+          validModels[0]._diligencias = modelDils;
+        }
+      }
+    } catch (e) { /* ignorar error de diligencias */ }
+  }
+
+  return validModels;
 }
 
 /**
@@ -406,6 +424,8 @@ ESTRUCTURA OBLIGATORIA:
 4. SEGUIMIENTO — Indicadores de cumplimiento y mecanismos de monitoreo
 
 IMPORTANTE: Las recomendaciones deben ser ESPECÍFICAS al caso y factibles dentro del marco institucional de la UMAG. No incluir recomendaciones genéricas.
+
+REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA que contengan secciones de estrategias preventivas o recomendaciones, replica su formato, extensión y nivel de detalle. Si los modelos no tienen esta sección, usa el tono y vocabulario institucional de los modelos para redactar las recomendaciones.
 ${STYLE_RULES}
 - Tono propositivo pero formal
 - Fundamentar cada recomendación en la normativa aplicable y en los hechos del caso`,
@@ -440,6 +460,8 @@ ESTRUCTURA OBLIGATORIA:
    - Medidas reparatorias con enfoque de género (si corresponde)
 
 IMPORTANTE: El análisis debe ser técnico y fundado en normativa, no meramente declarativo. Debe conectar la teoría de género con los hechos específicos del caso.
+
+REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA que contengan análisis con perspectiva de género, replica EXACTAMENTE su formato, estructura, nivel de profundidad y vocabulario técnico. Si los modelos citan normativa de género (Ley 21.369, CEDAW, etc.), usa las mismas citas formales. Adapta solo los hechos al caso actual.
 ${STYLE_RULES}
 - Citar normativa internacional y nacional de género
 - Usar terminología técnica de género: "perspectiva de género", "relaciones asimétricas de poder", "violencia de género", "debida diligencia reforzada"`,
