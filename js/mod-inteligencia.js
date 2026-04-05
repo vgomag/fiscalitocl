@@ -142,9 +142,12 @@
 
         <!-- 4. OCR en lote -->
         <div class="ia-section">
-          <h3>🔍 OCR en Lote</h3>
-          <p class="desc">Extrae texto de las diligencias del caso mediante OCR con Claude Vision. Ideal para PDFs e imágenes escaneados.</p>
-          <button class="ia-btn" onclick="window._ia.runOcrBatch()">Iniciar OCR</button>
+          <h3>🔍 OCR / Extracción de Texto</h3>
+          <p class="desc">Extrae texto de las diligencias mediante OCR con Claude Vision.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ia-btn" onclick="window._ia.runOcrBatch()">OCR este caso</button>
+            <button class="ia-btn ia-btn-secondary" onclick="window._ia.runOcrMasivo()">🚀 OCR masivo (todos los casos)</button>
+          </div>
           <div id="iaOcrResult"></div>
         </div>
       </div>
@@ -467,12 +470,106 @@
     }
   }
 
+  /* ── OCR masivo: procesar TODOS los casos con diligencias sin texto ── */
+  async function runOcrMasivo(){
+    const el = document.getElementById('iaOcrResult');
+    if(!el) return;
+    if(!session){if(typeof showToast==='function') showToast('Sin sesión','error');return;}
+
+    el.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Buscando diligencias sin texto en todos los casos…</div>';
+
+    try {
+      // Buscar TODAS las diligencias sin extracted_text que tengan drive_file_id
+      const { data: sinTexto, error } = await sb.from('diligencias')
+        .select('id,case_id,file_name,diligencia_label,drive_file_id,mime_type')
+        .is('extracted_text', null)
+        .not('drive_file_id', 'is', null)
+        .limit(200);
+
+      if(error) throw error;
+      if(!sinTexto || !sinTexto.length){
+        el.innerHTML = '<div class="ia-result" style="color:var(--text-muted)">✅ Todas las diligencias de todos los casos ya tienen texto extraído.</div>';
+        return;
+      }
+
+      // Agrupar por caso
+      const byCaseId = {};
+      sinTexto.forEach(d => {
+        if(!byCaseId[d.case_id]) byCaseId[d.case_id] = [];
+        byCaseId[d.case_id].push(d);
+      });
+      const caseCount = Object.keys(byCaseId).length;
+
+      el.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Procesando ${sinTexto.length} diligencias sin texto en ${caseCount} caso(s)… (lotes de 10, esto puede tomar varios minutos)</div>`;
+
+      let totalProcessed = 0, totalFailed = 0, totalSaved = 0;
+      const resultsByCaso = {};
+
+      // Procesar en lotes de 10
+      for(let i = 0; i < sinTexto.length; i += 10){
+        const batch = sinTexto.slice(i, i + 10);
+        const files = batch.map(d => ({
+          driveFileId: d.drive_file_id,
+          fileName: d.file_name || d.diligencia_label,
+          mimeType: d.mime_type || 'application/pdf'
+        }));
+
+        try {
+          const batchResult = await apiFetch('ocr-batch', { files, caseId: batch[0].case_id });
+          if(batchResult.results){
+            for(const r of batchResult.results){
+              if(r.status==='success' && r.driveFileId && r.text){
+                const match = batch.find(d => d.drive_file_id === r.driveFileId);
+                if(match){
+                  try {
+                    await sb.from('diligencias').update({ extracted_text: r.text }).eq('id', match.id);
+                    totalSaved++;
+                    if(!resultsByCaso[match.case_id]) resultsByCaso[match.case_id] = 0;
+                    resultsByCaso[match.case_id]++;
+                  } catch(e){}
+                }
+                totalProcessed++;
+              } else { totalFailed++; }
+            }
+          }
+        } catch(e){ totalFailed += batch.length; }
+
+        // Actualizar progreso
+        el.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="ia-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Progreso: ${Math.min(i+10, sinTexto.length)}/${sinTexto.length} — ${totalSaved} guardadas, ${totalFailed} fallidas</div>`;
+      }
+
+      // Resultado final
+      let html = '<div class="ia-result" style="white-space:normal">';
+      html += '<div style="font-weight:600;margin-bottom:8px">📊 Resultado OCR Masivo</div>';
+      html += `<div style="display:flex;gap:12px;margin-bottom:10px;font-size:12px">
+        <span style="color:var(--green)">✅ ${totalProcessed} procesadas</span>
+        <span style="color:var(--red)">❌ ${totalFailed} fallidas</span>
+        <span style="color:var(--gold)">💾 ${totalSaved} guardadas</span>
+        <span style="color:var(--text-muted)">📁 ${caseCount} casos</span>
+      </div>`;
+
+      // Desglose por caso
+      const caseNames = typeof allCases !== 'undefined' ? allCases : [];
+      Object.entries(resultsByCaso).forEach(function(kv){
+        const cn = caseNames.find(c => c.id === kv[0]);
+        html += `<div style="font-size:11px;padding:2px 0">📋 ${escH(cn?.name||kv[0])}: ${kv[1]} diligencia(s) extraída(s)</div>`;
+      });
+
+      html += '</div>';
+      el.innerHTML = html;
+      if(totalSaved>0 && typeof showToast==='function') showToast(`OCR masivo: ${totalSaved} diligencias extraídas en ${caseCount} casos`,'success');
+    } catch(err){
+      el.innerHTML = `<div class="ia-result" style="color:var(--red)">Error: ${escH(err.message)}</div>`;
+    }
+  }
+
   /* ── Exponer API global ── */
   window._ia = {
     analyzePrescription: analyzePrescription,
     analyzeStage: analyzeStage,
     generateVista: generateVista,
     runOcrBatch: runOcrBatch,
+    runOcrMasivo: runOcrMasivo,
     copyVista: copyVista,
     sendVistaToChat: sendVistaToChat
   };
