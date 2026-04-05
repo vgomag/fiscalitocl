@@ -2606,13 +2606,22 @@ async function clearChatFull(){
     try{await sb.from('chat_messages').delete().eq('case_id',currentCase.id).eq('user_id',session.user.id);showToast('✓ Historial del chat borrado');}catch(e){console.warn('Error deleting chat:',e);}
   }
 }
+async function deleteChatMsg(msgId,btn){
+  if(!msgId||!session)return;
+  const msgEl=btn.closest('.msg');
+  try{
+    await sb.from('chat_messages').delete().eq('id',msgId);
+    if(msgEl){msgEl.style.transition='opacity .2s';msgEl.style.opacity='0';setTimeout(()=>msgEl.remove(),200);}
+    showToast('✓ Mensaje eliminado');
+  }catch(e){console.warn('Error deleting msg:',e);showToast('⚠ Error al eliminar','error');}
+}
 async function loadChatHistory(caseId){
   if(!caseId||!session)return;
   if(_chatLoadedForCase===caseId)return;
   const msgs=document.getElementById('msgs');
   msgs.innerHTML='';
   try{
-    const{data:allData,error}=await sb.from('chat_messages').select('role,content,fn_id,created_at').eq('case_id',caseId).order('created_at',{ascending:false}).limit(60);
+    const{data:allData,error}=await sb.from('chat_messages').select('id,role,content,fn_id,created_at').eq('case_id',caseId).order('created_at',{ascending:false}).limit(60);
     const data=allData?allData.reverse():null;
     if(error){console.warn('loadChatHistory:',error);showToast('⚠️ Error cargando historial');return;}
     if(data&&data.length>0){
@@ -2624,7 +2633,9 @@ async function loadChatHistory(caseId){
         const fn=FNS.find(f=>f.code===m.fn_id)||FNS[0];
         const av=m.role==='assistant'?`<div class="msg-av-icon">⚖️</div>`:`<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);font-size:11px;font-family:var(--font-body)">Yo</div>`;
         const tag=m.role==='assistant'?`<div class="msg-tag">${m.fn_id} · ${fn?.name||'Fiscalito'}</div>`:'';
-        const actions=m.role==='assistant'&&currentCase?`<div style="display:flex;gap:4px;margin-top:6px;padding-top:5px;border-top:1px solid var(--border)"><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsNota(this)">📝 Nota</button><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsPendiente(this)">⚡ Pendiente</button><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="navigator.clipboard.writeText(this.closest('.msg').querySelector('.msg-bub').innerText);showToast('✓ Copiado')">📋 Copiar</button><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="exportChatResponseToWord(this)">📄 Word</button></div>`:'';
+        const deleteBtn=m.id?`<button class="btn-sm" style="font-size:10px;padding:2px 8px;color:var(--red,#dc2626)" onclick="deleteChatMsg('${m.id}',this)" title="Eliminar mensaje">🗑 Borrar</button>`:'';
+        const actions=m.role==='assistant'&&currentCase?`<div style="display:flex;gap:4px;margin-top:6px;padding-top:5px;border-top:1px solid var(--border);flex-wrap:wrap"><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsNota(this)">📝 Nota</button><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="saveChatAsPendiente(this)">⚡ Pendiente</button><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="navigator.clipboard.writeText(this.closest('.msg').querySelector('.msg-bub').innerText);showToast('✓ Copiado')">📋 Copiar</button><button class="btn-sm" style="font-size:10px;padding:2px 8px" onclick="exportChatResponseToWord(this)">📄 Word</button>${deleteBtn}</div>`:
+        (m.id?`<div style="display:flex;gap:4px;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">${deleteBtn}</div>`:'');
         const div=document.createElement('div');div.className=`msg ${m.role}`;
         div.innerHTML=`${av}<div class="msg-body">${tag}<div class="msg-bub">${m.role==='assistant'?md(m.content):esc(m.content)}</div>${actions}</div>`;
         msgs.appendChild(div);
