@@ -488,6 +488,8 @@ function renderBody(){
       };
     });
   }
+  // Bind drag-and-drop upload zone for documentos tab
+  if(activeTab==="documentos") bindUploadZone();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -743,37 +745,58 @@ function renderRespuesta(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB 3: DOCUMENTOS (todos los archivos: por ítem + evidencias generales)
+// TAB 3: DOCUMENTOS Y EVIDENCIAS (subida con clasificación IA)
 // ══════════════════════════════════════════════════════════════════════════════
 function renderDocumentos(){
-  let html=`<h3 style="font-size:15px;margin-bottom:12px">📁 Gestión de Documentos y Evidencias</h3>`;
+  const totalItems=items.length;
+  const itemsConDoc=items.filter(i=>docs.some(d=>d.item_id===i.id)).length;
+  const generalDocs=docs.filter(d=>!d.item_id);
+  const isProcessing=classifyingDoc&&classifyingDoc.uploading;
 
-  // Upload general
-  html+=`<div style="margin-bottom:16px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:12px">
-    <label class="ley-btn ley-btn-primary" style="cursor:pointer">📤 Subir evidencia general
-      <input type="file" style="display:none" onchange="if(this.files[0])window._ley21369.uploadDoc(null,this.files[0]);this.value=''">
-    </label>
-    <span style="font-size:12px;color:var(--text-muted)">Suba decretos, actas, informes y otros documentos de respaldo</span>
+  let html=`<h3 style="font-size:15px;margin-bottom:4px">📁 Documentos y Evidencias</h3>
+  <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Suba archivos y la IA los clasificará automáticamente según los ítems que correspondan</p>`;
+
+  // ── Upload zone ──
+  html+=`<div class="ley-upload-zone${isProcessing?" processing":""}" id="leyUploadZone">
+    <input type="file" id="leyDocFileInput" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg" multiple>
+    ${isProcessing
+      ?`<div style="font-size:14px;margin-bottom:6px">⏳ Procesando documento…</div>
+        <div style="font-size:12px;color:var(--text-muted)">${h(classifyingDoc.fileName||"")} — Extrayendo texto y clasificando con IA</div>`
+      :`<div style="font-size:24px;margin-bottom:6px">📤</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Arrastra archivos aquí o haz clic para seleccionar</div>
+        <div style="font-size:11px;color:var(--text-muted)">PDF, Word, Excel, TXT, imágenes — la IA clasificará a qué ítems tributan</div>`}
   </div>`;
 
-  // Documentos por sección
+  // ── Cobertura resumen ──
+  html+=`<div style="margin:14px 0;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;flex-wrap:wrap;gap:16px;font-size:12px">
+    <div><strong style="font-size:20px;color:var(--accent)">${itemsConDoc}</strong><span style="color:var(--text-muted)">/${totalItems} ítems con evidencia</span></div>
+    <div><strong style="font-size:20px;color:#16a34a">${docs.length}</strong><span style="color:var(--text-muted)"> archivos totales</span></div>
+    <div><strong style="font-size:20px;color:#f59e0b">${totalItems-itemsConDoc}</strong><span style="color:var(--text-muted)"> ítems sin evidencia</span></div>
+    <div><strong style="font-size:20px;color:#9ca3af">${generalDocs.length}</strong><span style="color:var(--text-muted)"> sin clasificar</span></div>
+  </div>`;
+
+  // ── Documentos por sección ──
   SECCIONES.forEach(sec=>{
     const si=items.filter(i=>i.area===sec.id);
-    const secDocs=si.flatMap(i=>docs.filter(d=>d.item_id===i.id).map(d=>({...d,_itemReq:i.requirement})));
-    if(!secDocs.length&&!si.length)return;
+    if(!si.length)return;
+    const secDocCount=si.reduce((n,i)=>n+docs.filter(d=>d.item_id===i.id).length,0);
+    const siConDoc=si.filter(i=>docs.some(d=>d.item_id===i.id)).length;
 
-    html+=`<div style="margin-bottom:16px">
-      <h4 style="font-size:13px;margin-bottom:8px">${sec.icon} ${sec.num}) ${h(sec.label)}</h4>`;
+    html+=`<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h4 style="font-size:13px;margin:0">${sec.icon} ${sec.num}) ${h(sec.label)}</h4>
+        <span style="font-size:11px;color:var(--text-muted)">${siConDoc}/${si.length} ítems cubiertos · ${secDocCount} docs</span>
+      </div>`;
 
     si.forEach(i=>{
       const iDocs=docs.filter(d=>d.item_id===i.id);
       const sc=STATUS_CFG[i.status]||STATUS_CFG.sin_evaluar;
-      html+=`<div style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      const hasDocs=iDocs.length>0;
+      const borderColor=hasDocs?"#16a34a":(i.status==="cumple"?"#ef4444":"var(--border)");
+      html+=`<div style="padding:8px 12px;border:1px solid var(--border);border-left:3px solid ${borderColor};border-radius:8px;margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
           <span>${sc.icon} ${h(i.requirement)}</span>
-          <label class="ley-doc-badge" style="cursor:pointer;font-size:10px">📎 Subir evidencia
-            <input type="file" style="display:none" onchange="if(this.files[0])window._ley21369.uploadDoc('${i.id}',this.files[0]);this.value=''">
-          </label>
+          <span style="font-size:11px;color:var(--text-muted)">${hasDocs?`📎 ${iDocs.length} doc${iDocs.length>1?"s":""}`:i.status==="cumple"?'<span style="color:#ef4444">⚠ Sin verificador</span>':"sin docs"}</span>
         </div>`;
       if(iDocs.length){
         iDocs.forEach(d=>{
@@ -785,23 +808,24 @@ function renderDocumentos(){
             </div>
           </div>`;
         });
-      } else {
-        html+=`<div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding:2px 8px">Sin documentos adjuntos${i.status==="cumple"?' — <span style="color:#ef4444">⚠ Cumple sin verificador</span>':""}</div>`;
       }
       html+=`</div>`;
     });
     html+=`</div>`;
   });
 
-  // Documentos generales (sin item_id)
-  const generalDocs=docs.filter(d=>!d.item_id);
+  // ── Documentos sin clasificar ──
   if(generalDocs.length){
-    html+=`<div style="margin-top:16px">
-      <h4 style="font-size:13px;margin-bottom:8px">📦 Evidencias generales</h4>`;
+    html+=`<div style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h4 style="font-size:13px;margin:0">📦 Documentos sin clasificar</h4>
+        <span style="font-size:11px;color:var(--text-muted)">${generalDocs.length} archivo${generalDocs.length>1?"s":""}</span>
+      </div>`;
     generalDocs.forEach(d=>{
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;font-size:12px">
         <span>📄 ${h(d.file_name)} <span style="color:var(--text-muted)">(${fmtSize(d.file_size)} · ${fmtDate(d.created_at)})</span></span>
         <div style="display:flex;gap:4px">
+          <button class="ley-btn ley-btn-sm" onclick="window._ley21369.reclassifyDoc('${d.id}')" title="Clasificar con IA">🤖</button>
           <button class="ley-btn ley-btn-sm" onclick="window._ley21369.downloadDoc('${d.id}')">⬇</button>
           <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.deleteDoc('${d.id}','${h(d.file_path)}')">🗑</button>
         </div>
@@ -810,14 +834,252 @@ function renderDocumentos(){
     html+=`</div>`;
   }
 
-  // Resumen cobertura
-  const totalItems=items.length;
-  const itemsConDoc=items.filter(i=>docs.some(d=>d.item_id===i.id)).length;
-  html+=`<div style="margin-top:16px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-muted)">
-    <strong>Cobertura documental:</strong> ${itemsConDoc}/${totalItems} ítems con evidencia adjunta · ${generalDocs.length} documentos generales · ${docs.length} archivos totales
+  return html;
+}
+
+// ── Upload zone event binding (called after renderBody) ──
+function bindUploadZone(){
+  const zone=document.getElementById("leyUploadZone");
+  const input=document.getElementById("leyDocFileInput");
+  if(!zone||!input)return;
+  zone.onclick=()=>input.click();
+  input.onchange=()=>{
+    if(input.files&&input.files.length){
+      Array.from(input.files).forEach(f=>uploadDocWithAI(f));
+      input.value="";
+    }
+  };
+  zone.ondragover=e=>{e.preventDefault();zone.classList.add("dragover")};
+  zone.ondragleave=()=>zone.classList.remove("dragover");
+  zone.ondrop=e=>{
+    e.preventDefault();zone.classList.remove("dragover");
+    if(e.dataTransfer.files.length)Array.from(e.dataTransfer.files).forEach(f=>uploadDocWithAI(f));
+  };
+}
+
+// ── AI-powered upload: extract text → classify → show modal ──
+async function uploadDocWithAI(file){
+  classifyingDoc={file,fileName:file.name,fileSize:file.size,fileType:file.type,uploading:true,suggestedItems:[],extractedText:""};
+  renderBody();
+
+  try{
+    // 1) Extract text from file
+    let text="";
+    if(file.name.endsWith(".txt")){
+      text=await file.text();
+    } else {
+      const reader=new FileReader();
+      const base64=await new Promise((res,rej)=>{
+        reader.onload=()=>res(reader.result.split(",")[1]);
+        reader.onerror=()=>rej(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const mediaType=file.type||"application/octet-stream";
+      try{
+        const token=typeof session!=="undefined"?session?.access_token||"":"";
+        const r=await fetch(_CHAT_EP,{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-auth-token":token},
+          body:JSON.stringify({
+            model:"claude-sonnet-4-20250514",max_tokens:8000,
+            messages:[{role:"user",content:[
+              {type:"document",source:{type:"base64",media_type:mediaType,data:base64}},
+              {type:"text",text:"Extrae el texto principal de este documento. Responde SOLO con el texto extraído, sin comentarios."}
+            ]}]
+          })
+        });
+        if(r.ok){
+          const data=await r.json();
+          text=(data.content&&data.content[0]?.text)||data.reply||"";
+        }
+      }catch(e){console.warn("[Ley21369] Text extraction error:",e)}
+    }
+    classifyingDoc.extractedText=text;
+
+    // 2) Ask AI to classify which items this document relates to
+    const itemList=items.map(i=>{
+      const sec=SECCIONES.find(s=>s.id===i.area);
+      return`- ID: ${i.id} | Sección: ${sec?sec.label:"?"} | Ítem: ${i.requirement}`;
+    }).join("\n");
+
+    const classifyPrompt=`Eres un clasificador de evidencias para la Ley 21.369 (acoso sexual, violencia y discriminación de género en educación superior).
+
+Dado el siguiente documento y la lista de ítems de cumplimiento, indica a qué ítems tributa este documento como evidencia.
+
+DOCUMENTO: "${file.name}"
+CONTENIDO (extracto):
+${text.substring(0,4000)}
+
+ÍTEMS DISPONIBLES:
+${itemList}
+
+Responde SOLO en formato JSON, un array de objetos con los campos "id" (UUID del ítem) y "reason" (explicación breve en español de por qué tributa). Ejemplo:
+[{"id":"uuid-1","reason":"Contiene el protocolo de actuación"},{"id":"uuid-2","reason":"Define las unidades responsables"}]
+
+Si el documento no tributa a ningún ítem, responde: []`;
+
+    try{
+      const token=typeof session!=="undefined"?session?.access_token||"":"";
+      const r2=await fetch(_CHAT_EP,{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-auth-token":token},
+        body:JSON.stringify({messages:[{role:"user",content:classifyPrompt}],max_tokens:4000})
+      });
+      if(r2.ok){
+        const data2=await r2.json();
+        const replyText=(data2.content&&data2.content[0]?.text)||data2.reply||"[]";
+        const jsonMatch=replyText.match(/\[[\s\S]*\]/);
+        if(jsonMatch){
+          classifyingDoc.suggestedItems=JSON.parse(jsonMatch[0]);
+        }
+      }
+    }catch(e){console.warn("[Ley21369] Classification error:",e)}
+
+    // 3) Upload file to storage
+    const user=await getUser();
+    const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+    const path=user?`${user.id}/ley21369/${Date.now()}_${safe}`:`anon/ley21369/${Date.now()}_${safe}`;
+    const{error}=await sb.storage.from("case-documents").upload(path,file);
+    if(error){showToast("Error al subir archivo","error");classifyingDoc=null;renderBody();return}
+    classifyingDoc.filePath=path;
+    classifyingDoc.uploading=false;
+
+    // 4) Show classification modal
+    renderBody();
+    showClassifyModal();
+
+  }catch(e){
+    console.warn("[Ley21369] uploadDocWithAI error:",e);
+    showToast("Error al procesar documento","error");
+    classifyingDoc=null;
+    renderBody();
+  }
+}
+
+// ── Classification confirmation modal ──
+function showClassifyModal(){
+  if(!classifyingDoc)return;
+  const overlay=document.createElement("div");
+  overlay.className="ley-classify-overlay";
+  overlay.id="leyClassifyOverlay";
+
+  const suggestedIds=new Set(classifyingDoc.suggestedItems.map(s=>s.id));
+  const reasonMap={};
+  classifyingDoc.suggestedItems.forEach(s=>{reasonMap[s.id]=s.reason});
+
+  let itemsHTML="";
+  SECCIONES.forEach(sec=>{
+    const si=items.filter(i=>i.area===sec.id);
+    if(!si.length)return;
+    itemsHTML+=`<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.05em">${sec.icon} ${sec.label}</div>`;
+    si.forEach(i=>{
+      const isSuggested=suggestedIds.has(i.id);
+      const reason=reasonMap[i.id]||"";
+      itemsHTML+=`<label class="ley-classify-item${isSuggested?" suggested":""}">
+        <input type="checkbox" value="${i.id}" ${isSuggested?"checked":""}>
+        <div class="item-info">
+          <div>${h(i.requirement)}</div>
+          ${reason?`<div style="color:#6d28d9;font-size:11px;margin-top:2px">🤖 ${h(reason)}</div>`:""}
+        </div>
+        ${isSuggested?'<span class="ai-badge">✨ IA</span>':""}
+      </label>`;
+    });
+  });
+
+  overlay.innerHTML=`<div class="ley-classify-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h3>🤖 Clasificación de Evidencia</h3>
+      <button class="ley-btn ley-btn-sm" onclick="window._ley21369.cancelClassify()">✕</button>
+    </div>
+    <div class="subtitle">📄 <strong>${h(classifyingDoc.fileName)}</strong> (${fmtSize(classifyingDoc.fileSize)}) — La IA sugirió ${classifyingDoc.suggestedItems.length} ítem${classifyingDoc.suggestedItems.length!==1?"s":""}. Revisa y confirma.</div>
+    <div style="max-height:50vh;overflow-y:auto;margin-bottom:14px">${itemsHTML}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="ley-btn" onclick="window._ley21369.confirmClassify(false)">📦 Sin clasificar</button>
+      <button class="ley-btn ley-btn-primary" onclick="window._ley21369.confirmClassify(true)">✅ Confirmar selección</button>
+    </div>
   </div>`;
 
-  return html;
+  document.body.appendChild(overlay);
+  overlay.onclick=e=>{if(e.target===overlay)window._ley21369.cancelClassify()};
+}
+
+async function confirmClassify(withItems){
+  if(!classifyingDoc)return;
+  const overlay=document.getElementById("leyClassifyOverlay");
+  const user=await getUser();
+  const userId=user?user.id:null;
+
+  if(withItems){
+    const checked=overlay?Array.from(overlay.querySelectorAll("input[type=checkbox]:checked")).map(cb=>cb.value):[];
+    if(checked.length){
+      // Insert one doc row per selected item
+      const rows=checked.map(itemId=>({
+        user_id:userId,item_id:itemId,file_name:classifyingDoc.fileName,
+        file_path:classifyingDoc.filePath,file_size:classifyingDoc.fileSize,
+        file_type:classifyingDoc.fileType,category:"verificador"
+      }));
+      await sb.from("ley21369_documentos").insert(rows);
+      showToast(`Documento vinculado a ${checked.length} ítem${checked.length>1?"s":""}`,"success");
+    } else {
+      // No items checked — save as general
+      await sb.from("ley21369_documentos").insert({
+        user_id:userId,item_id:null,file_name:classifyingDoc.fileName,
+        file_path:classifyingDoc.filePath,file_size:classifyingDoc.fileSize,
+        file_type:classifyingDoc.fileType,category:"evidencia_ses"
+      });
+      showToast("Documento guardado sin clasificar","info");
+    }
+  } else {
+    // Save without classification
+    await sb.from("ley21369_documentos").insert({
+      user_id:userId,item_id:null,file_name:classifyingDoc.fileName,
+      file_path:classifyingDoc.filePath,file_size:classifyingDoc.fileSize,
+      file_type:classifyingDoc.fileType,category:"evidencia_ses"
+    });
+    showToast("Documento guardado sin clasificar","info");
+  }
+
+  if(overlay)overlay.remove();
+  classifyingDoc=null;
+  loadData();
+}
+
+function cancelClassify(){
+  // File already uploaded to storage — save as unclassified
+  if(classifyingDoc&&classifyingDoc.filePath){
+    getUser().then(user=>{
+      sb.from("ley21369_documentos").insert({
+        user_id:user?user.id:null,item_id:null,file_name:classifyingDoc.fileName,
+        file_path:classifyingDoc.filePath,file_size:classifyingDoc.fileSize,
+        file_type:classifyingDoc.fileType,category:"evidencia_ses"
+      }).then(()=>loadData());
+    });
+  }
+  const overlay=document.getElementById("leyClassifyOverlay");
+  if(overlay)overlay.remove();
+  classifyingDoc=null;
+  renderBody();
+}
+
+async function reclassifyDoc(docId){
+  const doc=docs.find(d=>d.id===docId);
+  if(!doc)return;
+  // Download the file, then re-run classification
+  try{
+    const{data}=await sb.storage.from("case-documents").createSignedUrl(doc.file_path,120);
+    if(!data?.signedUrl)return;
+    const r=await fetch(data.signedUrl);
+    const blob=await r.blob();
+    const file=new File([blob],doc.file_name,{type:doc.file_type||"application/octet-stream"});
+    // Delete the unclassified record first
+    await sb.from("ley21369_documentos").delete().eq("id",docId);
+    docs=docs.filter(d=>d.id!==docId);
+    // Re-run with AI
+    uploadDocWithAI(file);
+  }catch(e){
+    console.warn("[Ley21369] reclassifyDoc error:",e);
+    showToast("Error al reclasificar","error");
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
