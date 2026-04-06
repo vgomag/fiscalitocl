@@ -2663,25 +2663,22 @@ const VF_SECTIONS=[
   {id:'vistos',label:'Normativa y Vistos',icon:'⚖️',prompt:'Genera la sección de VISTOS de la vista fiscal: un solo párrafo corrido (NO numerado) con la identificación del procedimiento, resolución que lo instruye, fiscal y actuario designados, rango de fojas del expediente, y toda la normativa aplicable separada por punto y coma (DFL N°29, Ley 19.880, Ley 18.575, protocolos UMAG, etc.). Incluye referencias precisas a fojas.'},
   {id:'diligencias',label:'Relación de diligencias',icon:'📋',prompt:`Genera los CONSIDERANDOS de RELACIÓN DE DILIGENCIAS de la vista fiscal. Esta es la sección más importante y extensa del documento.
 
-INSTRUCCIÓN OBLIGATORIA: Dedica un considerando "Que," a CADA UNA de las diligencias del expediente, en ORDEN CRONOLÓGICO. No omitas NINGUNA.
+INSTRUCCIÓN PRINCIPAL: En el contexto se incluyen PÁRRAFOS MODELO ya generados desde cada diligencia (sección "PÁRRAFOS MODELO GENERADOS DESDE LAS DILIGENCIAS"). Estos párrafos son tu BASE OBLIGATORIA. DEBES:
+1. REPRODUCIR cada párrafo modelo como un considerando numerado, manteniendo TODO su contenido y nivel de detalle.
+2. Adaptar al formato "Que," si no lo tienen ya.
+3. Completar los placeholders [COMPLETAR] o [VERIFICAR] con datos del expediente si están disponibles.
+4. Mantener el ORDEN CRONOLÓGICO y las referencias de fojas tal como aparecen.
+5. NO resumir ni acortar los párrafos modelo — son el estándar mínimo de detalle.
 
-Para CADA diligencia debes incluir:
-- Número de considerando y "Que,"
-- Tipo de diligencia (declaración, oficio, informe, prueba documental, etc.)
-- Fecha de realización
-- Personas involucradas (nombre completo, cargo, calidad procesal)
+Si NO hay párrafos modelo en el contexto, genera los considerandos desde las diligencias del expediente siguiendo estas reglas:
+- Un considerando "Que," por CADA diligencia, en orden cronológico
 - Referencia de fojas: "a fojas XX" o "de fojas XX a YY del expediente"
-- CONTENIDO SUSTANTIVO DETALLADO (mínimo 5-8 oraciones por diligencia sustantiva):
+- DECLARACIONES: Máximo detalle (15-30 oraciones): relato cronológico, hechos presenciados vs. de oídas, citas textuales, impacto
+- OFICIOS/INFORMES: Detalle alto (8-15 oraciones): qué se solicitó, a quién, respuesta, contenido sustantivo
+- RESOLUCIONES/NOTIFICACIONES: Detalle medio (5-8 oraciones): número, fecha, autoridad, contenido dispositivo
 
-Reglas por tipo:
-- DECLARACIONES: Relata lo declarado con MÁXIMO DETALLE: hechos narrados cronológicamente, fechas mencionadas, personas referidas, conductas descritas, impacto en el declarante, documentos o correos mencionados. Distingue EXPRESAMENTE hechos presenciados directamente vs. conocidos de oídas ("el declarante señala haber presenciado..." vs. "refiere haber sido informado por terceros que..."). Incluye citas textuales entre comillas cuando estén disponibles.
-- OFICIOS/INFORMES: Qué se solicitó, a quién, fecha, y qué se obtuvo como respuesta. Contenido sustantivo del informe.
-- PRUEBA DOCUMENTAL: Describe el contenido del documento y su relevancia para la investigación.
-- RESOLUCIONES: Número, fecha, autoridad, contenido dispositivo.
-- NOTIFICACIONES: Pueden agruparse solo si son más de 15 rutinarias.
-
-EXTENSIÓN: Sé EXHAUSTIVO. Un expediente con 20 diligencias debe tener al menos 20 considerandos sustantivos. Esta sección típicamente ocupa el 60-70% de la vista fiscal.`},
-  {id:'hechos',label:'Hechos acreditados',icon:'✅',prompt:`Genera los CONSIDERANDOS de HECHOS ACREDITADOS de la vista fiscal. Esta sección se construye EXCLUSIVAMENTE a partir de las diligencias ya relatadas en la sección anterior.
+EXTENSIÓN: Un expediente con 20 diligencias debe tener al menos 20 considerandos. Esta sección ocupa el 60-70% de la vista fiscal. NUNCA resumas una diligencia en una sola línea.`},
+  {id:'hechos',label:'Hechos acreditados',icon:'✅',prompt:`Genera los CONSIDERANDOS de HECHOS ACREDITADOS de la vista fiscal. Esta sección se construye a partir de: (1) las diligencias ya relatadas en la sección anterior, y (2) los PÁRRAFOS MODELO proporcionados en el contexto, que contienen el detalle completo de cada diligencia con fojas y contenido.
 
 PROCESO OBLIGATORIO:
 1. INDIVIDUALIZACIÓN: Identifica a cada denunciado/inculpado con nombre completo, RUT, cargo, estamento y dependencia.
@@ -2781,9 +2778,26 @@ function setFnQuery(text){
 /* Track qué sección VF se está generando (para búsqueda jurisprudencial dirigida) */
 let _currentVFSection=null;
 
-function vfSendSection(sectionId){
+async function vfSendSection(sectionId){
   const sec=VF_SECTIONS.find(s=>s.id===sectionId);
   if(!sec)return;
+
+  /* Para diligencias/completa: verificar si existen párrafos modelo */
+  if((sectionId==='diligencias'||sectionId==='completa')&&currentCase){
+    try{
+      const{data:pm}=await sb.from('case_metadata')
+        .select('id')
+        .eq('case_id',currentCase.id)
+        .eq('key','parrafos_modelo_extractos')
+        .maybeSingle();
+      if(!pm){
+        /* No hay párrafos modelo — avisar al usuario */
+        const goGen=confirm('⚠️ No se han generado los párrafos modelo de las diligencias para este caso.\n\nPara mejores resultados, ve a la pestaña Diligencias y presiona "Generar párrafos" primero.\n\n¿Deseas continuar de todas formas? (el agente generará desde los datos crudos del expediente)');
+        if(!goGen)return;
+      }
+    }catch(e){}
+  }
+
   const inp=document.getElementById('inputBox');
   if(inp){
     _currentVFSection=sectionId;
@@ -3344,7 +3358,17 @@ async function sendMessage(){
           .eq('key','parrafos_modelo_extractos')
           .maybeSingle();
         if(pmData?.value&&pmData.value.length>100){
-          caseContext+='\n\n## PÁRRAFOS MODELO GENERADOS DESDE LAS DILIGENCIAS\nEstos párrafos fueron generados por IA a partir de los extractos de cada diligencia. DEBES usarlos como BASE para los considerandos de la relación de diligencias. Adapta, complementa y refina según el caso, pero mantén su contenido y nivel de detalle.\n\n'+pmData.value.substring(0,40000)+'\n\n--- FIN PÁRRAFOS MODELO ---\n';
+          const _pmIsDiligencias=_currentVFSection==='diligencias'||_currentVFSection==='completa';
+          const _pmIsHechos=_currentVFSection==='hechos';
+          /* Para diligencias/completa: incluir TODOS los párrafos sin truncar */
+          /* Para hechos: incluir como referencia para cruzar testimonios */
+          const _pmMaxChars=_pmIsDiligencias?80000:_pmIsHechos?60000:30000;
+          const _pmInstr=_pmIsDiligencias?
+            'INSTRUCCIÓN OBLIGATORIA: Estos párrafos son la BASE DIRECTA de tu respuesta. REPRODUCE cada uno como considerando numerado "Que,". NO los resumas, NO los acortes. Completa los placeholders [COMPLETAR]/[VERIFICAR] con datos del expediente. Mantén TODO el detalle, fojas y contenido.':
+            _pmIsHechos?
+            'Usa estos párrafos como FUENTE para identificar los hechos acreditados. Cruza las declaraciones entre sí para determinar concordancias y contradicciones. Cada hecho acreditado debe ser trazable a estos párrafos.':
+            'Estos párrafos contienen el detalle de cada diligencia del expediente. Úsalos como referencia para fundamentar tu análisis.';
+          caseContext+=`\n\n## PÁRRAFOS MODELO GENERADOS DESDE LAS DILIGENCIAS\n${_pmInstr}\n\n`+pmData.value.substring(0,_pmMaxChars)+'\n\n--- FIN PÁRRAFOS MODELO ---\n';
         }
       }catch(e){console.warn('Párrafos modelo load:',e);}
     }
@@ -3385,15 +3409,48 @@ async function sendMessage(){
         }
 
         if(refCases.length>0){
-          caseContext+='\n\n## VISTAS FISCALES DE REFERENCIA (ESTILO Y FORMATO)\nA continuación se incluyen fragmentos de vistas fiscales e informes de investigadora de casos terminados reales. DEBES usar estas como MODELO DE REFERENCIA obligatorio para el formato, estructura, lenguaje jurídico, estilo de redacción, tono, uso de fojas, encabezados y la forma de citar normativa. Tu vista fiscal debe seguir el mismo patrón.\n';
-          
+          /* Extraer la sección relevante de cada referencia según lo que se está generando */
+          const _extractSection=(text,sectionId)=>{
+            if(!text||!sectionId)return text.substring(0,10000);
+            const t=text;
+            /* Patrones de sección en vistas fiscales reales */
+            if(sectionId==='vistos'){
+              /* VISTOS: desde el inicio hasta el primer "Que," o "CONSIDERANDO" */
+              const m=t.match(/^([\s\S]*?)(?=\d+[\.\)°]\s*Que,|\bCONSIDERANDO)/i);
+              return m?m[1].substring(0,6000):t.substring(0,6000);
+            }
+            if(sectionId==='diligencias'){
+              /* Diligencias: desde el primer "Que," hasta "HECHOS ACREDITADOS" o "POR TANTO" */
+              const start=t.search(/\d+[\.\)°]\s*Que,/i);
+              if(start<0)return t.substring(0,15000);
+              const rest=t.substring(start);
+              const end=rest.search(/HECHOS\s+ACREDITADOS|ANÁLISIS\s+JUR[IÍ]DICO|POR\s+TANTO|P\s*O\s*R\s+T\s*A\s*N\s*T\s*O/i);
+              return (end>0?rest.substring(0,end):rest).substring(0,20000);
+            }
+            if(sectionId==='hechos'){
+              const start=t.search(/HECHOS\s+ACREDITADOS|hechos\s+que\s+se\s+tienen\s+por\s+acreditados/i);
+              if(start<0)return '';
+              const rest=t.substring(start);
+              const end=rest.search(/ANÁLISIS\s+JUR[IÍ]DICO|POR\s+TANTO|P\s*O\s*R\s+T\s*A\s*N\s*T\s*O|PROPUESTA/i);
+              return (end>0?rest.substring(0,end):rest).substring(0,15000);
+            }
+            if(sectionId==='analisis'||sectionId==='sancion'||sectionId==='sobreseimiento'){
+              const start=t.search(/ANÁLISIS\s+JUR[IÍ]DICO|SUBSUNCI[OÓ]N|POR\s+TANTO|P\s*O\s*R\s+T\s*A\s*N\s*T\s*O/i);
+              if(start<0)return t.slice(-8000);
+              return t.substring(start).substring(0,15000);
+            }
+            /* Default: inicio + final para ver estructura */
+            return t.substring(0,5000)+'\n\n[...]\n\n'+t.slice(-5000);
+          };
+
+          caseContext+='\n\n## VISTAS FISCALES DE REFERENCIA (ESTILO Y FORMATO)\nA continuación se incluyen fragmentos de vistas fiscales reales de casos terminados. DEBES REPLICAR su formato, estructura, lenguaje jurídico, estilo, tono, uso de fojas y forma de citar normativa. Tu vista fiscal debe seguir EXACTAMENTE el mismo patrón.\n';
+
           refCases.forEach((rc,idx)=>{
             const informe=rc.informe_final||'';
-            /* Incluir primeros 6000 chars de cada vista (cubre VISTOS + primeros CONSIDERANDO + POR TANTO) */
-            const truncated=informe.substring(0,6000);
-            caseContext+=`\n### Referencia ${idx+1}: ${rc.nueva_resolucion||'?'} (${rc.materia||'?'} — ${rc.resultado||'?'} — ${rc.tipo_procedimiento||'?'})\n${truncated}${informe.length>6000?'\n[...continúa, '+informe.length+' chars total]':''}`;
+            const section=_extractSection(informe,_currentVFSection);
+            caseContext+=`\n### Referencia ${idx+1}: ${rc.nueva_resolucion||'?'} (${rc.materia||'?'} — ${rc.resultado||'?'} — ${rc.tipo_procedimiento||'?'})\n${section}`;
           });
-          
+
           caseContext+='\n\n--- FIN REFERENCIAS DE ESTILO ---\n';
         }
       }catch(refErr){console.warn('Error loading reference vistas:',refErr);}
