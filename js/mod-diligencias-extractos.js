@@ -225,7 +225,8 @@ async function importDriveAsDiligencias(){
     const _ctrl1=new AbortController();
     const _tout1=setTimeout(()=>_ctrl1.abort(),30000);
     try{
-      const res=await fetch('/.netlify/functions/drive',{
+      const _fetchFn=typeof authFetch==='function'?authFetch:fetch;
+      const res=await _fetchFn('/.netlify/functions/drive',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3}),
@@ -309,7 +310,8 @@ async function processDiligenciaOCR(dilId){
     let extractedText='';
     let aiSummary=null;
     try{
-      const dlRes=await fetch('/.netlify/functions/drive',{
+      const _fetchFn2=typeof authFetch==='function'?authFetch:fetch;
+      const dlRes=await _fetchFn2('/.netlify/functions/drive',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({action:'download',fileId:dil.drive_file_id}),
@@ -471,7 +473,8 @@ async function analyzeExpediente(dilId){
       const _ctrl5=new AbortController();
       const _tout5=setTimeout(()=>_ctrl5.abort(),30000);
       try{
-        const dlRes=await fetch('/.netlify/functions/drive',{
+        const _fetchFn5=typeof authFetch==='function'?authFetch:fetch;
+        const dlRes=await _fetchFn5('/.netlify/functions/drive',{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({action:'download',fileId:dil.drive_file_id}),
           signal:_ctrl5.signal

@@ -4463,7 +4463,7 @@ async function driveRefreshFiles(folderId){
   if(!folderId){el.innerHTML='<div class="drive-empty">Sin carpeta vinculada.</div>';return;}
   el.innerHTML='<div class="loading">Cargando archivos y subcarpetas…</div>';
   try{
-    const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})});
+    const res=await authFetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();
     if(!data?.ok)throw new Error(data?.error||'Error desconocido');
@@ -4541,7 +4541,7 @@ async function driveImportData(){
     let filesData=[];
     if(statusEl)statusEl.textContent='Listando archivos y subcarpetas…';
     try{
-      const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})});
+      const res=await authFetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})});
       if(res.ok){const d=await res.json();filesData=d?.files||[];}
       else{console.warn('Drive list error:',res.status);showToast('⚠️ No se pudieron listar los archivos de Drive');}
     }catch(e){console.warn('Drive list:',e);showToast('⚠️ Error conectando a Drive');}
@@ -4556,7 +4556,7 @@ async function driveImportData(){
       if(statusEl)statusEl.textContent=`${filesData.length} archivos encontrados. Leyendo ${readableFiles.length} documentos…`;
       for(const f of readableFiles){
         try{
-          const res=await fetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',fileId:f.id})});
+          const res=await authFetch('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',fileId:f.id})});
           if(res.ok){const d=await res.json();if(d?.ok&&d.content&&!d.content.startsWith('[Archivo binario'))docsContent.push({name:f._path||f.name,content:d.content.substring(0,4000)});}
         }catch(e){}
       }

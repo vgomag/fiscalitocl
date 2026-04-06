@@ -169,7 +169,8 @@ async function searchDriveForContext(query, caseObj) {
   if (!folderId) return '';
 
   try {
-    const r = await fetch('/.netlify/functions/drive', {
+    const _fetchFn = typeof authFetch === 'function' ? authFetch : fetch;
+    const r = await _fetchFn('/.netlify/functions/drive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'list', folderId })
