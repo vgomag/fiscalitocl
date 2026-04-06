@@ -1046,6 +1046,7 @@ GENERA UN PÁRRAFO FORMAL POR CADA DILIGENCIA, numerados. Respeta el NIVEL DE DE
     }
 
     let paragraphs='';
+    const batchErrors=[];
     for(let b=0;b<batches.length;b++){
       if(batches.length>1)showToast(`⏳ Generando lote ${b+1}/${batches.length}…`);
 
@@ -1062,8 +1063,7 @@ ${referenceStyle?'\n'+referenceStyle.substring(0,4000):''}
 
 GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL DE DETALLE indicado para cada una. NUNCA omitas diligencias. Texto plano sin markdown.`;
 
-      try{
-        /* Usar streaming para evitar timeout de Netlify */
+      const _callBatchChat=async()=>{
         const r=await authFetch(CHAT_ENDPOINT,{
           method:'POST',
           headers:{'Content-Type':'application/json'},
@@ -1075,6 +1075,12 @@ GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL D
             messages:[{role:'user',content:batchPrompt}]
           })
         });
+        /* Verificar HTTP status antes de procesar */
+        if(!r.ok){
+          let errMsg='HTTP '+r.status;
+          try{const errBody=await r.text();try{const errJ=JSON.parse(errBody);errMsg+=' — '+(errJ.error||errJ.message||errBody);}catch(_){errMsg+=' — '+(errBody||'sin detalle');}}catch(__){}
+          throw new Error(errMsg);
+        }
         const ct=r.headers.get('content-type')||'';
         let txt='';
         if(ct.includes('text/event-stream')){
@@ -1102,16 +1108,39 @@ GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL D
           }
         }else if(ct.includes('json')){
           const data=await r.json();
-          if(data.error){console.warn('Lote '+(b+1)+':',data.error);continue;}
+          if(data.error)throw new Error(typeof data.error==='object'?JSON.stringify(data.error):data.error);
           txt=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('')||'';
-        }else{console.warn('Lote '+(b+1)+' timeout/error');continue;}
+        }else{throw new Error('Respuesta inesperada (content-type: '+ct+')');}
+        return txt;
+      };
+
+      try{
+        let txt='';
+        try{
+          txt=await _callBatchChat();
+        }catch(firstErr){
+          /* Reintentar 1 vez tras 3s para errores temporales (429, 529, 500, timeout) */
+          const retryable=/429|529|500|502|503|504|timeout|overloaded|rate/i.test(firstErr.message);
+          if(retryable){
+            console.warn('Lote '+(b+1)+' reintentando tras error:',firstErr.message);
+            if(content){content.innerHTML=`<div class="loading">⚠️ Lote ${b+1}: ${firstErr.message}. Reintentando en 5s…</div>`;}
+            await new Promise(r=>setTimeout(r,5000));
+            txt=await _callBatchChat();
+          }else{throw firstErr;}
+        }
         if(txt)paragraphs+=(paragraphs?'\n\n':'')+txt;
         /* Actualizar progreso visual */
         if(content){content.innerHTML=`<div class="loading">⏳ Lote ${b+1}/${batches.length} completado (${txt.length} chars)… generando siguiente…</div>`;}
-      }catch(e){console.warn('Lote '+(b+1)+' error:',e.message);}
+      }catch(e){
+        console.warn('Lote '+(b+1)+' error:',e.message);
+        batchErrors.push('Lote '+(b+1)+': '+e.message);
+      }
     }
 
-    if(!paragraphs)throw new Error('No se generaron párrafos (todos los lotes fallaron)');
+    if(!paragraphs){
+      const detail=batchErrors.length?'\n\nDetalles:\n'+batchErrors.join('\n'):'';
+      throw new Error('No se generaron párrafos (todos los lotes fallaron)'+detail);
+    }
 
     /* 7. Persistir en case_metadata (upsert) */
     const{data:existing}=await sb.from('case_metadata')
