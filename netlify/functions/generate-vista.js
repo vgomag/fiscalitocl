@@ -241,20 +241,28 @@ function buildCaseContext(data, modelReports) {
     ctx += '\n';
   }
 
-  // Diligencias — en modo informe incluir texto completo
+  // Diligencias — incluir TODAS, con texto completo en modo informe/hechos
   if (diligencias && diligencias.length) {
-    ctx += `DILIGENCIAS (${diligencias.length} documentos):\n`;
-    const maxDiligencias = isInforme ? 30 : 20;
-    diligencias.slice(0, maxDiligencias).forEach((d, i) => {
+    ctx += `DILIGENCIAS (${diligencias.length} documentos — TODAS deben aparecer como considerandos individuales):\n`;
+    ctx += `INSTRUCCIÓN CRÍTICA: Debes generar UN considerando detallado por CADA diligencia listada abajo. NO omitas ninguna.\n\n`;
+    const maxCharsPerDiligencia = isInforme ? 6000 : 1500;
+    diligencias.forEach((d, i) => {
       const fojas = d.fojas || '';
       ctx += `${i + 1}. ${d.diligencia_label || d.file_name || 'Doc ' + (i + 1)}`;
       if (fojas) ctx += ` (fojas ${fojas})`;
       if (d.fecha_diligencia) ctx += ` [${d.fecha_diligencia}]`;
       ctx += '\n';
       if (isInforme && d.extracted_text) {
-        ctx += `   CONTENIDO COMPLETO:\n   ${d.extracted_text.slice(0, 2000)}\n`;
+        ctx += `   CONTENIDO COMPLETO:\n   ${d.extracted_text.slice(0, maxCharsPerDiligencia)}\n`;
+        if (d.extracted_text.length > maxCharsPerDiligencia) {
+          ctx += `   [... texto truncado, original: ${d.extracted_text.length} chars]\n`;
+        }
       } else if (d.ai_summary) {
-        ctx += `   Resumen: ${d.ai_summary.slice(0, 300)}\n`;
+        ctx += `   Resumen: ${d.ai_summary.slice(0, 800)}\n`;
+      }
+      if (d.extracted_text && !isInforme && d.ai_summary) {
+        // En modos no-informe, agregar extracto relevante además del resumen
+        ctx += `   Extracto: ${d.extracted_text.slice(0, 600)}\n`;
       }
     });
     ctx += '\n';
@@ -627,18 +635,18 @@ exports.handler = async (event) => {
 
     // Estimar tokens (aprox 4 chars per token)
     const inputTokens = Math.ceil((system.length + userMsg.length) / 4);
-    const maxInput = mode === 'informe' ? 80000 : 50000;
+    const maxInput = mode === 'informe' ? 150000 : 100000;
     if (inputTokens > maxInput) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json', ...CORS },
-        body: JSON.stringify({ error: 'Contexto demasiado extenso. Reduzca la cantidad de diligencias.' })
+        body: JSON.stringify({ error: `Contexto demasiado extenso (${inputTokens} tokens estimados, máx ${maxInput}). Reduzca la cantidad de diligencias.` })
       };
     }
 
-    // Tokens de salida según modo: informe completo necesita más
-    const TOKEN_MAP = { informe: 16000, hechos: 12000, sancion: 8000, sobreseimiento: 8000, vistos: 4000, estrategias: 6000, genero: 6000, art129: 6000 };
-    const maxOutputTokens = TOKEN_MAP[mode] || 8000;
+    // Tokens de salida según modo — ajustados para permitir detalle completo de cada diligencia
+    const TOKEN_MAP = { informe: 32000, hechos: 24000, sancion: 16000, sobreseimiento: 16000, vistos: 8000, estrategias: 10000, genero: 10000, art129: 10000 };
+    const maxOutputTokens = TOKEN_MAP[mode] || 16000;
     const res = await callAnthropic(apiKey, system, userMsg, maxOutputTokens);
 
     if (res.error) {
