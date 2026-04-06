@@ -362,7 +362,48 @@
     if (tab && body) body.innerHTML = buildVfTabContent(tab);
   }
 
-  /* ── Generar sección ── */
+  /* ── SSE stream reader — parsea events de generate-vista-stream ── */
+  async function _readVistaStream(response, onProgress){
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    var accumulated = '';
+    var meta = {};
+    var currentEvent = '';
+
+    while(true){
+      var chunk = await reader.read();
+      if(chunk.done) break;
+
+      buffer += decoder.decode(chunk.value, {stream:true});
+      var lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for(var i=0; i<lines.length; i++){
+        var line = lines[i];
+        if(line.indexOf('event: ')===0){
+          currentEvent = line.substring(7).trim();
+        } else if(line.indexOf('data: ')===0){
+          var dataStr = line.substring(6);
+          if(currentEvent==='meta'){
+            try{ meta=JSON.parse(dataStr); }catch(e){}
+          } else {
+            try{
+              var parsed=JSON.parse(dataStr);
+              if(parsed.type==='content_block_delta' && parsed.delta && parsed.delta.type==='text_delta'){
+                accumulated += parsed.delta.text;
+                if(onProgress) onProgress(accumulated);
+              }
+            }catch(e){/* ignore non-JSON */}
+          }
+          currentEvent='';
+        }
+      }
+    }
+    return { text: accumulated, meta: meta };
+  }
+
+  /* ── Generar sección con STREAMING (replica Lovable v1) ── */
   async function generateSection(sectionId){
     var c = typeof currentCase !== 'undefined' ? currentCase : null;
     if(!c){ if(typeof showToast==='function') showToast('No hay caso seleccionado','error'); return; }
@@ -375,7 +416,7 @@
 
     var isFullDoc = (mode === 'informe' || mode === 'hechos');
     var loadingLabel = tab ? tab.label : 'sección';
-    el.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="vf-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Generando ' + escH(loadingLabel) + '… (esto puede tomar hasta ' + (isFullDoc ? '2 minutos' : '1 minuto') + ')<br><span style="font-size:10px">Buscando automáticamente modelos de expedientes terminados similares</span></div>';
+    el.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-muted)"><span class="vf-spinner" style="border-color:var(--gold);border-top-color:transparent"></span> Generando ' + escH(loadingLabel) + '… (streaming activo, puede tomar 1-3 min)<br><span id="vfProgress_' + sectionId + '" style="font-size:10px">Buscando modelos de expedientes terminados similares…</span></div>';
 
     try {
       var diligenciaFields = isFullDoc
@@ -385,28 +426,56 @@
       var results = await Promise.all([
         sb.from('diligencias').select(diligenciaFields).eq('case_id', c.id).order('fecha_diligencia',{ascending:true}),
         sb.from('case_participants').select('name,role,estamento,carrera').eq('case_id', c.id),
-        sb.from('cronologia').select('event_date,title,description').eq('case_id', c.id).order('event_date',{ascending:true})
+        sb.from('cronologia').select('event_date,event_type,description').eq('case_id', c.id).order('event_date',{ascending:true})
       ]);
 
-      var result = await apiFetch('generate-vista', {
-        caseId: c.id,
-        caseData: c,
-        diligencias: results[0].data || [],
-        participants: results[1].data || [],
-        chronology: results[2].data || [],
-        mode: mode
+      var progressEl = document.getElementById('vfProgress_' + sectionId);
+
+      /* ── Llamada STREAMING a generate-vista-stream (ESM) ── */
+      var token = getAuthToken();
+      var res = await fetch(API_BASE + '/generate-vista-stream', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-auth-token': token },
+        body: JSON.stringify({
+          caseId: c.id,
+          caseData: c,
+          diligencias: results[0].data || [],
+          participants: results[1].data || [],
+          chronology: (results[2].data || []).map(function(cr){
+            return { event_date: cr.event_date, title: cr.event_type || cr.description || '', description: cr.description || '' };
+          }),
+          mode: mode
+        })
       });
 
-      if(result.error){
-        el.innerHTML = '<div class="vf-ia-result" style="color:var(--red)">Error: ' + escH(result.error) + '</div>';
-        return;
+      if(!res.ok){
+        var errText = '';
+        try { errText = await res.text(); } catch(e){}
+        var errMsg = 'HTTP ' + res.status;
+        try { var ej=JSON.parse(errText); errMsg += ' — ' + (ej.error||ej.message||errText); } catch(e){ errMsg += ' — ' + (errText||'sin detalle'); }
+        throw new Error(errMsg);
+      }
+
+      /* ── Leer stream SSE con progreso visual ── */
+      var streamResult = await _readVistaStream(res, function(partial){
+        if(progressEl){
+          var kb = (partial.length/1024).toFixed(1);
+          progressEl.textContent = 'Recibiendo… ' + kb + ' KB generados';
+        }
+      });
+
+      var vistaText = streamResult.text || '';
+      var vistaModels = (streamResult.meta && streamResult.meta.modelsUsed) || [];
+
+      if(!vistaText || vistaText.length < 30){
+        throw new Error('No se generó contenido (respuesta vacía)');
       }
 
       // Guardar en estado
       if (vfState.sections[sectionId]) {
-        vfState.sections[sectionId].text = result.vista || '';
-        vfState.sections[sectionId].modelsUsed = result.modelsUsed || [];
-        vfState.sections[sectionId].usage = result.usage || null;
+        vfState.sections[sectionId].text = vistaText;
+        vfState.sections[sectionId].modelsUsed = vistaModels;
+        vfState.sections[sectionId].usage = null;
       }
 
       // Re-render pestaña actual
@@ -416,9 +485,11 @@
         updateVfTabIndicators();
       }
 
+      console.log('Vista fiscal [' + mode + '] generada:', vistaText.length, 'chars, modelos:', vistaModels);
       if(typeof showToast==='function') showToast('✓ ' + escH(loadingLabel) + ' generada','success');
 
     } catch(err){
+      console.error('generateSection error [' + mode + ']:', err);
       el.innerHTML = '<div class="vf-ia-result" style="color:var(--red)">Error: ' + escH(err.message) + '</div>';
     }
   }
