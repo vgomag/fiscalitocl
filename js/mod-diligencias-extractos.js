@@ -140,6 +140,8 @@ async function loadDiligenciasTab(){
       </td>
       <td style="padding:8px 10px;font-size:11px;color:var(--text-dim);max-width:300px">
         <div style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4">${esc(summaryPreview)}</div>
+        ${d.parrafo_vista?`<div style="margin-top:4px"><button class="btn-action" style="font-size:9.5px;color:#7c3aed;padding:1px 6px;border:1px solid rgba(124,58,237,.2);border-radius:10px;background:rgba(124,58,237,.05)" onclick="event.stopPropagation();toggleParrafoVista('${d.id}')" title="Ver párrafo Vista Fiscal">📑 Vista Fiscal</button></div>
+        <div id="pv-${d.id}" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.12);border-radius:var(--radius);font-family:var(--font-serif);font-size:12px;line-height:1.7;color:var(--text);white-space:pre-wrap">${esc(d.parrafo_vista)}</div>`:''}
       </td>
       <td style="padding:8px 10px;white-space:nowrap">
         <span style="font-size:11px;display:flex;align-items:center;gap:4px">${statusIcon} <span style="color:var(--text-muted);font-size:10.5px">${statusLabel}</span></span>
