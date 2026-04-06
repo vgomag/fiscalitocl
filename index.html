@@ -3528,7 +3528,7 @@ async function sendMessage(){
       sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
     }
   }catch(err){_activeReader=null;const _scb=document.getElementById('streamControlBtn');if(_scb)_scb.remove();removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
-  finally{setLoading(false);}
+  finally{setLoading(false);_currentVFSection=null;}
 }
 
 function quickChat(text){showView('viewWelcome');pickFn('F0');document.getElementById('inputBox').value=text;sendMessage();}
