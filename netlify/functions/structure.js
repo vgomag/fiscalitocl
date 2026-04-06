@@ -3,6 +3,7 @@
  * Uses Claude Haiku (fast) for formatting transcriptions into formal documents.
  * Netlify Functions v2 format (ESM).
  */
+import { corsHeaders as _corsHeaders } from './shared/cors-esm.js';
 
 /* ── Claude Model Constants ── */
 const MODEL_HAIKU = Netlify.env.get('CLAUDE_MODEL_HAIKU') || 'claude-haiku-4-5-20251001';
@@ -168,11 +169,7 @@ async function _checkRL(token, endpoint) {
  */
 
 export default async (req) => {
-  const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const CORS = _corsHeaders(req);
 
   if (req.method === 'OPTIONS') {
     return new Response('', {
