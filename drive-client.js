@@ -87,8 +87,9 @@
     return r.ok;
   }
   async function sbInsert(table, body) {
-    var r = await fetch(SB_URL+'/rest/v1/'+table, {method:'POST',headers:{...sbH(),Prefer:'return=representation'},body:JSON.stringify(body)});
+    var r = await fetch(SB_URL+'/rest/v1/'+encodeURIComponent(table), {method:'POST',headers:{...sbH(),Prefer:'return=representation'},body:JSON.stringify(body)});
     var d = await r.json();
+    if(d&&d.error) throw new Error(d.error||d.message||'Error al insertar');
     return Array.isArray(d) ? d[0] : d;
   }
 
@@ -458,7 +459,8 @@
       var btns = document.createElement('span');
       btns.className = 'crud-btns';
       btns.style.cssText = 'float:right;margin-top:4px;white-space:nowrap;';
-      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditResolucion("'+id+'")')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelResolucion("'+id+'")');
+      id = escAttr(id);
+      btns.innerHTML = crudBtn('✏','#5c6bc0','event.stopPropagation();crudEditResolucion(&quot;'+id+'&quot;)')+' '+crudBtn('🗑','#e53935','event.stopPropagation();crudDelResolucion(&quot;'+id+'&quot;)');
       item.appendChild(btns);
     });
   }
