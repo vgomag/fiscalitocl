@@ -138,8 +138,10 @@
 
   function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+  function escAttr(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
   function crudBtn(label, color, onclick) {
-    return '<button onclick="'+onclick+'" style="padding:2px 8px;font-size:11px;border:none;border-radius:4px;cursor:pointer;background:'+color+';color:#fff;margin-left:4px">'+label+'</button>';
+    return '<button onclick="'+escAttr(onclick)+'" style="padding:2px 8px;font-size:11px;border:none;border-radius:4px;cursor:pointer;background:'+escAttr(color)+';color:#fff;margin-left:4px">'+label+'</button>';
   }
 
   // ── CRUD Diligencias ──
