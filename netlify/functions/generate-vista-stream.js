@@ -1,0 +1,716 @@
+/**
+ * GENERATE-VISTA-STREAM.JS — Vista Fiscal Generation with SSE Streaming (ESM)
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ESM version of generate-vista that streams the Anthropic response via SSE,
+ * avoiding Netlify's inactivity timeout for long-running generations.
+ *
+ * POST { caseId, caseData, diligencias, participants, chronology, mode }
+ *   mode: "informe" | "sancion" | "sobreseimiento" | "art129" | "vistos" | "hechos" | "estrategias" | "genero"
+ *
+ * Returns: SSE stream (text/event-stream)
+ *   - event: meta  → { modelsUsed: [...] }
+ *   - Anthropic SSE events (content_block_delta with text)
+ */
+import { corsHeaders } from './shared/cors-esm.js';
+import {
+  HUMAN_WRITING_STYLE, PRECISION_JURIDICA,
+  MODELO_SANCION, MODELO_SOBRESEIMIENTO, PARRAFOS_MODELO,
+  getNormativeContext
+} from './shared/writing-style-esm.js';
+
+/* ── Constants ── */
+const MODEL_SONNET = (typeof Netlify !== 'undefined' && Netlify.env)
+  ? (Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514')
+  : 'claude-sonnet-4-20250514';
+
+/* ── Rate Limiting (inline, like chat.js) ── */
+const RL_LIMITS = { 'generate-vista': 20, 'default': 60 };
+
+function extractUserId(token) {
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    return JSON.parse(atob(parts[1])).sub || null;
+  } catch { return null; }
+}
+
+async function checkRL(userId) {
+  if (!userId) return { allowed: false };
+  const sbUrl = (typeof Netlify !== 'undefined' && Netlify.env)
+    ? (Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL')) : '';
+  const sbKey = (typeof Netlify !== 'undefined' && Netlify.env)
+    ? (Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY')) : '';
+  if (!sbUrl || !sbKey) return { allowed: false };
+  try {
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 10000);
+    const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+      body: JSON.stringify({ p_user_id: userId, p_endpoint: 'generate-vista', p_max_requests: RL_LIMITS['generate-vista'], p_window_minutes: 60 }),
+      signal: ac.signal,
+    });
+    clearTimeout(to);
+    if (!r.ok) return { allowed: false };
+    return (await r.json()) || { allowed: false };
+  } catch { return { allowed: false }; }
+}
+
+/* ── Env helper ── */
+function env(key) {
+  return (typeof Netlify !== 'undefined' && Netlify.env) ? (Netlify.env.get(key) || '') : '';
+}
+
+/* ── Supabase fetch (ESM, using global fetch) ── */
+async function supaFetch(path) {
+  const sbUrl = env('SUPABASE_URL') || env('VITE_SUPABASE_URL');
+  const sbKey = env('SUPABASE_SERVICE_KEY') || env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!sbUrl || !sbKey) return [];
+  try {
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 15000);
+    const r = await fetch(`${sbUrl}/rest/v1/${path}`, {
+      headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}`, 'Content-Type': 'application/json' },
+      signal: ac.signal,
+    });
+    clearTimeout(to);
+    if (!r.ok) return [];
+    return await r.json();
+  } catch { return []; }
+}
+
+/* ══════════════════════════════════════════════
+   Supabase: Buscar modelos de referencia
+   ══════════════════════════════════════════════ */
+async function fetchModelReports(caseData, mode) {
+  const sbUrl = env('SUPABASE_URL') || env('VITE_SUPABASE_URL');
+  const sbKey = env('SUPABASE_SERVICE_KEY') || env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!sbUrl || !sbKey) return [];
+
+  const tipo = caseData.tipo_procedimiento || '';
+  const protocolo = caseData.protocolo || '';
+  const caseId = caseData.id || '';
+
+  const resultadoFilter = (mode === 'sancion') ? '&resultado=eq.Sanción'
+    : (mode === 'sobreseimiento') ? '&resultado=eq.Sobreseimiento'
+    : (mode === 'genero') ? '&protocolo=not.is.null' : '';
+
+  // 1) Match exacto
+  let path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+    + `&categoria=eq.terminado&informe_final=not.is.null`
+    + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
+    + `&protocolo=eq.${encodeURIComponent(protocolo)}`
+    + resultadoFilter
+    + `&id=neq.${encodeURIComponent(caseId)}`
+    + `&order=nueva_resolucion.desc&limit=3`;
+
+  let models = await supaFetch(path);
+
+  // 2) Ampliar: mismo tipo + resultado
+  if ((!models || models.length < 2) && tipo) {
+    path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+      + `&categoria=eq.terminado&informe_final=not.is.null`
+      + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
+      + resultadoFilter
+      + `&id=neq.${encodeURIComponent(caseId)}`
+      + `&order=nueva_resolucion.desc&limit=3`;
+    const extra = await supaFetch(path);
+    if (extra && extra.length) {
+      const existingIds = new Set((models || []).map(m => m.nueva_resolucion));
+      extra.forEach(m => { if (!existingIds.has(m.nueva_resolucion)) models.push(m); });
+      models = models.slice(0, 3);
+    }
+  }
+
+  // 3) Fallback general
+  if (!models || models.length === 0) {
+    path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+      + `&categoria=eq.terminado&informe_final=not.is.null`
+      + `&id=neq.${encodeURIComponent(caseId)}`
+      + `&order=nueva_resolucion.desc&limit=2`;
+    models = await supaFetch(path);
+  }
+
+  const validModels = (models || []).filter(m => m.informe_final && m.informe_final.length > 500);
+
+  // Enriquecer con diligencias del modelo
+  if (validModels.length > 0 && (mode === 'hechos' || mode === 'informe' || mode === 'vistos')) {
+    try {
+      const bestModelId = validModels[0].id;
+      if (bestModelId) {
+        const dilPath = `diligencias?select=diligencia_type,diligencia_label,ai_summary,fojas_inicio,fojas_fin,fecha_diligencia`
+          + `&case_id=eq.${encodeURIComponent(bestModelId)}&is_processed=eq.true`
+          + `&order=order_index.asc&limit=20`;
+        const modelDils = await supaFetch(dilPath);
+        if (modelDils && modelDils.length > 0) validModels[0]._diligencias = modelDils;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  return validModels;
+}
+
+/* ── Extract relevant sections from model reports ── */
+function extractModelSections(fullText, maxLen, mode) {
+  if (!fullText || fullText.length <= maxLen) return fullText || '';
+  const sections = [];
+  let remaining = maxLen;
+
+  const vistosMatch = fullText.match(/V\s*I\s*S\s*T\s*O\s*S?:?\s*\n([\s\S]*?)(?=\n\s*(?:CONSIDERANDO|C\s*O\s*N\s*S\s*I\s*D\s*E\s*R)|$)/i);
+  if (vistosMatch) {
+    const vistosLen = mode === 'vistos' ? Math.min(3000, remaining) : Math.min(1500, remaining);
+    const vistos = 'VISTOS:\n' + vistosMatch[1].slice(0, vistosLen);
+    sections.push(vistos); remaining -= vistos.length;
+  }
+
+  if (mode !== 'vistos') {
+    const considMatch = fullText.match(/(?:CONSIDERANDO|C\s*O\s*N\s*S\s*I\s*D\s*E\s*R\s*A\s*N\s*D\s*O):?\s*\n([\s\S]*?)(?=\n\s*(?:AN[ÁA]LISIS|CALIFICACI[ÓO]N|POR\s*TANTO|P\s*O\s*R\s*T\s*A\s*N\s*T\s*O|EN\s*M[ÉE]RITO|CONCLUSI[OÓ]N|FUNDAMENTOS?\s*DEL?\s*SOBRESEIMIENTO|PROPUESTA|CIRCUNSTANCIAS|ESTRATEGIAS?\s*PREVENTIVAS?|PERSPECTIVA\s*DE\s*G[ÉE]NERO)|$)/i);
+    if (considMatch && remaining > 500) {
+      const considText = considMatch[1];
+      const numerales = considText.match(/\d+\.\s+Que[\s\S]*?(?=\n\d+\.\s+Que|\n\s*(?:AN[ÁA]LISIS|POR\s*TANTO|CALIFICACI|FUNDAMENTOS|PROPUESTA)|$)/gi);
+      if (numerales) {
+        const maxNumerales = (mode === 'hechos' || mode === 'informe') ? 5 : 3;
+        let considSection = 'CONSIDERANDO:\n';
+        for (let i = 0; i < Math.min(maxNumerales, numerales.length) && remaining > 200; i++) {
+          const numeral = numerales[i].slice(0, mode === 'hechos' ? 1200 : 800);
+          considSection += numeral + '\n'; remaining -= numeral.length;
+        }
+        if (numerales.length > maxNumerales) considSection += `[... ${numerales.length - maxNumerales} considerandos más ...]\n`;
+        sections.push(considSection);
+      }
+    }
+  }
+
+  if (mode === 'sancion' || mode === 'informe') {
+    const analisisMatch = fullText.match(/(AN[ÁA]LISIS\s*JUR[ÍI]DICO|CALIFICACI[ÓO]N\s*JUR[ÍI]DICA):?\s*\n([\s\S]*?)(?=\n\s*(?:CIRCUNSTANCIAS|PROPUESTA|POR\s*TANTO|CONCLUSI[OÓ]N)|$)/i);
+    if (analisisMatch && remaining > 300) {
+      const analisis = analisisMatch[0].slice(0, Math.min(1500, remaining));
+      sections.push(analisis); remaining -= analisis.length;
+    }
+  }
+
+  if (mode === 'sobreseimiento') {
+    const sobMatch = fullText.match(/FUNDAMENTOS?\s*(?:DEL?)?\s*SOBRESEIMIENTO:?\s*\n([\s\S]*?)(?=\n\s*(?:CONCLUSI[OÓ]N|POR\s*TANTO)|$)/i);
+    if (sobMatch && remaining > 300) {
+      const sob = sobMatch[0].slice(0, Math.min(1500, remaining));
+      sections.push(sob); remaining -= sob.length;
+    }
+  }
+
+  if (mode === 'genero') {
+    const generoMatch = fullText.match(/(PERSPECTIVA\s*DE\s*G[ÉE]NERO|ENFOQUE\s*DE\s*G[ÉE]NERO|AN[ÁA]LISIS.*G[ÉE]NERO):?\s*\n([\s\S]*?)(?=\n\s*(?:CONCLUSI[OÓ]N|POR\s*TANTO|ESTRATEGIAS?)|$)/i);
+    if (generoMatch && remaining > 300) {
+      const genero = generoMatch[0].slice(0, Math.min(2000, remaining));
+      sections.push(genero); remaining -= genero.length;
+    }
+  }
+
+  if (mode === 'estrategias') {
+    const estMatch = fullText.match(/(ESTRATEGIAS?\s*PREVENTIVAS?|RECOMENDACIONES?\s*INSTITUCIONALES?|MEDIDAS?\s*PREVENTIVAS?):?\s*\n([\s\S]*?)(?=\n\s*(?:CONCLUSI[OÓ]N|POR\s*TANTO)|$)/i);
+    if (estMatch && remaining > 300) {
+      const est = estMatch[0].slice(0, Math.min(2000, remaining));
+      sections.push(est); remaining -= est.length;
+    }
+  }
+
+  if (mode !== 'vistos') {
+    const porTantoMatch = fullText.match(/(P\s*O\s*R\s*T\s*A\s*N\s*T\s*O|EN\s*M[ÉE]RITO|CONCLUSI[OÓ]N):?\s*\n([\s\S]*?)$/i);
+    if (porTantoMatch && remaining > 300) {
+      sections.push(porTantoMatch[0].slice(0, Math.min(1000, remaining)));
+    }
+  }
+
+  return sections.length ? sections.join('\n\n[...]\n\n') : fullText.slice(0, maxLen);
+}
+
+/* ── Build case context ── */
+function buildCaseContext(data, modelReports) {
+  const { caseData, diligencias, participants, chronology } = data;
+  const c = caseData || {};
+  const isInforme = data.mode === 'informe' || data.mode === 'hechos';
+
+  let ctx = `EXPEDIENTE: ${c.name || 'Sin nombre'}\n`;
+  ctx += `ROL: ${c.nueva_resolucion || c.rol || '—'}\n`;
+  ctx += `Carátula: ${c.caratula || '—'}\n`;
+  ctx += `Tipo: ${c.tipo_procedimiento || '—'}\n`;
+  ctx += `Protocolo: ${c.protocolo || '—'}\n`;
+  ctx += `Materia: ${c.materia || '—'}\n`;
+  ctx += `Fecha denuncia: ${c.fecha_denuncia || '—'}\n`;
+  ctx += `Fecha resolución instructora: ${c.fecha_resolucion || '—'}\n\n`;
+
+  if (participants && participants.length) {
+    ctx += 'PARTICIPANTES:\n';
+    participants.forEach(p => {
+      ctx += `- ${p.name || '?'} (${p.role || '?'})`;
+      if (p.estamento) ctx += ` — Est: ${p.estamento}`;
+      if (p.carrera) ctx += ` — Carrera: ${p.carrera}`;
+      ctx += '\n';
+    });
+    ctx += '\n';
+  }
+
+  if (diligencias && diligencias.length) {
+    ctx += `DILIGENCIAS (${diligencias.length} documentos — TODAS deben aparecer como considerandos individuales):\n`;
+    ctx += `INSTRUCCIÓN CRÍTICA: Debes generar UN considerando detallado por CADA diligencia listada abajo. NO omitas ninguna.\n\n`;
+    const maxCharsPerDiligencia = isInforme ? 6000 : 1500;
+    diligencias.forEach((d, i) => {
+      const fojas = d.fojas || '';
+      ctx += `${i + 1}. ${d.diligencia_label || d.file_name || 'Doc ' + (i + 1)}`;
+      if (fojas) ctx += ` (fojas ${fojas})`;
+      if (d.fecha_diligencia) ctx += ` [${d.fecha_diligencia}]`;
+      ctx += '\n';
+      if (isInforme && d.extracted_text) {
+        ctx += `   CONTENIDO COMPLETO:\n   ${d.extracted_text.slice(0, maxCharsPerDiligencia)}\n`;
+        if (d.extracted_text.length > maxCharsPerDiligencia) {
+          ctx += `   [... texto truncado, original: ${d.extracted_text.length} chars]\n`;
+        }
+      } else if (d.ai_summary) {
+        ctx += `   Resumen: ${d.ai_summary.slice(0, 800)}\n`;
+      }
+      if (d.extracted_text && !isInforme && d.ai_summary) {
+        ctx += `   Extracto: ${d.extracted_text.slice(0, 600)}\n`;
+      }
+    });
+    ctx += '\n';
+  }
+
+  if (chronology && chronology.length) {
+    ctx += 'CRONOLOGÍA:\n';
+    chronology.slice(0, 15).forEach(ev => {
+      ctx += `- ${ev.event_date || '?'}: ${ev.title || ev.description || '?'}\n`;
+    });
+    ctx += '\n';
+  }
+
+  if (c.observaciones) ctx += `OBSERVACIONES: ${c.observaciones}\n`;
+  if (c.informe_final) ctx += `INFORME PREVIO:\n${c.informe_final.slice(0, 2000)}\n`;
+
+  if (modelReports && modelReports.length) {
+    const modeLabel = data.mode || 'informe';
+    ctx += '\n═══════════════════════════════════════════════════════════════\n';
+    ctx += 'MODELOS DE REFERENCIA — Informes finales de expedientes terminados\n';
+    ctx += '═══════════════════════════════════════════════════════════════\n';
+    ctx += 'INSTRUCCIONES OBLIGATORIAS SOBRE LOS MODELOS:\n';
+    ctx += '1. Replica fielmente el ESTILO, TONO, ESTRUCTURA y LENGUAJE INSTITUCIONAL de estos modelos.\n';
+    ctx += '2. Conserva el razonamiento jurídico y el lenguaje administrativo exactamente como aparece en los modelos.\n';
+    ctx += '3. NUNCA copies hechos, nombres ni datos de estos modelos — solo su estructura, estilo y vocabulario jurídico.\n';
+    ctx += '4. Si los modelos contienen una sección de ' + modeLabel.toUpperCase() + ', replica su formato, extensión y nivel de detalle.\n';
+    ctx += '5. Si los modelos citan normativa, usa las MISMAS citas formales adaptándolas al caso actual.\n';
+    ctx += '6. El documento generado debe ser INDISTINGUIBLE en estilo de los modelos proporcionados.\n';
+    ctx += '═══════════════════════════════════════════════════════════════\n\n';
+
+    const maxPerModel = isInforme ? 3000 : 2000;
+    modelReports.forEach((m, i) => {
+      const label = m.name || m.nueva_resolucion || '?';
+      const tipoInfo = [m.tipo_procedimiento, m.protocolo, m.resultado].filter(Boolean).join(' / ');
+      ctx += `--- MODELO ${i + 1}: Exp. ${label} (${tipoInfo}) ---\n`;
+      ctx += extractModelSections(m.informe_final, maxPerModel, data.mode) + '\n';
+
+      if (m._diligencias && m._diligencias.length > 0) {
+        ctx += '\n  [ESTRUCTURA DE DILIGENCIAS DEL MODELO — Referencia de organización]:\n';
+        m._diligencias.forEach((d, j) => {
+          const fojas = d.fojas_inicio ? ` (f.${d.fojas_inicio}${d.fojas_fin && d.fojas_fin !== d.fojas_inicio ? '-' + d.fojas_fin : ''})` : '';
+          ctx += `  ${j + 1}. ${d.diligencia_label || d.diligencia_type || '?'}${fojas}`;
+          if (d.fecha_diligencia) ctx += ` [${d.fecha_diligencia}]`;
+          if (d.ai_summary) ctx += ` — ${d.ai_summary.slice(0, 120)}`;
+          ctx += '\n';
+        });
+        ctx += '  [Usa esta estructura como referencia para organizar las diligencias del caso actual]\n';
+      }
+      ctx += '\n';
+    });
+  }
+
+  return ctx;
+}
+
+/* ── Style rules ── */
+const STYLE_RULES = `
+REGLAS DE ESTILO IMPERATIVAS (aplicar a TODO el documento):
+- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). El documento es texto plano formal.
+- Redacción en TERCERA PERSONA, formal, jurídica, administrativa.
+- Usar tratamiento "doña" / "don" antes de nombres propios.
+- Citar SIEMPRE la foja donde consta cada antecedente: "de fojas XX a YY del expediente, consta..."
+- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto", "en mérito de lo anterior", "al tenor de lo expuesto", "conforme a lo prevenido".
+- Citar normas con denominación oficial completa (Decreto N°XX/SU/YYYY, Ley N°XX.XXX, DFL N°XX).
+- Fechas en formato extenso: "de fecha 25 de octubre de 2024".
+- NO inventar hechos ni pruebas que no estén en el contexto proporcionado.
+- Usar "[COMPLETAR]" o "[NO CONSTA]" donde falte información específica.
+- Si se proporcionan MODELOS DE REFERENCIA: replicar su estilo y tono fielmente, pero NUNCA copiar hechos de esos modelos.
+- Párrafos extensos y detallados, NO telegráficos.
+- Cada considerando termina con punto y coma (;) excepto el último que termina con punto (.).
+- Los numerales de los considerandos siguen formato: "1.      Que,..."
+- Individualización completa de cada persona: nombre completo, RUT si consta, cargo, calidad procesal.
+- Las declaraciones se sintetizan con DETALLE (no genéricamente), con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...").
+- Los testimonios de oídas se identifican expresamente como tales.
+` + HUMAN_WRITING_STYLE;
+
+/* ── System prompts per mode ── */
+const SYSTEM_PROMPTS_BASE = {
+  sancion: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Tu rol es redactar una VISTA FISCAL con propuesta de SANCIÓN. Este documento es el informe final donde se analiza la responsabilidad administrativa y se propone la medida disciplinaria correspondiente.
+
+{NORMATIVE_REGIME}
+
+${MODELO_SANCION}
+
+${PARRAFOS_MODELO}
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}
+- Extensión: 3-5 páginas equivalentes. Cada diligencia merece su propio considerando detallado.`,
+
+  sobreseimiento: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Tu rol es redactar una VISTA FISCAL con propuesta de SOBRESEIMIENTO. Este documento analiza por qué no procede formular cargos y propone el cierre del procedimiento.
+
+{NORMATIVE_REGIME}
+
+${MODELO_SOBRESEIMIENTO}
+
+${PARRAFOS_MODELO}
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}
+- Extensión: 2-4 páginas equivalentes.`,
+
+  art129: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Genera un borrador de SOLICITUD DE MEDIDA CAUTELAR (Art. 129 EA).
+
+{NORMATIVE_REGIME}
+
+ESTRUCTURA:
+1. ANTECEDENTES — Identificación del caso y urgencia
+2. FUNDAMENTOS DE HECHO — Hechos que justifican la medida
+3. FUNDAMENTOS DE DERECHO — Art. 129 Estatuto Administrativo y normativa aplicable
+4. MEDIDA SOLICITADA — Tipo de medida cautelar (ej: suspensión preventiva, cambio funciones)
+5. PETITORIO
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}`,
+
+  vistos: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Genera EXCLUSIVAMENTE la sección de VISTOS de una vista fiscal / informe de la investigadora.
+
+{NORMATIVE_REGIME}
+
+ESTRUCTURA OBLIGATORIA DE LOS VISTOS:
+Redactar como UN SOLO PÁRRAFO CORRIDO (NO numerado) que incluya:
+- "En el marco de [tipo procedimiento], ordenada instruir por Resolución Exenta N°[NUMERO]/[AÑO]..."
+- Si hubo cambio de investigador/fiscal: "y continuada por Resolución Exenta N°..."
+- "Los antecedentes acumulados en el curso de la presente investigación y que rolan de fojas 01 a [N] del expediente investigativo;"
+- "Los reglamentos y normas que rigen esta investigación, donde se incluyen, [NORMAS_SEPARADAS_POR_PUNTO_Y_COMA]."
+
+Normativa que DEBE incluirse (según corresponda al caso):
+- Estatuto Administrativo (D.F.L. N°29 de 2005, arts. aplicables)
+- Ley N°19.880 sobre procedimientos administrativos
+- Ley N°18.575, LOCBGAE
+- Protocolos internos de la UMAG aplicables según el tipo de procedimiento
+- Si es caso de acoso sexual: Ley N°21.369 y protocolo institucional
+- Si es caso Ley Karin: Ley N°21.643 y Decreto N°019/SU/2024
+- Toda otra norma relevante según la materia investigada
+
+Terminar la sección con ".-"
+
+IMPORTANTE: NO incluir considerandos, análisis ni conclusiones. Solo los VISTOS.
+
+REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA, examina cómo estructuran su sección de VISTOS — qué normativa citan, en qué orden, con qué formato y nivel de detalle. Replica EXACTAMENTE esa misma estructura, formato y nivel de exhaustividad normativa, adaptando solo los datos al caso actual.
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}`,
+
+  hechos: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Genera EXCLUSIVAMENTE la sección de HECHOS ACREDITADOS Y PRUEBA (CONSIDERANDOS) de una vista fiscal / informe de la investigadora.
+
+{NORMATIVE_REGIME}
+
+ESTRUCTURA OBLIGATORIA:
+1. Un numeral por CADA diligencia o pieza del expediente, siguiendo el orden de fojas.
+2. Cada numeral inicia con: "Que, de fojas [XX] a [YY] del expediente, consta [tipo de documento], de fecha [FECHA], [DESCRIPCION DETALLADA];"
+3. DESARROLLAR EN EXTENSO el contenido de cada diligencia:
+   - Nombres completos con tratamiento formal ("doña", "don")
+   - Cargos institucionales, RUT si consta, calidad procesal
+   - Fechas exactas en formato extenso
+   - Síntesis DETALLADA del contenido (no resumen genérico)
+4. Si es una declaración: resumir lo declarado con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...")
+5. Si es un documento administrativo: describir su contenido y relevancia procesal
+6. Expresiones: "obra", "rola", "consta", "se desprende", "se advierte"
+7. Cada considerando termina con punto y coma (;) excepto el último con punto (.)
+8. Los considerandos se numeran: "1.      Que,..."
+9. Los testimonios de oídas se identifican expresamente como tales
+10. NO resumir telegráficamente. Cada considerando es un párrafo completo y detallado.
+
+IMPORTANTE: NO incluir VISTOS, análisis jurídico ni propuesta. Solo los CONSIDERANDOS con los hechos y la prueba.
+
+REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA, observa cómo redactan cada considerando — la extensión, el nivel de detalle, las expresiones jurídicas, cómo citan las fojas y cómo describen cada diligencia. Tu redacción debe ser INDISTINGUIBLE en estilo y profundidad.
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}
+- Extensión: cada diligencia merece su propio considerando detallado y extenso.
+- REGLA ABSOLUTA DE COBERTURA: Si el expediente tiene N diligencias, el documento DEBE contener al menos N considerandos sustantivos.
+  Por ejemplo: 12 diligencias = mínimo 12 considerandos; 25 diligencias = mínimo 25 considerandos.
+  NO omitas NINGUNA diligencia. NO agrupes ni resumas varias diligencias en un solo considerando.
+  Cada diligencia listada en el contexto DEBE tener su propio numeral individual.
+- Si el documento queda extenso, eso es CORRECTO. Un expediente voluminoso requiere un informe voluminoso.`,
+
+  estrategias: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Genera una sección de ESTRATEGIAS PREVENTIVAS Y RECOMENDACIONES INSTITUCIONALES basándote en los hechos investigados.
+
+{NORMATIVE_REGIME}
+
+ESTRUCTURA:
+1. ANÁLISIS DE FACTORES DE RIESGO — Qué condiciones institucionales u organizacionales contribuyeron a los hechos investigados.
+2. RECOMENDACIONES PREVENTIVAS — Medidas concretas y específicas al caso: Organizacionales, formativas, normativas y de apoyo.
+3. PLAN DE IMPLEMENTACIÓN SUGERIDO — Cronograma y responsables.
+4. SEGUIMIENTO — Indicadores de cumplimiento y mecanismos de monitoreo.
+
+Las recomendaciones deben ser ESPECÍFICAS al caso y factibles dentro del marco institucional de la UMAG.
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}`,
+
+  genero: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG), con formación en perspectiva de género.
+
+Genera un ANÁLISIS CON PERSPECTIVA DE GÉNERO del procedimiento disciplinario, conforme a la normativa vigente y los estándares internacionales.
+
+{NORMATIVE_REGIME}
+
+ESTRUCTURA:
+1. MARCO NORMATIVO DE GÉNERO APLICABLE: Convención CEDAW, Convención de Belém do Pará, Ley N°21.369, Ley N°20.609, Ley N°20.607 (si aplica), Protocolo institucional UMAG.
+2. ANÁLISIS DE LOS HECHOS CON ENFOQUE DE GÉNERO: Relaciones asimétricas de poder, componentes de violencia o discriminación de género, estereotipos de género presentes, impacto diferenciado según género.
+3. ESTÁNDARES DE DEBIDA DILIGENCIA: Cumplimiento de estándares de debida diligencia reforzada, medidas de protección adoptadas, derecho a ser oída/o en condiciones de igualdad.
+4. CONCLUSIONES Y RECOMENDACIONES CON PERSPECTIVA DE GÉNERO: Impacto en la calificación de los hechos, recomendaciones específicas, medidas reparatorias con enfoque de género.
+
+El análisis debe ser técnico y fundado en normativa, no meramente declarativo. Conecta la teoría de género con los hechos específicos del caso.
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}
+- Terminología técnica: "perspectiva de género", "relaciones asimétricas de poder", "violencia de género", "debida diligencia reforzada".`,
+
+  informe: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
+
+Tu tarea es generar un borrador completo de INFORME DE LA INVESTIGADORA / VISTA FISCAL para un procedimiento disciplinario o investigación sumaria. Este documento es el informe final que la fiscal investigadora presenta a la autoridad instructora.
+
+{NORMATIVE_REGIME}
+
+ESTRUCTURA OBLIGATORIA:
+
+ENCABEZADO:
+- Título: "INFORME DE LA INVESTIGADORA" (Invest. Sumaria) o "VISTA FISCAL" (Sumario Admin.)
+- Lugar y fecha: "Punta Arenas, [fecha]"
+
+VISTOS:
+Redactar como UN SOLO PÁRRAFO CORRIDO (NO numerado):
+- "En el marco de [tipo procedimiento], ordenada instruir por Resolución Exenta N°[NUMERO]/[AÑO]..."
+- Rango de fojas del expediente
+- Normativa aplicable separada por punto y coma
+- Terminar con ".-"
+
+CONSIDERANDO:
+- Un numeral por CADA diligencia o pieza del expediente, siguiendo el orden de fojas
+- Cada numeral inicia con: "Que, de fojas [XX] a [YY] del expediente, consta [tipo de documento]..."
+- DESARROLLAR EN EXTENSO: nombres completos con tratamiento formal, cargos, fechas exactas, síntesis jurídica detallada
+- Declaraciones con lenguaje indirecto formal ("manifiesta que...", "señala que...")
+- Documentos administrativos: describir contenido y relevancia procesal
+- Expresiones: "obra", "rola", "consta", "se desprende", "se advierte"
+- Cada considerando termina con punto y coma (;) excepto el último
+- Los considerandos se numeran: "1.      Que,..."
+
+ANÁLISIS JURÍDICO:
+- Subsunción de hechos en normas aplicables
+- Valoración de la prueba reunida
+- Para sobreseimiento: sección de "hechos establecidos" con sub-numeración (N.1, N.2...)
+  - Análisis de consistencia testimonial
+  - Conclusión probatoria conforme a sana crítica
+  - Análisis jurídico por cada denunciado
+  - Conclusión sobre tipicidad
+
+POR TANTO:
+Para Investigación Sumaria: "P O R T A N T O, SE SUGIERE:"
+Para Sumario Administrativo: "P O R T A N T O, SE RESUELVE O SUGIERE:"
+- Si sanción: medida disciplinaria con artículo aplicable
+- Si sobreseimiento: causal específica y fundamentación
+- Cierre: "Remítanse los antecedentes... Es todo cuanto tengo por informar."
+
+${MODELO_SANCION}
+
+${MODELO_SOBRESEIMIENTO}
+
+${PARRAFOS_MODELO}
+
+${PRECISION_JURIDICA}
+
+${STYLE_RULES}
+- Extensión: TAN EXTENSO como lo requiera el expediente. Cada diligencia merece su propio considerando detallado y extenso.
+- REGLA ABSOLUTA DE COBERTURA: Si el expediente tiene N diligencias, el documento DEBE contener al menos N considerandos sustantivos.
+  NO omitas NINGUNA diligencia. NO agrupes ni resumas varias diligencias en un solo considerando.
+- Si el documento queda extenso, eso es CORRECTO y ESPERADO. Un expediente voluminoso requiere un informe voluminoso.`
+};
+
+function buildSystemPrompt(mode, participants) {
+  const base = SYSTEM_PROMPTS_BASE[mode] || SYSTEM_PROMPTS_BASE.informe;
+  const normativeRegime = getNormativeContext(participants || []);
+  return base.replace('{NORMATIVE_REGIME}', normativeRegime);
+}
+
+/* ── Doc labels ── */
+const DOC_LABELS = {
+  informe: 'informe de la investigadora',
+  sancion: 'vista fiscal con propuesta de sanción',
+  sobreseimiento: 'vista fiscal con propuesta de sobreseimiento',
+  art129: 'solicitud de medida cautelar',
+  vistos: 'sección de VISTOS (normativa aplicable y antecedentes)',
+  hechos: 'sección de HECHOS ACREDITADOS Y PRUEBA (considerandos)',
+  estrategias: 'sección de ESTRATEGIAS PREVENTIVAS',
+  genero: 'análisis CON PERSPECTIVA DE GÉNERO'
+};
+
+/* ── Token limits per mode ── */
+const TOKEN_MAP = { informe: 32000, hechos: 24000, sancion: 16000, sobreseimiento: 16000, vistos: 8000, estrategias: 10000, genero: 10000, art129: 10000 };
+
+/* ══════════════════════════════════════
+   ESM Handler — Streaming SSE Response
+   ══════════════════════════════════════ */
+function jsonRes(body, status, cors) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...cors } });
+}
+
+export default async (req) => {
+  const CORS = corsHeaders(req);
+
+  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers: CORS });
+  if (req.method !== 'POST') return jsonRes({ error: 'Method Not Allowed' }, 405, CORS);
+
+  const authToken = req.headers.get('x-auth-token') || '';
+  if (!authToken) return jsonRes({ error: 'No autorizado' }, 401, CORS);
+
+  const apiKey = env('ANTHROPIC_API_KEY');
+  if (!apiKey) return jsonRes({ error: 'API key no configurada' }, 500, CORS);
+
+  try {
+    /* Rate limiting */
+    const userId = extractUserId(authToken);
+    const rl = await checkRL(userId);
+    if (!rl.allowed) return jsonRes({ error: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.', limit: rl.limit, remaining: 0 }, 429, CORS);
+
+    const data = await req.json();
+
+    /* Payload size check */
+    const bodyStr = JSON.stringify(data);
+    if (bodyStr.length > 2000000) return jsonRes({ error: 'Payload too large' }, 413, CORS);
+
+    const { mode } = data;
+    if (!mode || !SYSTEM_PROMPTS_BASE[mode]) {
+      return jsonRes({ error: 'mode inválido. Use: informe, sancion, sobreseimiento, art129, vistos, hechos, estrategias, genero' }, 400, CORS);
+    }
+
+    /* Fetch model reports */
+    let modelReports = [];
+    try { modelReports = await fetchModelReports(data.caseData || {}, mode); } catch (e) { console.warn('fetchModelReports:', e.message); }
+
+    /* Build context and prompt */
+    const context = buildCaseContext(data, modelReports);
+    const system = buildSystemPrompt(mode, data.participants || []);
+    const docLabel = DOC_LABELS[mode] || 'vista fiscal';
+    const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}`;
+
+    /* Token estimation */
+    const inputTokens = Math.ceil((system.length + userMsg.length) / 4);
+    const maxInput = mode === 'informe' ? 150000 : 100000;
+    if (inputTokens > maxInput) {
+      return jsonRes({ error: `Contexto demasiado extenso (${inputTokens} tokens estimados, máx ${maxInput}). Reduzca la cantidad de diligencias.` }, 400, CORS);
+    }
+
+    const maxOutputTokens = TOKEN_MAP[mode] || 16000;
+
+    /* ── Call Anthropic with streaming ── */
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180000); // 3 min
+
+    let anthropicRes;
+    try {
+      anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: MODEL_SONNET,
+          max_tokens: maxOutputTokens,
+          system: system,
+          messages: [{ role: 'user', content: userMsg }],
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      const msg = fetchErr.name === 'AbortError' ? 'Stream timeout (180s)' : fetchErr.message;
+      return jsonRes({ error: msg }, 504, CORS);
+    }
+
+    if (!anthropicRes.ok) {
+      clearTimeout(timeout);
+      const errData = await anthropicRes.text();
+      return new Response(errData, { status: anthropicRes.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+    }
+
+    /* ── Build streaming response with metadata prefix ── */
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+
+    /* Send custom meta event with modelsUsed info, then pipe Anthropic SSE */
+    const meta = {
+      modelsUsed: modelReports.map(m => m.name || m.nueva_resolucion).filter(Boolean),
+      mode,
+      caseName: data.caseData?.name || '',
+    };
+    writer.write(encoder.encode(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`));
+
+    /* Pipe Anthropic stream → client */
+    const reader = anthropicRes.body.getReader();
+    (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { writer.close(); break; }
+          writer.write(value);
+        }
+      } catch (e) {
+        try { writer.close(); } catch (_) {}
+      } finally {
+        clearTimeout(timeout);
+      }
+    })();
+
+    return new Response(readable, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        ...CORS,
+      },
+    });
+
+  } catch (err) {
+    console.error('generate-vista-stream error:', err);
+    return jsonRes({ error: err.message }, 500, CORS);
+  }
+};

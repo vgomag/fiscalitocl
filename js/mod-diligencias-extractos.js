@@ -921,6 +921,60 @@ function renderParrafosModelo(text){
   content.innerHTML=`<div style="max-height:500px;overflow-y:auto;font-family:var(--font-serif);font-size:13.5px;line-height:1.8;color:var(--text);white-space:pre-wrap;padding:4px 0">${esc(text)}</div>`;
 }
 
+/* ── Helper: SSE streaming fetch for vista generation ── */
+async function _streamVistaFetch(url,body,fetchFn,onProgress){
+  const r=await fetchFn(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+
+  if(!r.ok){
+    let errMsg='HTTP '+r.status;
+    try{const t=await r.text();try{const j=JSON.parse(t);errMsg+=' — '+(j.error||j.message||t);}catch(_){errMsg+=' — '+(t||'sin detalle');}}catch(_){}
+    throw new Error(errMsg);
+  }
+
+  /* Parse SSE stream */
+  const reader=r.body.getReader();
+  const decoder=new TextDecoder();
+  let accumulated='';
+  let buffer='';
+  let meta={};
+  let currentEvent='';
+
+  while(true){
+    const{done,value}=await reader.read();
+    if(done)break;
+
+    buffer+=decoder.decode(value,{stream:true});
+    const lines=buffer.split('\n');
+    buffer=lines.pop()||''; // keep incomplete line
+
+    for(const line of lines){
+      if(line.startsWith('event: ')){
+        currentEvent=line.slice(7).trim();
+      } else if(line.startsWith('data: ')){
+        const dataStr=line.slice(6);
+        if(currentEvent==='meta'){
+          try{meta=JSON.parse(dataStr);}catch(e){}
+        } else {
+          try{
+            const parsed=JSON.parse(dataStr);
+            if(parsed.type==='content_block_delta'&&parsed.delta&&parsed.delta.type==='text_delta'){
+              accumulated+=parsed.delta.text;
+              if(onProgress)onProgress(accumulated);
+            }
+          }catch(e){/* non-JSON SSE line, ignore */}
+        }
+        currentEvent=''; // reset after processing data
+      }
+    }
+  }
+
+  return {text:accumulated,meta:meta};
+}
+
 /* ── Generar párrafos con IA ── */
 async function generateParrafosModelo(){
   if(!currentCase||!session)return;
@@ -980,49 +1034,48 @@ async function generateParrafosModelo(){
       };
     });
 
-    if(content){content.innerHTML=`<div class="loading">⏳ Enviando ${dils.length} diligencias a generate-vista (modo hechos)…</div>`;}
+    if(content){content.innerHTML=`<div class="loading">⏳ Enviando ${dils.length} diligencias a generate-vista-stream (modo hechos)…</div>`;}
 
-    /* 5. UNA SOLA llamada a generate-vista con mode='hechos' — la función del servidor
-       tiene todo el contexto necesario: modelos de referencia, estilo, normativa */
-    const r=await _fetchFn('/.netlify/functions/generate-vista',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        mode:'hechos',
-        caseData:{
-          id:currentCase.id,
-          name:currentCase.name,
-          rol:currentCase.rol||'',
-          nueva_resolucion:currentCase.nueva_resolucion||currentCase.rol||'',
-          caratula:currentCase.caratula||'',
-          tipo_procedimiento:currentCase.tipo_procedimiento||'',
-          protocolo:currentCase.protocolo||'',
-          materia:currentCase.materia||'',
-          fecha_denuncia:currentCase.fecha_denuncia||'',
-          fecha_resolucion:currentCase.fecha_resolucion||'',
-          observaciones:currentCase.observaciones||''
-        },
-        diligencias:diligenciasPayload,
-        participants:participants,
-        chronology:chronology
-      })
-    });
+    /* 5. Llamada STREAMING a generate-vista-stream — evita timeout de Netlify
+       La función ESM devuelve SSE events que se acumulan en el cliente */
+    const vistaPayload={
+      mode:'hechos',
+      caseData:{
+        id:currentCase.id,
+        name:currentCase.name,
+        rol:currentCase.rol||'',
+        nueva_resolucion:currentCase.nueva_resolucion||currentCase.rol||'',
+        caratula:currentCase.caratula||'',
+        tipo_procedimiento:currentCase.tipo_procedimiento||'',
+        protocolo:currentCase.protocolo||'',
+        materia:currentCase.materia||'',
+        fecha_denuncia:currentCase.fecha_denuncia||'',
+        fecha_resolucion:currentCase.fecha_resolucion||'',
+        observaciones:currentCase.observaciones||''
+      },
+      diligencias:diligenciasPayload,
+      participants:participants,
+      chronology:chronology
+    };
 
-    if(!r.ok){
-      let errMsg='HTTP '+r.status;
-      try{const errBody=await r.text();try{const errJ=JSON.parse(errBody);errMsg+=' — '+(errJ.error||errJ.message||errBody);}catch(_){errMsg+=' — '+(errBody||'sin detalle');}}catch(__){}
-      throw new Error(errMsg);
-    }
+    const{text:paragraphs,meta:streamMeta}=await _streamVistaFetch(
+      '/.netlify/functions/generate-vista-stream',
+      vistaPayload,
+      _fetchFn,
+      (partial)=>{
+        if(content){
+          const charCount=partial.length;
+          const kbCount=(charCount/1024).toFixed(1);
+          content.innerHTML=`<div class="loading">⏳ Generando considerandos… ${kbCount} KB recibidos</div>`;
+        }
+      }
+    );
 
-    const result=await r.json();
-    if(result.error)throw new Error(result.error);
-
-    const paragraphs=result.vista||'';
     if(!paragraphs||paragraphs.length<50){
       throw new Error('No se generaron párrafos (respuesta vacía del servidor)');
     }
 
-    console.log('Párrafos generados:',paragraphs.length,'chars, modelos usados:',result.modelsUsed||[]);
+    console.log('Párrafos generados:',paragraphs.length,'chars, modelos usados:',streamMeta.modelsUsed||[]);
 
     /* 7. Persistir en case_metadata (upsert) */
     const{data:existing}=await sb.from('case_metadata')
