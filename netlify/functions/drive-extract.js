@@ -4,6 +4,7 @@
  * Uses Node.js crypto (NOT WebCrypto which hangs in Netlify)
  */
 import { createSign } from 'node:crypto';
+import { corsHeaders as _corsHeaders } from './shared/cors-esm.js';
 
 /* ── Claude Model Constants ── */
 const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
@@ -183,12 +184,7 @@ async function _checkRL(token, endpoint) {
 
 /* ── Handler ── */
 export default async (req) => {
-  const CORS = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const CORS = _corsHeaders(req);
 
   if (req.method === 'OPTIONS') return new Response('', { status: 204, headers: CORS });
 
