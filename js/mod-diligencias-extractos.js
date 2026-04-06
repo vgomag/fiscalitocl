@@ -921,67 +921,40 @@ function renderParrafosModelo(text){
   content.innerHTML=`<div style="max-height:500px;overflow-y:auto;font-family:var(--font-serif);font-size:13.5px;line-height:1.8;color:var(--text);white-space:pre-wrap;padding:4px 0">${esc(text)}</div>`;
 }
 
-/* ── Helper: SSE streaming fetch for vista generation ── */
-async function _streamVistaFetch(url,body,fetchFn,onProgress){
-  const r=await fetchFn(url,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body)
-  });
+/* ── System prompt para generación de considerandos individuales ──
+   Replica la arquitectura de Lovable v1 (generate-diligencia-relato):
+   UNA llamada por CADA diligencia → garantiza cobertura completa */
+const _CONSIDERANDO_SYSTEM=`Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
 
-  if(!r.ok){
-    let errMsg='HTTP '+r.status;
-    try{const t=await r.text();try{const j=JSON.parse(t);errMsg+=' — '+(j.error||j.message||t);}catch(_){errMsg+=' — '+(t||'sin detalle');}}catch(_){}
-    throw new Error(errMsg);
-  }
+Tu tarea es redactar UN SOLO considerando (numeral) para una vista fiscal / informe de la investigadora, basándote en UNA diligencia específica del expediente.
 
-  /* Parse SSE stream */
-  const reader=r.body.getReader();
-  const decoder=new TextDecoder();
-  let accumulated='';
-  let buffer='';
-  let meta={};
-  let currentEvent='';
+FORMATO OBLIGATORIO DEL CONSIDERANDO:
+- Iniciar con el número indicado seguido de punto y tabulación, luego "Que,": por ejemplo "3.      Que, de fojas XX a YY del expediente, consta [tipo de documento], de fecha [FECHA], [DESCRIPCION DETALLADA];"
+- DESARROLLAR EN EXTENSO el contenido de la diligencia (mínimo 150 palabras, ideal 250-400 palabras)
+- Nombres completos con tratamiento formal ("doña", "don")
+- Cargos institucionales, RUT si consta, calidad procesal
+- Fechas exactas en formato extenso ("de fecha 25 de octubre de 2024")
+- Si es declaración: resumir con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...")
+- Si es documento administrativo: describir contenido y relevancia procesal
+- Expresiones obligatorias: "obra", "rola", "consta", "se desprende", "se advierte", "de fojas XX a YY del expediente"
+- El considerando termina con punto y coma (;)
+- NO resumir telegráficamente. El considerando debe ser un párrafo COMPLETO y DETALLADO.
+- NUNCA usar formato Markdown (ni **, ni ##, ni -, ni *). Texto plano formal.
+- Redacción en TERCERA PERSONA, formal, jurídica, administrativa.
+- Vocabulario jurídico-administrativo chileno: "rolan", "obran", "constan", "se desprende de autos", "atendido lo expuesto".
+- NO inventar hechos ni pruebas que no estén en el contenido proporcionado.
+- Usar "[COMPLETAR]" o "[NO CONSTA]" donde falte información.
+- Los testimonios de oídas se identifican expresamente como tales.
 
-  while(true){
-    const{done,value}=await reader.read();
-    if(done)break;
+Devuelve SOLAMENTE el texto del considerando, sin explicaciones adicionales, sin preámbulos, sin comentarios.`;
 
-    buffer+=decoder.decode(value,{stream:true});
-    const lines=buffer.split('\n');
-    buffer=lines.pop()||''; // keep incomplete line
-
-    for(const line of lines){
-      if(line.startsWith('event: ')){
-        currentEvent=line.slice(7).trim();
-      } else if(line.startsWith('data: ')){
-        const dataStr=line.slice(6);
-        if(currentEvent==='meta'){
-          try{meta=JSON.parse(dataStr);}catch(e){}
-        } else {
-          try{
-            const parsed=JSON.parse(dataStr);
-            if(parsed.type==='content_block_delta'&&parsed.delta&&parsed.delta.type==='text_delta'){
-              accumulated+=parsed.delta.text;
-              if(onProgress)onProgress(accumulated);
-            }
-          }catch(e){/* non-JSON SSE line, ignore */}
-        }
-        currentEvent=''; // reset after processing data
-      }
-    }
-  }
-
-  return {text:accumulated,meta:meta};
-}
-
-/* ── Generar párrafos con IA ── */
+/* ── Generar párrafos con IA (enfoque POR DILIGENCIA — replica Lovable v1) ── */
 async function generateParrafosModelo(){
   if(!currentCase||!session)return;
   const btn=document.getElementById('btnGenParrafos');
   const content=document.getElementById('parrafosModeloContent');
   if(btn){btn.disabled=true;btn.textContent='⏳ Generando…';}
-  if(content){content.innerHTML='<div class="loading">Generando párrafos modelo desde las diligencias… (puede tomar 30-60s)</div>';}
+  if(content){content.innerHTML='<div class="loading">Preparando generación de considerandos… (una llamada por diligencia)</div>';}
 
   const _fetchFn=typeof authFetch==='function'?authFetch:fetch;
 
@@ -994,7 +967,11 @@ async function generateParrafosModelo(){
       .order('order_index',{ascending:true})
       .order('fecha_diligencia',{ascending:true});
 
-    if(!dils?.length){showToast('⚠️ No hay diligencias con contenido procesado');return;}
+    if(!dils?.length){
+      showToast('⚠️ No hay diligencias con contenido procesado');
+      if(btn){btn.disabled=false;btn.textContent='📑 Generar párrafos';}
+      return;
+    }
 
     /* 2. Cargar participantes del caso */
     let participants=[];
@@ -1005,79 +982,160 @@ async function generateParrafosModelo(){
       if(parts)participants=parts;
     }catch(e){console.warn('Participantes:',e);}
 
-    /* 3. Cargar cronología */
-    let chronology=[];
-    try{
-      const{data:cron}=await sb.from('cronologia')
-        .select('event_date,event_type,description')
-        .eq('case_id',currentCase.id)
-        .order('event_date',{ascending:true})
-        .limit(20);
-      if(cron)chronology=cron.map(c=>({event_date:c.event_date,title:c.event_type||c.description||'',description:c.description||''}));
-    }catch(e){console.warn('Cronología:',e);}
-
-    /* 4. Preparar diligencias con formato para generate-vista */
-    const diligenciasPayload=dils.map(d=>{
-      const fojas=d.fojas_inicio?
-        (d.fojas_fin&&d.fojas_fin!==d.fojas_inicio?`${d.fojas_inicio}-${d.fojas_fin}`:`${d.fojas_inicio}`):
-        '';
-      return {
-        diligencia_type:d.diligencia_type,
-        diligencia_label:d.diligencia_label||d.file_name||'Documento',
-        file_name:d.file_name,
-        fojas:fojas,
-        fojas_inicio:d.fojas_inicio,
-        fojas_fin:d.fojas_fin,
-        fecha_diligencia:d.fecha_diligencia,
-        ai_summary:d.ai_summary||'',
-        extracted_text:d.extracted_text||''
-      };
-    });
-
-    if(content){content.innerHTML=`<div class="loading">⏳ Enviando ${dils.length} diligencias a generate-vista-stream (modo hechos)…</div>`;}
-
-    /* 5. Llamada STREAMING a generate-vista-stream — evita timeout de Netlify
-       La función ESM devuelve SSE events que se acumulan en el cliente */
-    const vistaPayload={
-      mode:'hechos',
-      caseData:{
-        id:currentCase.id,
-        name:currentCase.name,
-        rol:currentCase.rol||'',
-        nueva_resolucion:currentCase.nueva_resolucion||currentCase.rol||'',
-        caratula:currentCase.caratula||'',
-        tipo_procedimiento:currentCase.tipo_procedimiento||'',
-        protocolo:currentCase.protocolo||'',
-        materia:currentCase.materia||'',
-        fecha_denuncia:currentCase.fecha_denuncia||'',
-        fecha_resolucion:currentCase.fecha_resolucion||'',
-        observaciones:currentCase.observaciones||''
-      },
-      diligencias:diligenciasPayload,
-      participants:participants,
-      chronology:chronology
-    };
-
-    const{text:paragraphs,meta:streamMeta}=await _streamVistaFetch(
-      '/.netlify/functions/generate-vista-stream',
-      vistaPayload,
-      _fetchFn,
-      (partial)=>{
-        if(content){
-          const charCount=partial.length;
-          const kbCount=(charCount/1024).toFixed(1);
-          content.innerHTML=`<div class="loading">⏳ Generando considerandos… ${kbCount} KB recibidos</div>`;
-        }
-      }
-    );
-
-    if(!paragraphs||paragraphs.length<50){
-      throw new Error('No se generaron párrafos (respuesta vacía del servidor)');
+    /* 3. Construir contexto breve del caso (se envía en cada llamada) */
+    let caseCtx=`EXPEDIENTE: ${currentCase.name||'Sin nombre'}\n`;
+    caseCtx+=`ROL: ${currentCase.nueva_resolucion||currentCase.rol||'—'}\n`;
+    caseCtx+=`Carátula: ${currentCase.caratula||'—'}\n`;
+    caseCtx+=`Tipo procedimiento: ${currentCase.tipo_procedimiento||'—'}\n`;
+    caseCtx+=`Protocolo: ${currentCase.protocolo||'—'}\n`;
+    caseCtx+=`Materia: ${currentCase.materia||'—'}\n`;
+    caseCtx+=`Fecha denuncia: ${currentCase.fecha_denuncia||'—'}\n`;
+    caseCtx+=`Fecha resolución instructora: ${currentCase.fecha_resolucion||'—'}\n\n`;
+    if(participants.length){
+      caseCtx+='PARTICIPANTES:\n';
+      participants.forEach(p=>{
+        caseCtx+=`- ${p.name||'?'} (${p.role||'?'})`;
+        if(p.estamento)caseCtx+=` — Estamento: ${p.estamento}`;
+        if(p.carrera)caseCtx+=` — Carrera: ${p.carrera}`;
+        caseCtx+='\n';
+      });
+      caseCtx+='\n';
     }
 
-    console.log('Párrafos generados:',paragraphs.length,'chars, modelos usados:',streamMeta.modelsUsed||[]);
+    /* 4. Generar UN considerando por CADA diligencia (secuencial) */
+    const considerandos=[];
+    let errCount=0;
 
-    /* 7. Persistir en case_metadata (upsert) */
+    for(let i=0;i<dils.length;i++){
+      const d=dils[i];
+      const num=i+1;
+      const fojas=d.fojas_inicio?
+        (d.fojas_fin&&d.fojas_fin!==d.fojas_inicio?`${d.fojas_inicio}-${d.fojas_fin}`:`${d.fojas_inicio}`):
+        '[SIN FOJAS]';
+      const label=d.diligencia_label||d.file_name||'Documento';
+
+      if(content){
+        content.innerHTML=`<div class="loading">⏳ Generando considerando ${num} de ${dils.length}: <strong>${esc(label)}</strong>…<br><small style="opacity:.6">${considerandos.length} completados${errCount?' ('+errCount+' con error)':''}</small></div>`;
+      }
+
+      /* Si no hay contenido, generar placeholder */
+      const dilText=d.extracted_text||d.ai_summary||'';
+      if(!dilText){
+        considerandos.push(`${num}.      Que, de fojas ${fojas} del expediente, consta ${label}${d.fecha_diligencia?', de fecha '+d.fecha_diligencia:''}. [SIN CONTENIDO EXTRAÍDO — completar manualmente];`);
+        continue;
+      }
+
+      /* Construir mensaje de usuario con contexto del caso + contenido de la diligencia */
+      const userMsg=`${caseCtx}TOTAL DE DILIGENCIAS EN EL EXPEDIENTE: ${dils.length}
+
+DILIGENCIA A PROCESAR (N°${num} de ${dils.length}):
+Tipo: ${d.diligencia_type||'—'}
+Etiqueta: ${label}
+Fojas: ${fojas}
+Fecha: ${d.fecha_diligencia||'[NO CONSTA]'}
+
+CONTENIDO COMPLETO DE LA DILIGENCIA:
+${dilText.slice(0,10000)}${dilText.length>10000?'\n[... texto truncado, original: '+dilText.length+' caracteres]':''}
+
+Genera el considerando N°${num} para esta diligencia. Usa el formato: "${num}.      Que, de fojas ${fojas} del expediente, consta..."
+Recuerda: párrafo detallado, extenso, formal, jurídico-administrativo chileno. Termina con punto y coma (;).`;
+
+      /* Llamada a chat.js — UNA por diligencia (como generate-diligencia-relato de Lovable v1) */
+      let retries=0;
+      const maxRetries=2;
+      let success=false;
+
+      while(retries<=maxRetries&&!success){
+        try{
+          const r=await _fetchFn('/.netlify/functions/chat',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              system:_CONSIDERANDO_SYSTEM,
+              messages:[{role:'user',content:userMsg}],
+              max_tokens:4000,
+              stream:false
+            })
+          });
+
+          if(!r.ok){
+            const errText=await r.text().catch(()=>'');
+            console.warn(`Considerando ${num} HTTP ${r.status}:`,errText);
+            if(r.status===429&&retries<maxRetries){
+              /* Rate limit — esperar y reintentar */
+              retries++;
+              await new Promise(w=>setTimeout(w,5000*retries));
+              continue;
+            }
+            throw new Error(`HTTP ${r.status}`);
+          }
+
+          const result=await r.json();
+
+          /* Extraer texto de la respuesta de Anthropic */
+          let text='';
+          if(result.content&&Array.isArray(result.content)){
+            text=result.content.filter(b=>b.type==='text').map(b=>b.text||'').join('');
+          } else if(typeof result.content==='string'){
+            text=result.content;
+          } else if(result.text){
+            text=result.text;
+          }
+
+          if(text&&text.trim().length>30){
+            /* Asegurar que empiece con el número correcto */
+            let cleaned=text.trim();
+            /* Si el modelo devolvió un número diferente, corregirlo */
+            const numMatch=cleaned.match(/^\d+\.\s+/);
+            if(numMatch&&!cleaned.startsWith(num+'.')){
+              cleaned=cleaned.replace(/^\d+\.\s+/,num+'.      ');
+            } else if(!numMatch){
+              cleaned=num+'.      '+cleaned;
+            }
+            /* Asegurar que termine con ; */
+            if(!cleaned.endsWith(';')&&!cleaned.endsWith('.')){
+              cleaned+=';';
+            }
+            considerandos.push(cleaned);
+            success=true;
+          } else {
+            throw new Error('Respuesta vacía');
+          }
+
+        }catch(err){
+          if(retries<maxRetries){
+            retries++;
+            console.warn(`Considerando ${num} intento ${retries} falló:`,err.message);
+            await new Promise(w=>setTimeout(w,2000*retries));
+          } else {
+            errCount++;
+            console.warn(`Considerando ${num} falló tras ${maxRetries+1} intentos:`,err.message);
+            considerandos.push(`${num}.      Que, de fojas ${fojas} del expediente, consta ${label}${d.fecha_diligencia?', de fecha '+d.fecha_diligencia:''}. [ERROR DE GENERACIÓN: ${err.message} — completar manualmente];`);
+            success=true; // move on
+          }
+        }
+      }
+
+      /* Pausa entre llamadas para evitar rate limit (1s) */
+      if(i<dils.length-1) await new Promise(w=>setTimeout(w,1000));
+    }
+
+    /* 5. Combinar todos los considerandos */
+    if(considerandos.length===0){
+      throw new Error('No se generó ningún considerando');
+    }
+
+    /* El último considerando termina con punto (.) en vez de punto y coma (;) */
+    let lastC=considerandos[considerandos.length-1];
+    if(lastC.endsWith(';')){
+      considerandos[considerandos.length-1]=lastC.slice(0,-1)+'.';
+    }
+
+    const paragraphs='C O N S I D E R A N D O:\n\n'+considerandos.join('\n\n');
+
+    console.log(`Párrafos generados: ${paragraphs.length} chars, ${considerandos.length} considerandos, ${errCount} errores`);
+
+    /* 6. Persistir en case_metadata (upsert) */
     const{data:existing}=await sb.from('case_metadata')
       .select('id')
       .eq('case_id',currentCase.id)
@@ -1096,11 +1154,9 @@ async function generateParrafosModelo(){
       });
     }
 
-    /* 8. Renderizar */
+    /* 7. Renderizar */
     renderParrafosModelo(paragraphs);
-    showToast(`✅ ${dils.length} párrafos modelo generados`);
-
-    /* Update buttons */
+    showToast(`✅ ${considerandos.length} considerandos generados${errCount?' ('+errCount+' con error)':''}`);
     _updateParrafosBtns();
 
   }catch(err){
