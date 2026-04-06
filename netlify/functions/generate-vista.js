@@ -11,6 +11,7 @@
 const https = require('https');
 const { callAnthropic: _sharedCall, MODEL_SONNET } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 const { buildSharedDirectives, MODELO_SANCION, MODELO_SOBRESEIMIENTO, PARRAFOS_MODELO, HUMAN_WRITING_STYLE, PRECISION_JURIDICA, getNormativeContext } = require('./shared/writing-style');
 
 /* Wrapper que usa Sonnet con timeout largo para generación de vistas */
@@ -566,11 +567,7 @@ function buildSystemPrompt(mode, participants) {
 }
 
 exports.handler = async (event) => {
-  const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const CORS = corsHeaders(event);
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };

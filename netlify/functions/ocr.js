@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const https = require('https');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 const { MODEL_SONNET, MODEL_HAIKU } = require('./shared/anthropic');
 const { PRECISION_JURIDICA } = require('./shared/writing-style');
 
@@ -116,7 +117,7 @@ function callClaude(apiKey, model, system, userContent, maxTokens) {
 
 const SONNET = MODEL_SONNET;
 const HAIKU = MODEL_HAIKU;
-const H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+/* H is set per-request in the handler via corsHeaders(event) */
 
 /**
  * OCR — Extracción de texto y análisis de diligencias con Claude Vision.
@@ -138,6 +139,7 @@ const H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '
  * @rateLimit 60 req/hora por usuario
  */
 exports.handler = async (event) => {
+  const H = corsHeaders(event);
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: H, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: H, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 

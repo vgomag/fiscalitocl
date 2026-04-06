@@ -194,7 +194,7 @@
   };
 
   window.crudEditDiligencia = function(id) {
-    fetch(SB_URL+'/rest/v1/diligencias?id=eq.'+id+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
+    fetch(SB_URL+'/rest/v1/diligencias?id=eq.'+encodeURIComponent(id)+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
       var d = rows[0]; if(!d) return;
       showEditModal('Editar Diligencia', [
         {key:'diligencia_label',label:'Título / Descripción',type:'textarea',value:d.diligencia_label},
@@ -211,7 +211,7 @@
         await sbPatchRow('diligencias', id, data);
         if(typeof loadDiligencias==='function') loadDiligencias();
       });
-    });
+    }).catch(function(e){console.error('[CRUD]',e);alert('Error al cargar diligencia: '+e.message);});
   };
 
   window.crudDelDiligencia = function(id) {
@@ -267,7 +267,7 @@
   };
 
   window.crudEditCronologia = function(id) {
-    fetch(SB_URL+'/rest/v1/cronologia?id=eq.'+id+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
+    fetch(SB_URL+'/rest/v1/cronologia?id=eq.'+encodeURIComponent(id)+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
       var d = rows[0]; if(!d) return;
       showEditModal('Editar Evento', [
         {key:'title',label:'Título',type:'text',value:d.title||''},
@@ -283,7 +283,7 @@
         await sbPatchRow('cronologia', id, data);
         if(typeof loadCronologia==='function') loadCronologia();
       });
-    });
+    }).catch(function(e){console.error('[CRUD]',e);alert('Error al cargar evento: '+e.message);});
   };
 
   window.crudDelCronologia = function(id) {
@@ -350,7 +350,7 @@
   };
 
   window.crudEditParticipante = function(id) {
-    fetch(SB_URL+'/rest/v1/case_participants?id=eq.'+id+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
+    fetch(SB_URL+'/rest/v1/case_participants?id=eq.'+encodeURIComponent(id)+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
       var d = rows[0]; if(!d) return;
       showEditModal('Editar Participante', [
         {key:'name',label:'Nombre completo',type:'text',value:d.name||''},
@@ -366,7 +366,7 @@
         if(typeof loadParticipantes==='function') loadParticipantes();
         delete window._caseContextCache[window._currentDriveCase?.id];
       });
-    });
+    }).catch(function(e){console.error('[CRUD]',e);alert('Error al cargar participante: '+e.message);});
   };
 
   window.crudDelParticipante = function(id) {
@@ -421,7 +421,7 @@
   };
 
   window.crudEditAccion = function(id) {
-    fetch(SB_URL+'/rest/v1/acciones_pendientes?id=eq.'+id+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
+    fetch(SB_URL+'/rest/v1/acciones_pendientes?id=eq.'+encodeURIComponent(id)+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
       var d = rows[0]; if(!d) return;
       showEditModal('Editar Acción', [
         {key:'title',label:'Título',type:'text',value:d.title||''},
@@ -437,7 +437,7 @@
         await sbPatchRow('acciones_pendientes', id, data);
         if(typeof loadAcciones==='function') loadAcciones();
       });
-    });
+    }).catch(function(e){console.error('[CRUD]',e);alert('Error al cargar acción: '+e.message);});
   };
 
   window.crudDelAccion = function(id) {
@@ -466,7 +466,7 @@
   }
 
   window.crudEditResolucion = function(id) {
-    fetch(SB_URL+'/rest/v1/resoluciones?id=eq.'+id+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
+    fetch(SB_URL+'/rest/v1/resoluciones?id=eq.'+encodeURIComponent(id)+'&select=*',{headers:sbH()}).then(r=>r.json()).then(function(rows) {
       var d = rows[0]; if(!d) return;
       showEditModal('Editar Resolución', [
         {key:'resolution_type',label:'Tipo',type:'select',value:d.resolution_type||'inicio',options:[
@@ -483,7 +483,7 @@
         await sbPatchRow('resoluciones', id, data);
         if(typeof loadResoluciones==='function') loadResoluciones();
       });
-    });
+    }).catch(function(e){console.error('[CRUD]',e);alert('Error al cargar resolución: '+e.message);});
   };
 
   window.crudDelResolucion = function(id) {

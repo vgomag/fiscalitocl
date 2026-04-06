@@ -14,6 +14,7 @@
 const crypto = require('crypto');
 const https = require('https');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 
 /* ── JWT Auth (mismo patrón que drive.js, scope diferente) ── */
 function base64url(buf) {
@@ -108,13 +109,7 @@ function sheetsRequest(method, path, token, body) {
   });
 }
 
-/* ── CORS headers ── */
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-};
+/* CORS headers are set per-request via corsHeaders(event) */
 
 /**
  * Sheets — Operaciones con Google Sheets para numeración y referencias documentales.
@@ -139,6 +134,7 @@ const CORS = {
 
 /* ── Handler ── */
 exports.handler = async (event) => {
+  const CORS = corsHeaders(event);
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'POST only' }) };
 

@@ -12,6 +12,7 @@
 const https = require('https');
 const { callAnthropic } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 const { buildLightDirectives } = require('./shared/writing-style');
 
 /* ── Etapas procesales ordenadas ── */
@@ -68,11 +69,9 @@ const METADATA_PATTERNS = {
   ]
 };
 
+/* json() helper — not used in CJS handler, kept for reference */
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-  });
+  return { statusCode: status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
 }
 
 /* ── Detectar etapa sugerida por patrones de texto ── */
@@ -131,11 +130,7 @@ function extractMetadata(texts) {
  * @rateLimit 60 req/hora por usuario
  */
 exports.handler = async (event) => {
-  const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const CORS = corsHeaders(event);
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };
@@ -168,7 +163,7 @@ exports.handler = async (event) => {
       if (!texts.length) {
         return {
           statusCode: 200,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          headers: CORS,
           body: JSON.stringify({ suggestedStage: null, metadata: {}, message: 'Sin textos de diligencias para analizar' })
         };
       }
@@ -207,7 +202,7 @@ ${buildLightDirectives()}`;
 
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: CORS,
         body: JSON.stringify({
           suggestedStage: finalStage,
           patternStage: suggestedStage,
@@ -236,7 +231,7 @@ ${buildLightDirectives()}`;
 
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: CORS,
         body: JSON.stringify({ results, processed: results.length })
       };
     }

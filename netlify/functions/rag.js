@@ -4,6 +4,7 @@
  * Uses Node.js crypto module for JWT signing (proven to work)
  */
 import { createSign } from 'node:crypto';
+import { corsHeaders as _corsHeaders } from './shared/cors-esm.js';
 
 /* ── Google Service Account OAuth2 ── */
 function base64url(str) {
@@ -183,7 +184,7 @@ async function _checkRL(token, endpoint) {
 
 /* ── Handler ── */
 export default async (req) => {
-  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+  const headers = _corsHeaders(req);
 
   if (req.method === 'OPTIONS') return new Response('', { status: 204, headers });
   if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers });

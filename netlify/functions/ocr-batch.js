@@ -9,6 +9,7 @@
 const https = require('https');
 const { base64url, callAnthropicVision } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 
 async function getAccessToken(sa) {
   const now = Math.floor(Date.now() / 1000);
@@ -111,11 +112,7 @@ async function ocrWithRetry(apiKey, base64Data, mimeType, fileName, maxRetries =
  * @rateLimit 30 req/hora por usuario
  */
 exports.handler = async (event) => {
-  const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const CORS = corsHeaders(event);
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };

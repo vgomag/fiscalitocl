@@ -34,12 +34,12 @@ function extractUserIdFromToken(token) {
 
 async function checkRateLimit(userId, endpoint) {
   const maxReq = RATE_LIMITS[endpoint] || RATE_LIMITS['default'];
-  const fallback = { allowed: true, remaining: maxReq, current: 0, limit: maxReq, reset_at: '' };
-  if (!userId) return fallback;
+  const denied = { allowed: false, remaining: 0, current: maxReq, limit: maxReq, reset_at: '' };
+  if (!userId) return denied;
 
   const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-  if (!sbUrl || !sbKey) return fallback;
+  if (!sbUrl || !sbKey) { console.warn('[rate-limit] Missing Supabase config — denying request'); return denied; }
 
   try {
     const _ac = new AbortController();
@@ -52,7 +52,7 @@ async function checkRateLimit(userId, endpoint) {
     });
     clearTimeout(_to);
     if (!r.ok) { console.warn('[rate-limit] RPC error:', r.status); return { allowed: false, remaining: 0, current: maxReq, limit: maxReq, reset_at: '' }; }
-    return (await r.json()) || fallback;
+    return (await r.json()) || denied;
   } catch (err) {
     console.warn('[rate-limit] Error:', err.message);
     return { allowed: false, remaining: 0, current: maxReq, limit: maxReq, reset_at: '' };

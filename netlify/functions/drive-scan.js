@@ -11,6 +11,7 @@
 const https = require('https');
 const crypto = require('crypto');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 
 /* ══════════════════════════════════
    GOOGLE DRIVE AUTH (Service Account)
@@ -189,12 +190,7 @@ function supabaseFetch(url, serviceKey, path, method, body){
  * @scheduled Puede ejecutarse cada 15 minutos vía cron de Netlify
  */
 exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const headers = corsHeaders(event);
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 

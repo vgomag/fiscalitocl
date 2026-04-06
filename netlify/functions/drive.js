@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const https = require('https');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 
 function base64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -194,12 +195,7 @@ async function readFile(fileId, token) {
  * @rateLimit 60 req/hora por usuario
  */
 exports.handler = async (event) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const headers = corsHeaders(event);
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
@@ -211,7 +207,7 @@ exports.handler = async (event) => {
     try {
       body = JSON.parse(event.body || '{}');
     } catch (parseErr) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON in request body: ' + parseErr.message }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Formato de solicitud inválido' }) };
     }
     const bodyStr = JSON.stringify(body);
     if (bodyStr.length > 1000000) {
@@ -227,14 +223,22 @@ exports.handler = async (event) => {
     try {
       sa = JSON.parse(saJson);
     } catch (parseErr) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY is malformed JSON' }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Error de configuración del servidor' }) };
     }
     const token = await getAccessToken(sa);
     const { action } = body;
 
+    // Validar que IDs de Drive solo contengan caracteres seguros
+    const SAFE_ID = /^[a-zA-Z0-9_-]{10,80}$/;
+    function validateDriveId(id, name) {
+      if (id && !SAFE_ID.test(id)) return { statusCode: 400, headers, body: JSON.stringify({ error: name + ' contiene caracteres inválidos' }) };
+      return null;
+    }
+
     if (action === 'list') {
       const { folderId, recursive } = body;
       if (!folderId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'folderId requerido' }) };
+      var idErr = validateDriveId(folderId, 'folderId'); if (idErr) return idErr;
 
       if (recursive) {
         const maxDepth = body.maxDepth || 3;

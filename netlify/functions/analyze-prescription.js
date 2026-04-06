@@ -15,6 +15,7 @@
 const https = require('https');
 const { callAnthropic } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
+const { corsHeaders } = require('./shared/cors');
 const { buildLightDirectives } = require('./shared/writing-style');
 
 /* ── Plazos de prescripción por tipo (en días) ── */
@@ -337,11 +338,7 @@ function analyzePrescription(caseData, diligencias, etapas) {
  */
 
 exports.handler = async (event) => {
-  const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+  const CORS = corsHeaders(event);
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };
