@@ -1622,6 +1622,9 @@ function buildFnList(){
 }
 
 /* ── Cases ── */
+/* Mapa case_id → cantidad de diligencias (piezas del expediente) */
+let _dilCountMap={};
+
 async function loadCases(){
   if(!session)return;
   const{data,error}=await sb.from('cases').select('*').is('deleted_at',null).order('updated_at',{ascending:false});
@@ -1629,6 +1632,30 @@ async function loadCases(){
   allCases=data||[];
   renderCaseList();
   updateCatCounts();
+  /* Cargar conteo de diligencias por caso en background */
+  loadDilCounts();
+}
+
+async function loadDilCounts(){
+  try{
+    const{data,error}=await sb.rpc('count_diligencias_by_case');
+    if(!error&&data){
+      _dilCountMap={};
+      data.forEach(r=>{_dilCountMap[r.case_id]=r.count;});
+      /* Re-renderizar tabla si estamos en pestaña que muestra conteo */
+      renderTabla();
+    } else {
+      /* Fallback: query manual por cada caso activo (menos eficiente) */
+      const activeCaseIds=allCases.filter(c=>['probatorio','finalizacion','cargos'].includes(getCaseCat(c))).map(c=>c.id);
+      if(!activeCaseIds.length)return;
+      const{data:dils}=await sb.from('diligencias').select('case_id').in('case_id',activeCaseIds);
+      if(dils){
+        _dilCountMap={};
+        dils.forEach(d=>{_dilCountMap[d.case_id]=(_dilCountMap[d.case_id]||0)+1;});
+        renderTabla();
+      }
+    }
+  }catch(e){console.warn('Error cargando conteo diligencias:',e);}
 }
 
 function renderCaseList(){
@@ -2140,6 +2167,7 @@ function renderTabla(searchOverride){
         <th onclick="sortTabla('estado_procedimiento')">Etapa ↕</th>
         <th onclick="sortTabla('materia')">Materia ↕</th>
         <th onclick="sortTabla('protocolo')">Normativa ↕</th>
+        <th onclick="sortTabla('_dilCount')" title="Cantidad de piezas/diligencias en el expediente">Piezas ↕</th>
         <th onclick="sortTabla('judicializada')">Judicializada ↕</th>
         <th onclick="sortTabla('medida_cautelar')">M. Cautelar ↕</th>
         <th onclick="sortTabla('propuesta')">Propuesta ↕</th>
