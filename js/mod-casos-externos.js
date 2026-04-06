@@ -1099,10 +1099,11 @@
       var fact = typeof f === 'string' ? f : (f.fact || f.description || '');
       var relevance = typeof f === 'object' ? (f.relevance || f.relevancia || 'media') : 'media';
       var color = relevance === 'alta' ? 'var(--red)' : (relevance === 'media' ? 'var(--gold)' : 'var(--text-muted)');
+      var bgColor = relevance === 'alta' ? 'rgba(239,68,68,0.1)' : (relevance === 'media' ? 'rgba(79,70,229,0.1)' : 'rgba(156,163,175,0.1)');
       return '<div style="display:flex;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:5px;border-left:3px solid ' + color + ';">'
         + '<span style="font-size:11px;font-weight:600;color:var(--text-muted);min-width:20px;">' + (i + 1) + '</span>'
         + '<div style="flex:1;font-size:12px;color:var(--text);line-height:1.5;">' + _escHtml(fact) + '</div>'
-        + '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:' + color + '15;color:' + color + ';white-space:nowrap;height:fit-content;">' + relevance + '</span>'
+        + '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:' + bgColor + ';color:' + color + ';white-space:nowrap;height:fit-content;">' + relevance + '</span>'
         + '</div>';
     }).join('');
 
@@ -1174,7 +1175,7 @@
         + '<div><div style="font-size:14px;font-weight:600;color:var(--text);">' + s.title + '</div>'
         + '<div style="font-size:11px;color:var(--text-muted);">' + s.description + '</div></div>'
         + '<div style="display:flex;align-items:center;gap:8px;">'
-        + (content ? '<span style="font-size:10px;padding:3px 8px;background:var(--green)15;color:var(--green);border-radius:10px;">✓ Completada</span>' : '')
+        + (content ? '<span style="font-size:10px;padding:3px 8px;background:rgba(5,150,105,0.1);color:var(--green);border-radius:10px;">✓ Completada</span>' : '')
         + '<button onclick="event.stopPropagation();window._ceGenerateSection(\'' + s.id + '\')" style="padding:5px 12px;background:var(--gold);color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit;" ' + (isGenerating ? 'disabled' : '') + '>'
         + (isGenerating ? '⏳ Generando…' : '▶ Generar') + '</button>'
         + '</div></div>'
@@ -1235,12 +1236,12 @@
       return;
     }
 
-    el.innerHTML = ce.chatMessages.map(function (m) {
+    el.innerHTML = ce.chatMessages.map(function (m, idx) {
       var isUser = m.role === 'user';
       return '<div style="display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start') + ';">'
         + '<div style="max-width:80%;padding:10px 14px;border-radius:' + (isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px') + ';background:' + (isUser ? 'var(--gold)' : 'var(--surface2)') + ';color:' + (isUser ? '#fff' : 'var(--text)') + ';font-size:13px;line-height:1.6;border:' + (isUser ? 'none' : '1px solid var(--border)') + ';">'
         + (isUser ? _escHtml(m.content) : _markdownToHtml(m.content))
-        + (!isUser && m.content ? '<div style="margin-top:6px;display:flex;gap:6px;"><button onclick="navigator.clipboard.writeText(this.closest(\'[data-msg]\').dataset.msg);showToast(\'✓ Copiado\')" data-msg="' + _escHtml(m.content).replace(/"/g, '&quot;') + '" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📋 Copiar</button></div>' : '')
+        + (!isUser && m.content ? '<div style="margin-top:6px;display:flex;gap:6px;"><button onclick="window._ceCopyMsg(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📋 Copiar</button></div>' : '')
         + '</div></div>';
     }).join('');
 
@@ -1365,6 +1366,12 @@
     _sendChatMessage();
   };
   window._ceClearChat = _clearChat;
+  window._ceCopyMsg = function (idx) {
+    var msg = ce.chatMessages[idx];
+    if (msg && msg.content) {
+      navigator.clipboard.writeText(msg.content).then(function () { showToast('✓ Copiado'); });
+    }
+  };
   window._ceToggleWritings = function () { ce.showWritingsPanel = !ce.showWritingsPanel; _renderChat(); };
   window._ceRenderWritings = _renderWritings;
   window._ceGenerateWriting = _generateWriting;
