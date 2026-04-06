@@ -11,7 +11,10 @@ const FINALIZATION_STAGES = new Set([
   'vista','vista fiscal','resolución','resolucion','finalización','finalizacion','término','termino','cerrado'
 ]);
 const CARGOS_STAGES = new Set([
-  'cargos','descargos','prueba','discusión','discusion','término probatorio'
+  'cargos','descargos','discusión','discusion'
+]);
+const PROBATORIO_STAGES = new Set([
+  'prueba','probatorio','término probatorio','termino probatorio','periodo probatorio','apertura probatorio'
 ]);
 
 /* Regex para detectar caso de género por nombre/rol (ej: "56 G", "123-G", "45G") */
@@ -107,6 +110,7 @@ function getCaseCatEnhanced(c){
   const stage = etapasMap[c.id] || (c.estado_procedimiento || '').toLowerCase().trim();
   if(stage){
     if(FINALIZATION_STAGES.has(stage)) return 'finalizacion';
+    if(PROBATORIO_STAGES.has(stage)) return 'probatorio';
     if(CARGOS_STAGES.has(stage)) return 'cargos';
   }
 

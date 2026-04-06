@@ -604,6 +604,7 @@ async function analyzeExpediente(dilId){
           fojas_inicio:d.fojas?parseInt(d.fojas.split('-')[0]):d.pageStart||null,
           fojas_fin:d.fojas?parseInt(d.fojas.split('-')[1]):d.pageEnd||null,
           ai_summary:d.resumen||null,
+          parrafo_vista:d.parrafo_vista||null,
           is_processed:true,
           processing_status:'completed',
           order_index:i+1,

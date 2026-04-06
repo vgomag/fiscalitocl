@@ -193,12 +193,13 @@ Analiza el texto de un expediente e identifica CADA DILIGENCIA que consta en él
 TIPOS: denuncia, resolucion_inicio, resolucion, declaracion_denunciante, declaracion_denunciado, declaracion_testigo, oficio, informe, acta, notificacion, prueba_documental, cargos, descargos, vista_fiscal, otro
 
 RESPONDE SOLO JSON puro (sin backticks ni markdown). Array de objetos:
-[{"tipo":"declaracion_testigo","titulo":"Declaracion de Juan Perez, testigo","fecha":"2024-03-15","fojas":"15-22","personas":["Juan Perez"],"resumen":"El testigo declara haber presenciado los hechos...","relevancia":"alta"}]
+[{"tipo":"declaracion_testigo","titulo":"Declaracion de Juan Perez, testigo","fecha":"2024-03-15","fojas":"15-22","personas":["Juan Perez"],"resumen":"El testigo declara haber presenciado los hechos...","relevancia":"alta","parrafo_vista":"Que, a fojas 15 a 22 del expediente, consta la declaración testimonial de don Juan Pérez, funcionario de la Universidad, quien señala haber presenciado directamente los hechos denunciados..."}]
 
 - fecha: YYYY-MM-DD o null
 - fojas: rango de paginas o null
 - resumen: max 2 oraciones
 - relevancia: alta (declaraciones, cargos, vista fiscal, denuncia), media (oficios, resoluciones, informes), baja (actas rutinarias, notificaciones)
+- parrafo_vista: párrafo formal para Vista Fiscal. OBLIGATORIO. Comienza con "Que," seguido de minúscula. Cita fojas. Lenguaje jurídico-administrativo chileno formal. Tercera persona impersonal ("consta", "rola", "obra en autos"). Sin markdown. Extensión según tipo: declaraciones/denuncias 15-30 oraciones con relato completo; informes/cargos 8-15 oraciones; actas/oficios 5-8 oraciones.
 - NO inventes diligencias. Solo las que constan en el texto.
 - Identifica TODAS, incluso las menores.
 
