@@ -773,6 +773,10 @@ async function viewDiligenciaDetail(dilId){
       <div style="font-size:10px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Resumen IA</div>
       <div style="font-size:12.5px;line-height:1.6;color:var(--text-dim)">${esc(dil.ai_summary)}</div>
     </div>`:''}
+    ${dil.parrafo_vista?`<div style="padding:12px 20px;background:rgba(124,58,237,.04);border-bottom:1px solid rgba(124,58,237,.12);flex-shrink:0">
+      <div style="font-size:10px;font-weight:600;color:#7c3aed;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">📑 Párrafo Vista Fiscal</div>
+      <div style="font-family:var(--font-serif);font-size:12.5px;line-height:1.8;color:var(--text);white-space:pre-wrap">${esc(dil.parrafo_vista)}</div>
+    </div>`:''}
     <div style="padding:20px;overflow-y:auto;flex:1">
       <div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Texto extraído</div>
       <div style="font-size:12.5px;line-height:1.7;white-space:pre-wrap;font-family:var(--font-body);color:var(--text)">${dil.extracted_text?esc(dil.extracted_text):'<span style="color:var(--text-muted);font-style:italic">Sin texto extraído. Procesa esta diligencia para obtener el contenido.</span>'}</div>
