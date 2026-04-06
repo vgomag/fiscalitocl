@@ -302,8 +302,8 @@ function buildCaseContext(data, modelReports) {
     ctx += '   los modelos proporcionados.\n';
     ctx += '═══════════════════════════════════════════════════════════════\n\n';
 
-    // Calcular espacio por modelo
-    const maxPerModel = isInforme ? 5000 : 3000;
+    // Calcular espacio por modelo — reducido para priorizar diligencias del caso actual
+    const maxPerModel = isInforme ? 3000 : 2000;
 
     modelReports.forEach((m, i) => {
       const label = m.name || m.nueva_resolucion || '?';
@@ -569,7 +569,12 @@ ${PARRAFOS_MODELO}
 ${PRECISION_JURIDICA}
 
 ${STYLE_RULES}
-- Extensión: TAN EXTENSO como lo requiera el expediente. Cada diligencia merece su propio considerando. Un expediente con 12 diligencias debe tener al menos 12 considerandos sustantivos.`
+- Extensión: TAN EXTENSO como lo requiera el expediente. Cada diligencia merece su propio considerando detallado y extenso.
+- REGLA ABSOLUTA DE COBERTURA: Si el expediente tiene N diligencias, el documento DEBE contener al menos N considerandos sustantivos.
+  Por ejemplo: 12 diligencias = mínimo 12 considerandos; 25 diligencias = mínimo 25 considerandos.
+  NO omitas NINGUNA diligencia. NO agrupes ni resumas varias diligencias en un solo considerando.
+  Cada diligencia listada en el contexto DEBE tener su propio numeral individual.
+- Si el documento queda extenso, eso es CORRECTO y ESPERADO. Un expediente voluminoso requiere un informe voluminoso.`
 };
 
 /* ── Construir system prompt con régimen normativo dinámico ── */
