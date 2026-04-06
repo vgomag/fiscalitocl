@@ -2659,24 +2659,29 @@ PROCESO OBLIGATORIO:
 6. VALORACIÓN DE LA PRUEBA: Conforme al art. 35 de la Ley 19.880 y el estándar de sana crítica, valora el conjunto probatorio.
 
 FORMATO: Usar sub-numeración cuando sea necesario (ej: 30.1, 30.2...). Cada hecho acreditado debe ser trazable a piezas específicas del expediente con referencia de fojas.`},
-  {id:'analisis',label:'Análisis jurídico',icon:'🔍',prompt:`Genera los CONSIDERANDOS de ANÁLISIS JURÍDICO de la vista fiscal. Se basa en los hechos acreditados de la sección anterior.
+  {id:'analisis',label:'Análisis jurídico',icon:'🔍',prompt:`Genera los CONSIDERANDOS de ANÁLISIS JURÍDICO de la vista fiscal. Se basa en los hechos acreditados de la sección anterior Y en la jurisprudencia y dictámenes encontrados en la biblioteca jurídica.
 
 Debe incluir:
 1. FORMULACIÓN DE CARGOS: Si hubo formulación, indica el contenido de cada cargo, su notificación y plazo.
 2. DESCARGOS: Sintetiza los descargos del inculpado y cada argumento de defensa planteado.
 3. ANÁLISIS DE DEFENSAS: Analiza CADA defensa del inculpado contra los hechos acreditados. Fundamenta por qué procede o no cada argumento defensivo.
 4. SUBSUNCIÓN JURÍDICA: Contrasta cada hecho acreditado con la norma infringida. Indica: conducta concreta → artículo/deber infringido → por qué la conducta vulnera la norma.
-5. GRAVEDAD: Califica la gravedad de cada infracción (leve, menos grave, grave, gravísima) con fundamento en la naturaleza de los hechos, el bien jurídico afectado, la reiteración, y la posición del inculpado.
-6. ATENUANTES Y AGRAVANTES (art. 120 DFL N°29): Identifica circunstancias modificatorias con fundamento fáctico.
+5. FUNDAMENTOS JURISPRUDENCIALES: Para cada infracción, CITA dictámenes de la Contraloría General de la República, sentencias judiciales o doctrina administrativa que respalden el razonamiento. Indica: número de dictamen/sentencia, fecha, órgano emisor, y criterio jurídico aplicable. Estos fundamentos se obtienen de la BIBLIOTECA JURÍDICA y de la sección JURISPRUDENCIA Y DICTÁMENES proporcionada en el contexto. Si encuentras dictámenes o sentencias relevantes, DEBES citarlos textualmente como fundamento de la propuesta.
+6. GRAVEDAD: Califica la gravedad de cada infracción (leve, menos grave, grave, gravísima) con fundamento en la naturaleza de los hechos, el bien jurídico afectado, la reiteración, y la posición del inculpado. Referencia jurisprudencia que establezca criterios de gravedad para conductas similares.
+7. ATENUANTES Y AGRAVANTES (art. 120 DFL N°29): Identifica circunstancias modificatorias con fundamento fáctico y jurisprudencial.
+8. CONCLUSIÓN Y PROPUESTA: Resume el análisis indicando la sanción o medida que se propone al Sr. Rector, fundamentada en: (a) los hechos acreditados, (b) la normativa infringida, (c) la jurisprudencia y dictámenes CGR que respaldan la propuesta, y (d) el principio de proporcionalidad.
+
+REGLA CRÍTICA: La propuesta al Rector DEBE estar respaldada por fundamentos jurisprudenciales concretos (dictámenes CGR, sentencias). No basta citar solo la norma; debes demostrar que la Contraloría o los tribunales han resuelto casos análogos en el sentido propuesto.
 
 Usa la normativa correcta según el estamento del denunciado (funcionario: DFL N°29; estudiante: Decreto 21/SU/2025; honorario: Ley Karin).`},
   {id:'sancion',label:'Propuesta de sanción',icon:'⚡',prompt:`Genera los CONSIDERANDOS FINALES y POR TANTO con PROPUESTA DE SANCIÓN.
 
 Debe incluir:
 1. CONCLUSIÓN sobre responsabilidad administrativa: resumen de hechos acreditados, normas infringidas y gravedad.
-2. PONDERACIÓN de atenuantes y agravantes.
-3. CRITERIOS DE PROPORCIONALIDAD: por qué la sanción propuesta es proporcional a la falta.
-4. Cláusula formal:
+2. FUNDAMENTOS JURISPRUDENCIALES DE LA PROPUESTA: Cita dictámenes CGR, sentencias o doctrina administrativa que respalden la sanción propuesta para conductas similares. Indica número, fecha y criterio. Estos deben provenir de la BIBLIOTECA JURÍDICA y la sección JURISPRUDENCIA Y DICTÁMENES del contexto.
+3. PONDERACIÓN de atenuantes y agravantes con referencia jurisprudencial.
+4. CRITERIOS DE PROPORCIONALIDAD: por qué la sanción propuesta es proporcional a la falta, con referencia a precedentes administrativos que establezcan el estándar.
+5. Cláusula formal:
 
 P O R T A N T O, SE RESUELVE O SUGIERE:
 
@@ -2690,8 +2695,8 @@ Remítanse los antecedentes y elévese el expediente al Sr. Rector para su Super
 Debe incluir:
 1. HECHOS ESTABLECIDOS con sub-numeración (N.1, N.2...): individualización de partes, síntesis de denuncia, análisis de consistencia testimonial.
 2. CONCLUSIÓN PROBATORIA: "del análisis conjunto de la prueba, apreciada conforme a la sana crítica, [CONCLUSIÓN]".
-3. ANÁLISIS JURÍDICO: por qué los hechos no configuran infracción, o por qué no se acreditaron, o por qué prescribió la acción.
-4. CAUSAL ESPECÍFICA de sobreseimiento: prescripción (art. 157 EA), falta de prueba, atipicidad, incompetencia, eximentes, inocencia, pérdida de calidad de estudiante, etc.
+3. ANÁLISIS JURÍDICO: por qué los hechos no configuran infracción, o por qué no se acreditaron, o por qué prescribió la acción. FUNDAMENTA con dictámenes CGR o sentencias que establezcan los criterios de sobreseimiento en casos análogos (de la BIBLIOTECA JURÍDICA y JURISPRUDENCIA proporcionada en el contexto).
+4. CAUSAL ESPECÍFICA de sobreseimiento: prescripción (art. 157 EA), falta de prueba, atipicidad, incompetencia, eximentes, inocencia, pérdida de calidad de estudiante, etc. CITA jurisprudencia o dictámenes que respalden la causal invocada.
 5. Cláusula formal:
 
 P O R T A N T O, SE SUGIERE:
@@ -2701,7 +2706,7 @@ Que atendido el mérito de los antecedentes, y de conformidad a [NORMATIVA], se 
 Remítanse los antecedentes y elévese el expediente al Sr. Rector para su superior resolución. Es todo cuanto tengo por informar.`},
   {id:'genero',label:'Perspectiva de género',icon:'🟣',prompt:'Genera un análisis CON PERSPECTIVA DE GÉNERO para la vista fiscal. Incorpora: marco normativo (Ley 21.369, CEDAW, Belém do Pará, protocolo UMAG), asimetría de poder entre las partes, dinámicas de violencia de género, dificultad probatoria inherente, medidas de resguardo adoptadas, y valoración de prueba sin estereotipos de género.'},
   {id:'estrategias',label:'Estrategias preventivas',icon:'🛡️',prompt:'Genera la sección de ESTRATEGIAS PREVENTIVAS de la vista fiscal: medidas institucionales, de capacitación, organizacionales y de seguimiento que la Universidad debería adoptar para prevenir la reiteración de conductas similares. Fundamenta en normativa aplicable.'},
-  {id:'completa',label:'Vista fiscal completa',icon:'📑',prompt:'Genera la VISTA FISCAL COMPLETA con todas las secciones: VISTOS (párrafo corrido con normativa), CONSIDERANDOS numerados (antecedentes procesales, relación completa y detallada de CADA diligencia con fojas, hechos acreditados con cruce de testimonios, análisis jurídico, valoración de prueba, gravedad, atenuantes/agravantes, conclusión) y POR TANTO (propuesta fundamentada). Sé EXHAUSTIVO: cada diligencia merece su propio considerando con mínimo 5 oraciones.'}
+  {id:'completa',label:'Vista fiscal completa',icon:'📑',prompt:'Genera la VISTA FISCAL COMPLETA con todas las secciones: VISTOS (párrafo corrido con normativa), CONSIDERANDOS numerados (antecedentes procesales, relación completa y detallada de CADA diligencia con fojas, hechos acreditados con cruce de testimonios, análisis jurídico CON FUNDAMENTOS JURISPRUDENCIALES de la biblioteca jurídica y dictámenes CGR/sentencias proporcionados en el contexto, valoración de prueba, gravedad, atenuantes/agravantes, conclusión) y POR TANTO (propuesta al Rector fundamentada en norma + jurisprudencia). REGLA: el análisis jurídico y la propuesta DEBEN citar dictámenes o sentencias concretas como fundamento. Sé EXHAUSTIVO: cada diligencia merece su propio considerando con mínimo 5 oraciones.'}
 ];
 let _vfSectionsDone={};
 
@@ -2736,11 +2741,15 @@ function setFnQuery(text){
   const inp=document.getElementById('inputBox');
   if(inp){inp.value=text;inp.focus();}
 }
+/* Track qué sección VF se está generando (para búsqueda jurisprudencial dirigida) */
+let _currentVFSection=null;
+
 function vfSendSection(sectionId){
   const sec=VF_SECTIONS.find(s=>s.id===sectionId);
   if(!sec)return;
   const inp=document.getElementById('inputBox');
   if(inp){
+    _currentVFSection=sectionId;
     inp.value=sec.prompt;
     inp.focus();
     // Marcar sección como en progreso
@@ -3149,7 +3158,26 @@ async function sendMessage(){
       const shouldSearchLibrary=true;
 
       if(shouldSearchLibrary){
-        const ragBody={query:text,folder:ragFolder==='expediente'?'':ragFolder||'todos'};
+        /* Para F7 análisis/hechos: query inteligente basada en datos del caso, no en el prompt genérico */
+        let _smartQuery=text;
+        if(activeFn==='F7'&&currentCase&&_currentVFSection){
+          const _caseKeywords=[
+            currentCase.materia||'',
+            currentCase.tipo_procedimiento||'',
+            currentCase.description||'',
+            currentCase.protocolo||''
+          ].filter(Boolean).join(' ');
+
+          if(_currentVFSection==='analisis'||_currentVFSection==='sancion'||_currentVFSection==='sobreseimiento'||_currentVFSection==='completa'){
+            _smartQuery='sumario administrativo '+_caseKeywords+' sanción proporcionalidad responsabilidad administrativa dictamen CGR jurisprudencia';
+          } else if(_currentVFSection==='hechos'){
+            _smartQuery='hechos acreditados sana crítica valoración prueba '+_caseKeywords+' estándar probatorio';
+          } else if(_currentVFSection==='genero'){
+            _smartQuery='perspectiva género Ley 21.369 CEDAW Belém do Pará acoso violencia género '+_caseKeywords;
+          }
+        }
+
+        const ragBody={query:_smartQuery,folder:ragFolder==='expediente'?'':ragFolder||'todos'};
         if(currentCase)ragBody.caseContext=(currentCase.materia||'')+' '+(currentCase.tipo_procedimiento||'');
 
         /* Timeout de 12s para que el chat no se cuelgue si Qdrant tarda */
@@ -3183,16 +3211,61 @@ async function sendMessage(){
           clearTimeout(ragTimeout);
         }
       }
+
+      /* ── BÚSQUEDA JURISPRUDENCIAL DIRIGIDA para F7 Análisis/Sanción/Sobreseimiento ── */
+      if(activeFn==='F7'&&currentCase&&_currentVFSection&&
+         ['analisis','sancion','sobreseimiento','completa'].includes(_currentVFSection)&&
+         typeof _juriSearchRAG==='function'){
+        try{
+          const _juriQueries=[
+            (currentCase.materia||'')+' responsabilidad administrativa sanción '+
+            (currentCase.tipo_procedimiento||'')+' dictamen Contraloría',
+            'proporcionalidad sanción '+
+            (currentCase.materia||'')+' funcionario público debido proceso descargos'
+          ];
+
+          const _juriResults=await Promise.all(_juriQueries.map(q=>
+            Promise.race([
+              _juriSearchRAG(q,'todos'),
+              new Promise(r=>setTimeout(()=>r(null),5000))
+            ]).catch(()=>null)
+          ));
+
+          let _juriCtx='';
+          const _juriSources=new Set();
+          _juriResults.forEach(r=>{
+            if(r&&r.context&&r.context.length>50){
+              _juriCtx+=r.context+'\n\n';
+              if(r.sources)r.sources.forEach(s=>_juriSources.add(s));
+            }
+          });
+
+          if(_juriCtx.length>100){
+            caseContext+='\n\n## JURISPRUDENCIA Y DICTÁMENES APLICABLES AL CASO\n'+
+              'Los siguientes dictámenes CGR, sentencias judiciales y doctrina fueron encontrados por búsqueda semántica especializada. '+
+              'DEBES citar estos fundamentos jurisprudenciales en el análisis jurídico y en la propuesta al Rector. '+
+              'Indica número de dictamen/sentencia, fecha, y criterio aplicable.\n\n';
+            caseContext+=_juriCtx.substring(0,30000);
+            if(_juriSources.size)caseContext+='\nFuentes jurisprudenciales: '+[..._juriSources].join(', ');
+            caseContext+='\n\n--- FIN JURISPRUDENCIA DIRIGIDA ---\n';
+          }
+        }catch(juriErr){console.warn('Jurisprudencia dirigida error:',juriErr);}
+      }
     }catch(libErr){console.warn('Qdrant library search error:',libErr);}
 
     /* ── BIBLIOTECA SUPABASE: Buscar en libros de referencia + normativa interna ── */
     {
     try{
-      const libKeywords=text.substring(0,200);
+      /* Para F7 análisis: keywords del caso en vez del prompt genérico */
+      let libKeywords=text.substring(0,200);
+      if(activeFn==='F7'&&currentCase&&_currentVFSection&&['analisis','sancion','sobreseimiento','completa'].includes(_currentVFSection)){
+        libKeywords=(currentCase.materia||'')+' '+(currentCase.tipo_procedimiento||'')+' sumario administrativo sanción responsabilidad';
+      }
+      const _isAnalisisSection=activeFn==='F7'&&_currentVFSection&&['analisis','sancion','sobreseimiento','completa'].includes(_currentVFSection);
       const{data:libResults}=await _withTimeout(sb.rpc('search_library',{
         search_query:libKeywords,
-        max_results:activeFn==='F7'||activeFn==='F8'?5:3,
-        max_chars_per_result:activeFn==='F7'||activeFn==='F8'?3000:1000
+        max_results:_isAnalisisSection?8:activeFn==='F7'||activeFn==='F8'?5:3,
+        max_chars_per_result:_isAnalisisSection?4000:activeFn==='F7'||activeFn==='F8'?3000:1000
       }));
       if(libResults&&libResults.length>0){
         caseContext+='\n\n## LIBROS Y NORMAS DE REFERENCIA (Biblioteca UMAG)\nFragmentos relevantes encontrados en la biblioteca de libros, manuales y normativa interna. Usa esta información como fundamento doctrinario y normativo.\n';
