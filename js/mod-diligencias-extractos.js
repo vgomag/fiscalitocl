@@ -927,7 +927,9 @@ async function generateParrafosModelo(){
   const btn=document.getElementById('btnGenParrafos');
   const content=document.getElementById('parrafosModeloContent');
   if(btn){btn.disabled=true;btn.textContent='⏳ Generando…';}
-  if(content){content.innerHTML='<div class="loading">Generando párrafos modelo desde las diligencias…</div>';}
+  if(content){content.innerHTML='<div class="loading">Generando párrafos modelo desde las diligencias… (puede tomar 30-60s)</div>';}
+
+  const _fetchFn=typeof authFetch==='function'?authFetch:fetch;
 
   try{
     /* 1. Cargar diligencias con extracto */
@@ -940,207 +942,87 @@ async function generateParrafosModelo(){
 
     if(!dils?.length){showToast('⚠️ No hay diligencias con contenido procesado');return;}
 
-    /* 2. Cross-case learning: párrafos de otros casos terminados */
-    let referenceStyle='';
+    /* 2. Cargar participantes del caso */
+    let participants=[];
     try{
-      const{data:refs}=await sb.from('case_metadata')
-        .select('value')
-        .eq('user_id',session.user.id)
-        .eq('key','parrafos_modelo_extractos')
-        .neq('case_id',currentCase.id)
-        .order('updated_at',{ascending:false})
-        .limit(5);
-      if(refs?.length){
-        const samples=refs.map(r=>(r.value||'').substring(0,2000)).filter(v=>v.length>100);
-        if(samples.length){
-          referenceStyle=`\n\n## PÁRRAFOS DE REFERENCIA (ESTILO, NO CONTENIDO)\nEstos son párrafos de OTROS casos del mismo fiscal. Replica su nivel de detalle, fórmulas jurídicas y formato de citación de fojas. NO copies datos de estos casos.\n\n${samples.join('\n\n---\n\n').substring(0,12000)}`;
-        }
-      }
-    }catch(e){console.warn('Cross-case refs:',e);}
+      const{data:parts}=await sb.from('case_participants')
+        .select('name,role,estamento,carrera')
+        .eq('case_id',currentCase.id);
+      if(parts)participants=parts;
+    }catch(e){console.warn('Participantes:',e);}
 
-    /* 3. Construir contexto de diligencias con niveles de detalle */
-    const dilContext=dils.map((d,i)=>{
-      const nivel=NIVEL_DETALLE[d.diligencia_type]||1;
-      const nivelLabel=nivel===3?'NIVEL 3 — MÁXIMO DETALLE (15-30 oraciones: relato completo cronológico, percepción, impacto, coherencia con otras declaraciones, citas textuales)':
-                       nivel===2?'NIVEL 2 — DETALLE ALTO (8-15 oraciones: contexto, contenido detallado, fundamentos, conclusiones, datos específicos)':
-                       'NIVEL 1 — DETALLE MEDIO (5-8 oraciones: tipo, número, fecha, emisor, contenido esencial, personas y acciones)';
+    /* 3. Cargar cronología */
+    let chronology=[];
+    try{
+      const{data:cron}=await sb.from('cronologia')
+        .select('event_date,event_type,description')
+        .eq('case_id',currentCase.id)
+        .order('event_date',{ascending:true})
+        .limit(20);
+      if(cron)chronology=cron.map(c=>({event_date:c.event_date,title:c.event_type||c.description||'',description:c.description||''}));
+    }catch(e){console.warn('Cronología:',e);}
+
+    /* 4. Preparar diligencias con formato para generate-vista */
+    const diligenciasPayload=dils.map(d=>{
       const fojas=d.fojas_inicio?
-        (d.fojas_fin?`fojas ${d.fojas_inicio} a ${d.fojas_fin}`:`fojas ${d.fojas_inicio}`):
-        `fojas [COMPLETAR]`;
-      const texto=nivel===3?(d.extracted_text||d.ai_summary||'').substring(0,8000):
-                  nivel===2?(d.extracted_text||d.ai_summary||'').substring(0,5000):
-                  (d.extracted_text||d.ai_summary||'').substring(0,3000);
-      return `### DILIGENCIA ${i+1}: ${d.diligencia_label||d.file_name||'Documento'}\n- Tipo: ${d.diligencia_type}\n- ${nivelLabel}\n- Fojas: ${fojas}\n- Fecha: ${d.fecha_diligencia||'sin fecha'}\n- Contenido/Extracto:\n${texto}`;
-    }).join('\n\n');
-
-    /* 4. System prompt con reglas de estilo */
-    const systemPrompt=`Eres un fiscal/investigador experto en procedimientos disciplinarios chilenos. Genera párrafos formales numerados para una Vista Fiscal o Informe de Investigadora.
-
-## REGLAS OBLIGATORIAS DE ESTILO
-
-1. Cada párrafo COMIENZA con "Que," (seguido de minúscula)
-2. INDICAR FOJAS: "a fojas X del expediente" o "a fojas X a Y"
-3. Lenguaje jurídico-administrativo FORMAL chileno
-4. Tercera persona impersonal: "consta", "rola", "se acredita", "obra en autos"
-5. SIN viñetas, SIN bullets dentro del párrafo
-6. SIN markdown (bold, cursiva, headers) — PROSA PURA
-7. Mencionar: tipo documento, fecha, emisor/declarante, contenido
-8. Conectores: "en efecto", "asimismo", "por su parte", "cabe señalar", "a mayor abundamiento"
-9. NUNCA inventar datos, nombres, fechas o normas que no aparezcan en los extractos
-10. Si falta información: [COMPLETAR] o [VERIFICAR]
-
-## NIVELES DE DETALLE
-
-- NIVEL 1 (doc administrativo): 5-8 oraciones. Tipo, número, fecha, emisor, destinatario, contenido esencial, acciones ordenadas, personas involucradas.
-- NIVEL 2 (doc sustantivo): 8-15 oraciones. Contexto, contenido detallado, fundamentos normativos, datos específicos (montos, fechas, períodos), conclusiones, destinatarios.
-- NIVEL 3 (denuncia/declaración): 15-30 oraciones. MÁXIMO DETALLE:
-  a) Identificación: nombre, cargo, estamento, dependencia
-  b) Contexto procesal: fecha, ante quién, calidad procesal
-  c) Relato cronológico: TODOS los hechos, fechas, lugares, personas, conductas
-  d) Percepción y valoración del declarante
-  e) Impacto: consecuencias laborales, salud, anímicas
-  f) Prueba referenciada: documentos, correos, testigos mencionados
-  g) Coherencia: confirma/contradice/complementa otras declaraciones
-  h) Peticiones del declarante
-  * Distinguir hechos presenciados vs. de oídas
-  * Citas textuales entre comillas cuando disponibles
-
-## DIRECTIVA DE ESTILO DE ESCRITURA
-
-- Variación natural en longitud de oraciones: combina frases cortas con oraciones compuestas más elaboradas
-- Vocabulario jurídico-administrativo chileno preciso: "en lo pertinente", "al tenor de lo expuesto", "conforme a lo prevenido", "obra en autos", "se desprende de los antecedentes"
-- PROHIBIDAS frases de IA: "Es importante destacar", "Cabe mencionar que", "En resumen", "En este contexto", "A continuación se presenta", "Es fundamental", "Vale la pena señalar", inicio con "Además," o "Por otro lado,"
-- Prosa continua, fluida, profesional. Cada párrafo debe tener cadencia diferente
-- El texto debe leerse como escrito por un fiscal o funcionario público experimentado
-- NUNCA emojis, NUNCA frases de chatbot, NUNCA abrir con "¡Claro!" o cerrar con "¿Hay algo más?"
-- Integrar citas normativas en el texto de forma fluida, no como listados separados
-- Introduce pequeñas variaciones estilísticas naturales (subordinadas, oraciones de distinta extensión)
-
-## REGLA DE PRECISIÓN JURÍDICA
-- NUNCA inventes números de dictamen, artículos legales ni citas normativas que no consten en los extractos
-- Si falta una referencia: [VERIFICAR] o [NO CONSTA]`;
-
-    /* 5. User prompt */
-    const userPrompt=`Genera los párrafos modelo para la Vista Fiscal del expediente:
-
-## DATOS DEL CASO
-- Nombre: ${currentCase.name}
-- ROL: ${currentCase.rol||'—'}
-- Carátula: ${currentCase.caratula||'—'}
-- Materia: ${currentCase.materia||'—'}
-- Procedimiento: ${currentCase.tipo_procedimiento||'—'}
-
-## DILIGENCIAS DEL EXPEDIENTE (${dils.length} documentos)
-
-${dilContext}
-${referenceStyle}
-
-GENERA UN PÁRRAFO FORMAL POR CADA DILIGENCIA, numerados. Respeta el NIVEL DE DETALLE indicado para cada una. Solo texto plano, sin markdown.`;
-
-    /* 6. Llamar en LOTES para evitar timeout (max ~10 diligencias por lote) */
-    const DILS_PER_BATCH=4;
-    const batches=[];
-    const dilEntries=dilContext.split('### DILIGENCIA ').filter(s=>s.trim());
-    for(let i=0;i<dilEntries.length;i+=DILS_PER_BATCH){
-      batches.push(dilEntries.slice(i,i+DILS_PER_BATCH).map(e=>'### DILIGENCIA '+e).join('\n\n'));
-    }
-
-    let paragraphs='';
-    const batchErrors=[];
-    for(let b=0;b<batches.length;b++){
-      if(batches.length>1)showToast(`⏳ Generando lote ${b+1}/${batches.length}…`);
-
-      const startNum=b*DILS_PER_BATCH+1;
-      const batchPrompt=`Genera párrafos modelo para la Vista Fiscal:
-- Expediente: ${currentCase.name} — ROL: ${currentCase.rol||'—'} — ${currentCase.tipo_procedimiento||''}
-- Carátula: ${currentCase.caratula||'—'}
-- Materia: ${currentCase.materia||'—'}
-${b>0?`\nCONTINUACIÓN: Continúa numerando desde el párrafo anterior. Este es el lote ${b+1} de ${batches.length}.\n`:''}
-## DILIGENCIAS (lote ${b+1}/${batches.length}, diligencias ${startNum} a ${Math.min(startNum+DILS_PER_BATCH-1,dils.length)})
-
-${batches[b].substring(0,35000)}
-${referenceStyle?'\n'+referenceStyle.substring(0,4000):''}
-
-GENERA UN PÁRRAFO "Que," POR CADA DILIGENCIA listada arriba. Respeta el NIVEL DE DETALLE indicado para cada una. NUNCA omitas diligencias. Texto plano sin markdown.`;
-
-      const _callBatchChat=async()=>{
-        const r=await authFetch(CHAT_ENDPOINT,{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            model:typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
-            max_tokens:8192,
-            stream:true,
-            system:systemPrompt,
-            messages:[{role:'user',content:batchPrompt}]
-          })
-        });
-        /* Verificar HTTP status antes de procesar */
-        if(!r.ok){
-          let errMsg='HTTP '+r.status;
-          try{const errBody=await r.text();try{const errJ=JSON.parse(errBody);errMsg+=' — '+(errJ.error||errJ.message||errBody);}catch(_){errMsg+=' — '+(errBody||'sin detalle');}}catch(__){}
-          throw new Error(errMsg);
-        }
-        const ct=r.headers.get('content-type')||'';
-        let txt='';
-        if(ct.includes('text/event-stream')){
-          /* Leer stream SSE */
-          const reader=r.body.getReader();
-          const decoder=new TextDecoder();
-          let buf='';
-          while(true){
-            const{done,value}=await reader.read();
-            if(done)break;
-            buf+=decoder.decode(value,{stream:true});
-            const lines=buf.split('\n');
-            buf=lines.pop()||'';
-            for(const line of lines){
-              if(!line.startsWith('data: '))continue;
-              const payload=line.slice(6).trim();
-              if(payload==='[DONE]')continue;
-              try{
-                const ev=JSON.parse(payload);
-                if(ev.type==='content_block_delta'&&ev.delta?.text){
-                  txt+=ev.delta.text;
-                }
-              }catch(_){}
-            }
-          }
-        }else if(ct.includes('json')){
-          const data=await r.json();
-          if(data.error)throw new Error(typeof data.error==='object'?JSON.stringify(data.error):data.error);
-          txt=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('')||'';
-        }else{throw new Error('Respuesta inesperada (content-type: '+ct+')');}
-        return txt;
+        (d.fojas_fin&&d.fojas_fin!==d.fojas_inicio?`${d.fojas_inicio}-${d.fojas_fin}`:`${d.fojas_inicio}`):
+        '';
+      return {
+        diligencia_type:d.diligencia_type,
+        diligencia_label:d.diligencia_label||d.file_name||'Documento',
+        file_name:d.file_name,
+        fojas:fojas,
+        fojas_inicio:d.fojas_inicio,
+        fojas_fin:d.fojas_fin,
+        fecha_diligencia:d.fecha_diligencia,
+        ai_summary:d.ai_summary||'',
+        extracted_text:d.extracted_text||''
       };
+    });
 
-      try{
-        let txt='';
-        try{
-          txt=await _callBatchChat();
-        }catch(firstErr){
-          /* Reintentar 1 vez tras 3s para errores temporales (429, 529, 500, timeout) */
-          const retryable=/429|529|500|502|503|504|timeout|overloaded|rate/i.test(firstErr.message);
-          if(retryable){
-            console.warn('Lote '+(b+1)+' reintentando tras error:',firstErr.message);
-            if(content){content.innerHTML=`<div class="loading">⚠️ Lote ${b+1}: ${firstErr.message}. Reintentando en 5s…</div>`;}
-            await new Promise(r=>setTimeout(r,5000));
-            txt=await _callBatchChat();
-          }else{throw firstErr;}
-        }
-        if(txt)paragraphs+=(paragraphs?'\n\n':'')+txt;
-        /* Actualizar progreso visual */
-        if(content){content.innerHTML=`<div class="loading">⏳ Lote ${b+1}/${batches.length} completado (${txt.length} chars)… generando siguiente…</div>`;}
-      }catch(e){
-        console.warn('Lote '+(b+1)+' error:',e.message);
-        batchErrors.push('Lote '+(b+1)+': '+e.message);
-      }
+    if(content){content.innerHTML=`<div class="loading">⏳ Enviando ${dils.length} diligencias a generate-vista (modo hechos)…</div>`;}
+
+    /* 5. UNA SOLA llamada a generate-vista con mode='hechos' — la función del servidor
+       tiene todo el contexto necesario: modelos de referencia, estilo, normativa */
+    const r=await _fetchFn('/.netlify/functions/generate-vista',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        mode:'hechos',
+        caseData:{
+          id:currentCase.id,
+          name:currentCase.name,
+          rol:currentCase.rol||'',
+          nueva_resolucion:currentCase.nueva_resolucion||currentCase.rol||'',
+          caratula:currentCase.caratula||'',
+          tipo_procedimiento:currentCase.tipo_procedimiento||'',
+          protocolo:currentCase.protocolo||'',
+          materia:currentCase.materia||'',
+          fecha_denuncia:currentCase.fecha_denuncia||'',
+          fecha_resolucion:currentCase.fecha_resolucion||'',
+          observaciones:currentCase.observaciones||''
+        },
+        diligencias:diligenciasPayload,
+        participants:participants,
+        chronology:chronology
+      })
+    });
+
+    if(!r.ok){
+      let errMsg='HTTP '+r.status;
+      try{const errBody=await r.text();try{const errJ=JSON.parse(errBody);errMsg+=' — '+(errJ.error||errJ.message||errBody);}catch(_){errMsg+=' — '+(errBody||'sin detalle');}}catch(__){}
+      throw new Error(errMsg);
     }
 
-    if(!paragraphs){
-      const detail=batchErrors.length?'\n\nDetalles:\n'+batchErrors.join('\n'):'';
-      throw new Error('No se generaron párrafos (todos los lotes fallaron)'+detail);
+    const result=await r.json();
+    if(result.error)throw new Error(result.error);
+
+    const paragraphs=result.vista||'';
+    if(!paragraphs||paragraphs.length<50){
+      throw new Error('No se generaron párrafos (respuesta vacía del servidor)');
     }
+
+    console.log('Párrafos generados:',paragraphs.length,'chars, modelos usados:',result.modelsUsed||[]);
 
     /* 7. Persistir en case_metadata (upsert) */
     const{data:existing}=await sb.from('case_metadata')
