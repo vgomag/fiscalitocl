@@ -3507,22 +3507,31 @@ async function sendMessage(){
     _lastPartialText=fullText;
     bubEl.innerHTML=md(fullText);
     const wasInterrupted=streamError||_lastStreamAborted;
-    if(wasInterrupted&&fullText.length>0){
-      bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:6px;font-size:11px;color:#b45309;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span>⚠️ La respuesta fue interrumpida.</span>
-        <button onclick="continueFromPartial()" style="background:var(--gold);color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">▶ Continuar redacción</button>
-      </div>`;
-    }
-    /* Botón "Continuar" siempre visible para F7/F8 cuando la respuesta parece cortada */
-    const looksIncomplete=fullText.length>500&&!/\n\s*$/.test(fullText)&&!fullText.trim().endsWith('.')&&!fullText.trim().endsWith('---');
-    if(!wasInterrupted&&looksIncomplete&&['F7','F8'].includes(activeFn)){
-      bubEl.innerHTML+=`<div style="margin-top:8px;padding:6px 10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:6px;font-size:11px;color:#1e40af;display:flex;align-items:center;gap:8px">
-        <span>La respuesta podría estar incompleta.</span>
-        <button onclick="continueFromPartial()" style="background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer">▶ Continuar redacción</button>
+    /* ── Botón CONTINUAR para F7/F8: siempre visible después de respuesta larga ── */
+    if(['F7','F8'].includes(activeFn)&&fullText.length>200){
+      const _isInterrupted=wasInterrupted;
+      const _secLabel=_currentVFSection?VF_SECTIONS.find(s=>s.id===_currentVFSection)?.label||'':'';
+      /* Detectar si la respuesta terminó de forma natural (punto final, triple guion, "informar.") */
+      const _endsNatural=/(\.\s*$|---\s*$|informar\.\s*$|resolución\.\s*$)/i.test(fullText.trim());
+      const _btnStyle=_isInterrupted?
+        'background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);color:#b45309':
+        _endsNatural?
+        'background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.15);color:#3b82f6':
+        'background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.25);color:#b45309';
+      const _btnMsg=_isInterrupted?'⚠️ La respuesta fue interrumpida.':
+        _endsNatural?'':'⚠️ La respuesta podría estar incompleta.';
+
+      bubEl.innerHTML+=`<div class="vf-continue-bar" style="margin-top:10px;padding:8px 12px;${_btnStyle};border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${_btnMsg?'<span>'+_btnMsg+'</span>':''}
+        <button onclick="continueFromPartial()" style="background:var(--gold);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">
+          ▶ Continuar${_secLabel?' '+_secLabel:''}
+        </button>
       </div>`;
     }
     actionsPlaceholder.outerHTML=actions;
     msgsC.scrollTop=msgsC.scrollHeight;trimDomMessages();
+    /* Guardar la sección VF para posible continuación (NO resetear aquí) */
+    _lastVFSectionForContinue=_currentVFSection;
     /* Persist to Supabase */
     if(currentCase&&session){
       sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
@@ -3537,6 +3546,7 @@ function quickChat(text){showView('viewWelcome');pickFn('F0');document.getElemen
 let _activeReader=null;
 let _lastPartialText='';
 let _lastStreamAborted=false;
+let _lastVFSectionForContinue=null;
 
 function abortAndContinue(){
   /* Cancelar el reader activo si existe */
@@ -3548,9 +3558,40 @@ function abortAndContinue(){
 
 async function continueFromPartial(){
   if(!_lastPartialText||_lastPartialText.length<20){showToast('No hay texto parcial para continuar');return;}
-  /* Tomar los últimos ~800 chars como contexto de continuación */
-  const tail=_lastPartialText.slice(-800);
-  const continuePrompt=`INSTRUCCIÓN CRÍTICA: Tu respuesta anterior fue cortada. El último fragmento que generaste fue:\n\n---\n${tail}\n---\n\nCONTINÚA EXACTAMENTE desde donde quedaste. NO repitas lo anterior, NO agregues encabezados nuevos, NO empieces de cero. Simplemente continúa la redacción desde el punto exacto donde se cortó el texto.`;
+
+  /* Detectar último considerando/sección generado para referencia */
+  const _considerandoMatch=_lastPartialText.match(/(?:Que,|CONSIDERANDO|^\d+[\.\)°])/gmi);
+  const _lastConsiderando=_considerandoMatch?_considerandoMatch.length:0;
+
+  /* Tomar más contexto para evitar repetición: últimos 2000 chars */
+  const tail=_lastPartialText.slice(-2000);
+
+  /* Construir prompt de continuación VF-section-aware */
+  let sectionCtx='';
+  const vfSec=_lastVFSectionForContinue;
+  if(vfSec){
+    const secDef=VF_SECTIONS.find(s=>s.id===vfSec);
+    if(secDef)sectionCtx=`\nEstabas generando la sección: "${secDef.label}" de la vista fiscal.`;
+    /* Restaurar la sección para que la búsqueda jurisprudencial funcione en la continuación */
+    _currentVFSection=vfSec;
+  }
+
+  const continuePrompt=`INSTRUCCIÓN CRÍTICA DE CONTINUACIÓN: Tu respuesta anterior fue cortada por límite de extensión.${sectionCtx}${_lastConsiderando>0?'\nHabías generado aproximadamente '+_lastConsiderando+' considerandos/párrafos.':''}
+
+ÚLTIMOS CARACTERES DE TU RESPUESTA ANTERIOR (esto es lo que ya escribiste, NO lo repitas):
+
+---INICIO_CONTEXTO_ANTERIOR---
+${tail}
+---FIN_CONTEXTO_ANTERIOR---
+
+REGLAS ESTRICTAS:
+1. CONTINÚA EXACTAMENTE desde donde quedó el texto anterior. Tu primera palabra debe ser la continuación natural de la última frase cortada.
+2. NO repitas NADA de lo anterior: no repitas considerandos, no repitas párrafos, no repitas encabezados.
+3. NO empieces de cero, NO escribas "Continuación" ni ningún otro título o introducción.
+4. Si estabas en medio de una oración, complétala primero y luego sigue con el resto.
+5. Si estabas numerando considerandos (ej: ibas en el 15°), continúa desde el siguiente número (16°).
+6. Mantén el mismo estilo, formato y nivel de detalle que venías usando.`;
+
   document.getElementById('inputBox').value=continuePrompt;
   sendMessage();
 }
