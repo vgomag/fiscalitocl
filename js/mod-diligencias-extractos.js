@@ -337,7 +337,8 @@ async function processDiligenciaOCR(dilId){
       const _ctrl3=new AbortController();
       const _tout3=setTimeout(()=>_ctrl3.abort(),30000);
       try{
-        const ocrRes=await fetch('/.netlify/functions/ocr',{
+        const _fetchFn3=typeof authFetch==='function'?authFetch:fetch;
+        const ocrRes=await _fetchFn3('/.netlify/functions/ocr',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name}),
@@ -366,7 +367,8 @@ async function processDiligenciaOCR(dilId){
       const _ctrl4=new AbortController();
       const _tout4=setTimeout(()=>_ctrl4.abort(),30000);
       try{
-        const sumRes=await fetch('/.netlify/functions/ocr',{
+        const _fetchFn4=typeof authFetch==='function'?authFetch:fetch;
+        const sumRes=await _fetchFn4('/.netlify/functions/ocr',{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({action:'summarize',text:extractedText.substring(0,4000)}),
           signal:_ctrl4.signal
@@ -554,7 +556,8 @@ async function analyzeExpediente(dilId){
         const _ctrl6=new AbortController();
         const _tout6=setTimeout(()=>_ctrl6.abort(),30000);
         try{
-          const res=await fetch('/.netlify/functions/ocr',{
+          const _fetchFn6=typeof authFetch==='function'?authFetch:fetch;
+          const res=await _fetchFn6('/.netlify/functions/ocr',{
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
               action:'analyze',

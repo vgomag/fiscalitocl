@@ -133,7 +133,8 @@ const juri = {
  * @returns {Promise<{context:string, sources:string[], count:number}>}
  */
 async function _juriSearchRAG(query, folder = 'todos') {
-  const resp = await fetch('/.netlify/functions/rag', {
+  const _fetchFn = typeof authFetch === 'function' ? authFetch : fetch;
+  const resp = await _fetchFn('/.netlify/functions/rag', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, folder })

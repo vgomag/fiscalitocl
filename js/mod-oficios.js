@@ -46,7 +46,8 @@ async function callSheets(body) {
   const ctrl = new AbortController();
   const tout = setTimeout(() => ctrl.abort(), 30000);
   try {
-    const res = await fetch('/.netlify/functions/sheets', {
+    const _fetchFn = typeof authFetch === 'function' ? authFetch : fetch;
+    const res = await _fetchFn('/.netlify/functions/sheets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

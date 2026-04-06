@@ -1699,6 +1699,7 @@ async function pickCaseById(id){
 function renderCaseHeader(){
   if(!currentCase)return;
   const el=document.getElementById('caseHeader');
+  if(!el)return;
   const c=currentCase;
   const stColors={active:'var(--green)',terminado:'var(--text-muted)',archived:'#f59e0b'};
   const fmtArr=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
@@ -4199,6 +4200,7 @@ async function runDilSearch(){
   if(!data?.length){res.innerHTML='<div style="font-size:11px;color:var(--text-muted)">Sin diligencias.</div>';return;}
   const context=data.map((d,i)=>`[${i+1}] ${d.diligencia_label||d.diligencia_type||'Diligencia'} - ${d.fecha_diligencia||'s/f'}: ${d.file_name||''} ${d.ai_summary?'(Resumen: '+d.ai_summary+')':''}`).join('\n\n');
   const r=await authFetch(CHAT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:CLAUDE_SONNET,max_tokens:1000,system:'Eres Fiscalito. Busca en las diligencias del expediente y responde la consulta del usuario con referencias específicas a los documentos relevantes.',messages:[{role:'user',content:`CONSULTA: ${q}\n\nDILIGENCIAS DEL EXPEDIENTE:\n${context}`}]})});
+  if(!r.ok){res.innerHTML='<div style="padding:10px;font-size:12px;color:var(--red)">⚠️ Error en la búsqueda (HTTP '+r.status+')</div>';return;}
   const d2=await r.json();
   const reply=d2.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin resultados.';
   res.innerHTML=`<div style="background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;line-height:1.65;margin-top:7px">${md(reply)}</div>`;
@@ -4601,6 +4603,7 @@ Solo datos que encuentres en los documentos. Si no hay dato, usa null.`;
       system:'Eres un extractor de datos de documentos jurídicos. Responde SOLO con JSON válido sin markdown.',
       messages:[{role:'user',content:extractPrompt}]
     })});
+    if(!r.ok)throw new Error('Error de IA: HTTP '+r.status);
     const data=await r.json();
     const aiText=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'';
 
