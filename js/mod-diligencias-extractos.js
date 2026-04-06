@@ -57,7 +57,7 @@ async function loadDiligenciasTab(){
   if(!el)return;
   el.innerHTML='<div class="loading">Cargando diligencias…</div>';
 
-  const{data,error}=await sb.from('diligencias').select('id,case_id,diligencia_type,diligencia_label,file_name,file_path,file_size,drive_file_id,drive_web_link,mime_type,is_processed,processing_status,fecha_diligencia,fojas_inicio,fojas_fin,order_index,ai_summary,notes')
+  const{data,error}=await sb.from('diligencias').select('id,case_id,diligencia_type,diligencia_label,file_name,file_path,file_size,drive_file_id,drive_web_link,mime_type,is_processed,processing_status,fecha_diligencia,fojas_inicio,fojas_fin,order_index,ai_summary,parrafo_vista,notes')
     .eq('case_id',currentCase.id)
     .order('order_index',{ascending:true})
     .order('fecha_diligencia',{ascending:false});
@@ -210,6 +210,12 @@ function filterDiligenciasTable(query){
     const text=row.innerText.toLowerCase();
     row.style.display=text.includes(q)?'':'none';
   });
+}
+
+/* ── Toggle párrafo vista fiscal ── */
+function toggleParrafoVista(dilId){
+  const el=document.getElementById('pv-'+dilId);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
 }
 
 /* ── Importar archivos de Drive como diligencias ── */
