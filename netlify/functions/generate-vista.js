@@ -461,7 +461,12 @@ REFERENCIA A MODELOS: Si se proporcionan MODELOS DE REFERENCIA, observa cómo re
 ${PRECISION_JURIDICA}
 
 ${STYLE_RULES}
-- Extensión: cada diligencia merece su propio considerando detallado. Un expediente con 12 diligencias debe tener al menos 12 considerandos sustantivos.`,
+- Extensión: cada diligencia merece su propio considerando detallado y extenso.
+- REGLA ABSOLUTA DE COBERTURA: Si el expediente tiene N diligencias, el documento DEBE contener al menos N considerandos sustantivos.
+  Por ejemplo: 12 diligencias = mínimo 12 considerandos; 25 diligencias = mínimo 25 considerandos.
+  NO omitas NINGUNA diligencia. NO agrupes ni resumas varias diligencias en un solo considerando.
+  Cada diligencia listada en el contexto DEBE tener su propio numeral individual.
+- Si el documento queda extenso, eso es CORRECTO. Un expediente voluminoso requiere un informe voluminoso.`,
 
   estrategias: `Eres un experto en derecho administrativo chileno, especializado en procedimientos disciplinarios de la Universidad de Magallanes (UMAG).
 
