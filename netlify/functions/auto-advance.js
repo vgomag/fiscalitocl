@@ -145,7 +145,8 @@ exports.handler = async (event) => {
     const rl = await checkRateLimit(userId, 'auto-advance');
     if (!rl.allowed) return rateLimitResponse(rl, CORS);
 
-    const body = JSON.parse(event.body);
+    let body;
+    try { body = JSON.parse(event.body || '{}'); } catch(e) { return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'JSON inválido' }) }; }
     const bodyStr = JSON.stringify(body);
     if (bodyStr.length > 1000000) {
       return { statusCode: 413, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'Payload too large' }) };
@@ -191,7 +192,7 @@ ${buildLightDirectives()}`;
           if (res.content && res.content[0]) {
             const text = res.content[0].text || '';
             const match = text.match(/\{[\s\S]*?\}/);
-            if (match) aiSuggestion = JSON.parse(match[0]);
+            if (match) try { aiSuggestion = JSON.parse(match[0]); } catch(e) { /* JSON inválido de IA */ }
           }
         } catch (e) {
           console.log('AI analysis fallback:', e.message);
