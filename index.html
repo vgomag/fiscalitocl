@@ -2226,6 +2226,7 @@ function renderTabla(searchOverride){
         <td><span style="font-size:11px;color:var(--text-dim)">${esc(c.estado_procedimiento||'—')}</span></td>
         <td><div class="materia-cell">${esc(c.materia||'—')}</div></td>
         <td><span class="proto-cell">${c.protocolo?'Protocolo '+esc(c.protocolo):'—'}</span></td>
+        <td style="text-align:center"><span style="font-weight:600;font-size:12px;color:${(_dilCountMap[c.id]||0)>0?'var(--gold)':'var(--text-muted)'}" title="${(_dilCountMap[c.id]||0)} diligencias en el expediente">${_dilCountMap[c.id]||'—'}</span></td>
         <td>${c.judicializada?'<span class="jud-badge">Sí</span>':'<span class="no-badge">No</span>'}</td>
         <td>${c.medida_cautelar?'<span class="mc-badge">Sí</span>':'<span class="no-badge">No</span>'}</td>
         <td>${(c.resultado||c.propuesta)?`<span class="proc-badge ${(c.resultado||c.propuesta)==='Sanción'?'proc-is':(c.resultado||c.propuesta)==='Sobreseimiento'?'proc-sa':'proc-pd'}">${esc(c.resultado||c.propuesta)}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
