@@ -2118,10 +2118,18 @@ function renderTabla(searchOverride){
 
   /* Ordenamiento */
   if(sortField){
-    cases=[...cases].sort((a,b)=>{
-      const av=a[sortField]||'',bv=b[sortField]||'';
-      return sortDir==='asc'?av.localeCompare(bv,-1)*-1:bv.localeCompare(av,-1)*-1;
-    });
+    if(sortField==='_dilCount'){
+      /* Ordenar por conteo de diligencias (numérico) */
+      cases=[...cases].sort((a,b)=>{
+        const av=_dilCountMap[a.id]||0, bv=_dilCountMap[b.id]||0;
+        return sortDir==='asc'?bv-av:av-bv;
+      });
+    } else {
+      cases=[...cases].sort((a,b)=>{
+        const av=a[sortField]||'',bv=b[sortField]||'';
+        return sortDir==='asc'?av.localeCompare(bv,-1)*-1:bv.localeCompare(av,-1)*-1;
+      });
+    }
   } else if(isTerminado){
     /* Default: ordenar por numero_exp_interno ascendente */
     cases=[...cases].sort((a,b)=>(a.numero_exp_interno||999)-(b.numero_exp_interno||999));
@@ -2179,7 +2187,7 @@ function renderTabla(searchOverride){
 
   const tbody=document.getElementById('tablaBody');
   if(!tbody)return;
-  const colSpan=isTerminado?11:11;
+  const colSpan=isTerminado?11:12;
   if(!cases.length){tbody.innerHTML=`<tr><td colspan="${colSpan}" class="empty-state">Sin expedientes en esta categoría</td></tr>`;return;}
   const procMap={'Investigación Sumaria':'is','Sumario Administrativo':'sa','Procedimiento Disciplinario':'pd'};
 
