@@ -213,7 +213,8 @@ export default async (req) => {
     if (!saKey) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
 
-    const sa = JSON.parse(saKey);
+    let sa;
+    try { sa = JSON.parse(saKey); } catch(e) { throw new Error('Error de configuración: GOOGLE_SERVICE_ACCOUNT_KEY no es JSON válido'); }
     const token = await getAccessToken(sa);
     const meta = await driveGetMeta(fileId, token);
     const isNativeGoogle = (meta.mimeType || '').includes('google-apps');
