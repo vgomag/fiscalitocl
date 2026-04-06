@@ -3083,8 +3083,11 @@ async function sendMessage(){
           const isVistaOrInforme=activeFn==='F7'||activeFn==='F8';
           const isIRAC=activeFn==='F5';
           const isAnalisis=activeFn==='F6';
-          const MAX_CHARS=isVistaOrInforme?200000:isIRAC?6000:isAnalisis?15000:8000;
-          const MAX_PER_DIL=isVistaOrInforme?12000:isIRAC?300:isAnalisis?800:300;
+          const isCuestionario=activeFn==='F3'||activeFn==='F4';
+          const isConsulta=activeFn==='F0'||activeFn==='F2';
+          /* Presupuestos generosos: TODAS las funciones necesitan acceder al expediente completo */
+          const MAX_CHARS=isVistaOrInforme?200000:isIRAC?40000:isAnalisis?50000:isCuestionario?30000:isConsulta?25000:15000;
+          const MAX_PER_DIL=isVistaOrInforme?12000:isIRAC?2000:isAnalisis?3000:isCuestionario?2000:isConsulta?1500:800;
           const MAX_DILS=200;
           let usedChars=0;
 
@@ -3349,8 +3352,8 @@ async function sendMessage(){
     }catch(normaErr){console.warn('Normas BCN load error:',normaErr);}
     }
 
-    /* ── F7: Cargar párrafos modelo desde case_metadata ── */
-    if((activeFn==='F7'||activeFn==='F8')&&currentCase){
+    /* ── Cargar párrafos modelo desde case_metadata (para TODAS las funciones con caso activo) ── */
+    if(currentCase&&activeFn!=='F10'&&activeFn!=='F11'){
       try{
         const{data:pmData}=await sb.from('case_metadata')
           .select('value')
