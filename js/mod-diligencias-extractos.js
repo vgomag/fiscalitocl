@@ -231,7 +231,7 @@ async function importDriveAsDiligencias(){
     const folderId=m[1];
 
     const _ctrl1=new AbortController();
-    const _tout1=setTimeout(()=>_ctrl1.abort(),30000);
+    const _tout1=setTimeout(()=>_ctrl1.abort(),60000);
     try{
       const _fetchFn=typeof authFetch==='function'?authFetch:fetch;
       const res=await _fetchFn('/.netlify/functions/drive',{
@@ -375,7 +375,7 @@ async function processDiligenciaOCR(dilId){
     /* Step 3: Generate quick summary with server (Haiku) */
     try{
       const _ctrl4=new AbortController();
-      const _tout4=setTimeout(()=>_ctrl4.abort(),30000);
+      const _tout4=setTimeout(()=>_ctrl4.abort(),60000);
       try{
         const _fetchFn4=typeof authFetch==='function'?authFetch:fetch;
         const sumRes=await _fetchFn4('/.netlify/functions/ocr',{
