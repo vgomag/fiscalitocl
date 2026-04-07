@@ -693,7 +693,7 @@ function extractFolderIdFromUrl(url) {
         if (item.querySelector('.crud-btns')) return;
         var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
-        var id = m[1];
+        var id = escAttr(m[1]);
         var btns = document.createElement('span');
         btns.className = 'crud-btns';
         btns.style.cssText = 'float:right;white-space:nowrap;margin-top:4px;';
