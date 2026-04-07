@@ -337,6 +337,7 @@ function injectAlertUI(){
 
 /* ── Init ── */
 function init(){
+  if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;} /* Evitar doble-init */
   loadPersistedState();
   injectAlertUI();
   // Generar alertas después de que los casos se carguen
