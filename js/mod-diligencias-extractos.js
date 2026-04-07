@@ -614,12 +614,35 @@ async function analyzeExpediente(dilId){
       }
     } else {
       /* Parse existing text to get page texts */
-      const pageSections=fullText.split(/=== PÁGINA \d+ ===/);
-      pageTexts=pageSections.filter(t=>t.trim().length>20);
+      const hasPageMarkers=fullText.includes('=== PÁGINA');
+      if(hasPageMarkers){
+        const pageSections=fullText.split(/=== PÁGINA \d+ ===/);
+        pageTexts=pageSections.filter(t=>t.trim().length>20);
+      } else {
+        /* Texto de Vision OCR sin marcadores — dividir en bloques de ~3000 chars */
+        const chunkSize=3000;
+        for(let c=0;c<fullText.length;c+=chunkSize){
+          const chunk=fullText.substring(c,Math.min(c+chunkSize,fullText.length));
+          if(chunk.trim().length>20) pageTexts.push(chunk);
+        }
+      }
+      /* También incluir texto de Vision OCR adicional si existe */
+      const visionMatch=fullText.match(/=== TEXTO OCR VISION \(páginas escaneadas\) ===([\s\S]+)$/);
+      if(visionMatch){
+        const visionText=visionMatch[1].trim();
+        if(visionText.length>100){
+          /* Agregar Vision text como páginas adicionales */
+          const vChunkSize=3000;
+          for(let c=0;c<visionText.length;c+=vChunkSize){
+            const chunk=visionText.substring(c,Math.min(c+vChunkSize,visionText.length));
+            if(chunk.trim().length>20) pageTexts.push(chunk);
+          }
+        }
+      }
     }
 
     /* ── ETAPA 2: Identificar diligencias por LOTES ── */
-    showToast('🔍 Etapa 2/2: Identificando diligencias por lotes…');
+    showToast(`🔍 Etapa 2/2: Identificando diligencias en ${pageTexts.length} segmentos…`);
 
     const totalPages=pageTexts.length;
     const batches=[];
