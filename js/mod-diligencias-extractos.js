@@ -559,6 +559,17 @@ async function analyzeExpediente(dilId){
     let pageTexts=[];
     let fullText=dil.extracted_text||'';
 
+    /* ── Detectar si el texto existente tiene páginas vacías (escaneadas) ── */
+    if(fullText&&fullText.length>=200&&fullText.includes('=== PÁGINA')){
+      const existingSections=fullText.split(/=== PÁGINA \d+ ===/).filter(s=>s.trim().length>0);
+      const emptyExisting=existingSections.filter(s=>s.trim().length<50).length;
+      const existRatio=existingSections.length>0?(emptyExisting/existingSections.length):0;
+      if(existRatio>0.3&&existingSections.length>2){
+        showToast(`⚠️ ${emptyExisting}/${existingSections.length} páginas sin texto. Forzando re-extracción…`);
+        fullText=''; /* Forzar ETAPA 1 */
+      }
+    }
+
     /* ── ETAPA 1: Extraer texto página por página (client-side) ── */
     if(!fullText||fullText.length<200){
       if(!dil.drive_file_id){showToast('⚠️ Sin archivo Drive');return;}
@@ -609,6 +620,47 @@ async function analyzeExpediente(dilId){
         }
 
         fullText=pageTexts.map((t,i)=>`=== PÁGINA ${i+1} ===\n${t}`).join('\n\n');
+
+        /* ── Detectar páginas escaneadas y usar Vision OCR si es necesario ── */
+        const emptyPgs=pageTexts.filter(t=>t.trim().length<50).length;
+        const scanR=numPages>0?(emptyPgs/numPages):0;
+        if(scanR>0.3&&numPages>2){
+          showToast(`📷 ${emptyPgs}/${numPages} páginas escaneadas. Usando Vision OCR del servidor…`);
+          try{
+            const _ctrlVision=new AbortController();
+            const _toutVision=setTimeout(()=>_ctrlVision.abort(),120000);
+            try{
+              const _fetchVision=typeof authFetch==='function'?authFetch:fetch;
+              const vRes=await _fetchVision('/.netlify/functions/ocr',{
+                method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name,diligenciaType:'expediente'}),
+                signal:_ctrlVision.signal
+              });
+              if(vRes.ok){
+                const vData=await vRes.json();
+                if(vData.ok&&vData.extractedText&&vData.extractedText.length>fullText.length){
+                  showToast(`📷 Vision OCR: ${vData.extractedText.length} chars (vs ${fullText.length} de pdf.js)`);
+                  fullText=vData.extractedText;
+                  /* Re-parse pageTexts from Vision OCR text */
+                  if(fullText.includes('=== PÁGINA')){
+                    const sections=fullText.split(/=== PÁGINA \d+ ===/);
+                    pageTexts=sections.filter(t=>t.trim().length>0);
+                  } else {
+                    /* Vision sin marcadores: dividir en chunks */
+                    pageTexts=[];
+                    for(let c=0;c<fullText.length;c+=3000){
+                      const chunk=fullText.substring(c,Math.min(c+3000,fullText.length));
+                      if(chunk.trim().length>20)pageTexts.push(chunk);
+                    }
+                  }
+                }
+              }
+            }finally{clearTimeout(_toutVision);}
+          }catch(vErr){
+            console.warn('Vision OCR fallback error:',vErr.message);
+            showToast('⚠️ Vision OCR falló, continuando con pdf.js');
+          }
+        }
 
         /* Save extracted text */
         await sb.from('diligencias').update({
