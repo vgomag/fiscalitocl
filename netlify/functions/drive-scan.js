@@ -332,7 +332,7 @@ exports.handler = async (event) => {
   }
 };
 
-export const config = {
+exports.config = {
   maxDuration: 30
 };
 

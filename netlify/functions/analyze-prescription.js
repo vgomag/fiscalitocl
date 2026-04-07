@@ -424,6 +424,6 @@ Línea temporal: ${JSON.stringify(analysis.timeline)}`;
   }
 };
 
-export const config = {
+exports.config = {
   maxDuration: 60
 };

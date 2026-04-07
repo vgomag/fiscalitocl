@@ -721,7 +721,18 @@ function extractFolderIdFromUrl(url) {
 })();
 
 /* ── Drive API ── */
-async function callDrive(body){var fetchFn=(typeof authFetch==='function')?authFetch:fetch;var res=await fetchFn('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var d=await res.json();if(!d.ok)throw new Error(d.error||'Error en Drive');return d;}
+async function callDrive(body){
+  var fetchFn=(typeof authFetch==='function')?authFetch:fetch;
+  var res=await fetchFn('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok){
+    var errText='';try{var errData=await res.json();errText=errData.error||JSON.stringify(errData);}catch(e){errText=await res.text().catch(function(){return '';});}
+    console.error('[callDrive] HTTP '+res.status+':',errText);
+    throw new Error('Drive HTTP '+res.status+': '+(errText||'Error desconocido'));
+  }
+  var d=await res.json();
+  if(!d.ok)throw new Error(d.error||'Error en Drive');
+  return d;
+}
 function fmtSize(b){if(!b)return'';var n=parseInt(b);if(n<1024)return n+'B';if(n<1048576)return(n/1024).toFixed(0)+'KB';return(n/1048576).toFixed(1)+'MB';}
 async function loadDriveTab(){
   /* Sincronizar _currentDriveCase con currentCase si no está definido */

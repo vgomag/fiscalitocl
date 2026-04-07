@@ -294,6 +294,6 @@ ${PRECISION_JURIDICA}`;
   }
 };
 
-export const config = {
+exports.config = {
   maxDuration: 60
 };

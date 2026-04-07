@@ -127,7 +127,13 @@ async function listFolder(folderId, token) {
   const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const fields = encodeURIComponent('files(id,name,mimeType,size,modifiedTime,webViewLink,createdTime)');
   const r = await driveGet(`/drive/v3/files?q=${q}&fields=${fields}&pageSize=200&orderBy=name`, token);
-  return r.status < 300 ? (r.data.files || []) : [];
+  if (r.status >= 300) {
+    const errDetail = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+    const err = new Error('Google Drive API error ' + r.status + ' listing folder ' + folderId + ': ' + (errDetail || '').substring(0, 300));
+    err.driveStatus = r.status;
+    throw err;
+  }
+  return r.data.files || [];
 }
 
 async function listRecursive(folderId, token, depth, maxDepth, prefix) {
@@ -240,24 +246,34 @@ exports.handler = async (event) => {
       if (!folderId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'folderId requerido' }) };
       var idErr = validateDriveId(folderId, 'folderId'); if (idErr) return idErr;
 
-      if (recursive) {
-        const maxDepth = body.maxDepth || 3;
-        const all = await listRecursive(folderId, token, 0, maxDepth, '');
+      try {
+        if (recursive) {
+          const maxDepth = body.maxDepth || 3;
+          const all = await listRecursive(folderId, token, 0, maxDepth, '');
+          return { statusCode: 200, headers, body: JSON.stringify({
+            ok: true,
+            files: all.filter(f => !f._isFolder),
+            folders: all.filter(f => f._isFolder),
+            total: all.length
+          })};
+        }
+
+        const items = await listFolder(folderId, token);
         return { statusCode: 200, headers, body: JSON.stringify({
           ok: true,
-          files: all.filter(f => !f._isFolder),
-          folders: all.filter(f => f._isFolder),
-          total: all.length
+          files: items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder'),
+          folders: items.filter(f => f.mimeType === 'application/vnd.google-apps.folder'),
+          total: items.length
         })};
+      } catch (listErr) {
+        const status = listErr.driveStatus || 500;
+        const clientStatus = status === 404 ? 404 : status === 403 ? 403 : 502;
+        const msg = status === 404 ? 'Carpeta no encontrada en Drive. Verifique que la carpeta existe y no fue eliminada.'
+          : status === 403 ? 'Sin permiso para acceder a la carpeta de Drive. La cuenta de servicio necesita acceso a esta carpeta.'
+          : 'Error al listar archivos de Drive: ' + listErr.message;
+        console.error('[drive] listFolder error:', listErr.message);
+        return { statusCode: clientStatus, headers, body: JSON.stringify({ ok: false, error: msg }) };
       }
-
-      const items = await listFolder(folderId, token);
-      return { statusCode: 200, headers, body: JSON.stringify({
-        ok: true,
-        files: items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder'),
-        folders: items.filter(f => f.mimeType === 'application/vnd.google-apps.folder'),
-        total: items.length
-      })};
     }
 
     if (action === 'read') {
@@ -307,6 +323,7 @@ exports.handler = async (event) => {
   }
 };
 
-export const config = {
+// Netlify function config (CJS-compatible)
+exports.config = {
   maxDuration: 30
 };

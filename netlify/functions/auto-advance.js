@@ -249,6 +249,6 @@ ${buildLightDirectives()}`;
   }
 };
 
-export const config = {
+exports.config = {
   maxDuration: 60
 };
