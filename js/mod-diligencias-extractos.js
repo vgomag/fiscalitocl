@@ -300,7 +300,7 @@ async function importDriveAsDiligencias(){
   }
 }
 
-/* ── Procesar OCR: extrae texto CLIENT-SIDE con pdf.js (sin timeout) ── */
+/* ── Procesar OCR: extrae texto con pdf.js + Vision OCR híbrido para escaneados ── */
 async function processDiligenciaOCR(dilId){
   if(!currentCase||!session)return;
 
@@ -312,43 +312,87 @@ async function processDiligenciaOCR(dilId){
   showToast('📥 Descargando y extrayendo texto…');
 
   try{
-    /* Step 1: Download PDF as binary from Drive (via server) */
-    const _ctrl2=new AbortController();
-    const _tout2=setTimeout(()=>_ctrl2.abort(),120000);
+    const _fetchFn=typeof authFetch==='function'?authFetch:fetch;
     let extractedText='';
     let aiSummary=null;
+    let usedVisionOCR=false;
+
+    /* ── PASO 1: Descargar PDF ── */
+    const _ctrl2=new AbortController();
+    const _tout2=setTimeout(()=>_ctrl2.abort(),120000);
+    let dlData=null;
     try{
-      const _fetchFn2=typeof authFetch==='function'?authFetch:fetch;
-      const dlRes=await _fetchFn2('/.netlify/functions/drive',{
+      const dlRes=await _fetchFn('/.netlify/functions/drive',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({action:'download',fileId:dil.drive_file_id}),
         signal:_ctrl2.signal
       });
-
       const ct=dlRes.headers.get('content-type')||'';
       if(!ct.includes('json')){
-        /* Fallback: try server-side OCR for non-PDF files */
-        throw new Error('No se pudo descargar. Intente con archivo más pequeño.');
+        throw new Error('Respuesta no JSON al descargar. Intente con archivo más pequeño.');
       }
-      if(!dlRes.ok){const errBody=await dlRes.text().catch(()=>'');throw new Error('HTTP '+dlRes.status+(errBody?' — '+errBody.substring(0,150):''));}
-
-    let dlData;
-    try{dlData=await dlRes.json();}catch(e){throw new Error('Respuesta del servidor no es JSON válido');}
-    if(!dlData||typeof dlData!=='object'){throw new Error('Invalid response format from download');}
+      if(!dlRes.ok){
+        const errBody=await dlRes.text().catch(()=>'');
+        throw new Error('HTTP '+dlRes.status+(errBody?' — '+errBody.substring(0,150):''));
+      }
+      try{dlData=await dlRes.json();}catch(e){throw new Error('Respuesta del servidor no es JSON válido');}
+      if(!dlData||typeof dlData!=='object'){throw new Error('Invalid response format from download');}
+    }finally{
+      clearTimeout(_tout2);
+    }
 
     if(dlData.ok&&dlData.base64){
-      /* Step 2: Extract text CLIENT-SIDE with pdf.js */
+      /* ── PASO 2A: Extraer texto CLIENT-SIDE con pdf.js ── */
       showToast('📄 Extrayendo texto con pdf.js…');
       extractedText=await extractPdfTextClientSide(dlData.base64);
+
+      /* ── PASO 2B: Detectar páginas escaneadas (poco texto) ── */
+      const pageChunks=extractedText.split(/=== PÁGINA \d+ ===/);
+      const pages=pageChunks.filter(t=>t.trim().length>0);
+      const totalPages=pages.length;
+      const emptyPages=pages.filter(t=>t.trim().length<50).length;
+      const scanRatio=totalPages>0?(emptyPages/totalPages):0;
+
+      if(scanRatio>0.3&&totalPages>2){
+        /* Más del 30% de páginas tienen poco texto → PDF parcialmente escaneado */
+        showToast(`📷 ${emptyPages}/${totalPages} páginas escaneadas detectadas. Usando OCR con Vision…`);
+        usedVisionOCR=true;
+        try{
+          const _ctrl3=new AbortController();
+          const _tout3=setTimeout(()=>_ctrl3.abort(),120000);
+          try{
+            const ocrRes=await _fetchFn('/.netlify/functions/ocr',{
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name}),
+              signal:_ctrl3.signal
+            });
+            if(ocrRes.ok){
+              const ocrData=await ocrRes.json();
+              if(ocrData&&ocrData.ok&&ocrData.extractedText&&ocrData.extractedText.length>extractedText.length){
+                /* Vision OCR obtuvo más texto: usar ese, pero mantener marcadores de página */
+                showToast(`📷 Vision OCR: ${ocrData.extractedText.length} chars (vs ${extractedText.length} de pdf.js)`);
+                /* Combinar: usar texto de pdf.js para páginas con contenido, Vision para las demás */
+                extractedText=_mergeOcrTexts(extractedText,ocrData.extractedText,totalPages);
+              }
+            }
+          }finally{
+            clearTimeout(_tout3);
+          }
+        }catch(e){
+          console.warn('Vision OCR fallback error:',e.message);
+          showToast('⚠️ Vision OCR falló, usando solo pdf.js');
+        }
+      }
     } else if(dlData.error&&dlData.error.includes('grande')){
-      /* File too large for download endpoint — use server OCR */
+      /* Archivo muy grande → usar solo OCR servidor */
       showToast('📥 Archivo grande — usando OCR servidor…');
+      usedVisionOCR=true;
       const _ctrl3=new AbortController();
       const _tout3=setTimeout(()=>_ctrl3.abort(),120000);
       try{
-        const _fetchFn3=typeof authFetch==='function'?authFetch:fetch;
-        const ocrRes=await _fetchFn3('/.netlify/functions/ocr',{
+        const ocrRes=await _fetchFn('/.netlify/functions/ocr',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({action:'extract',fileId:dil.drive_file_id,fileName:dil.file_name}),
@@ -357,9 +401,9 @@ async function processDiligenciaOCR(dilId){
         const ocrCt=ocrRes.headers.get('content-type')||'';
         if(!ocrCt.includes('json'))throw new Error('Timeout del servidor. Divida el PDF en partes más pequeñas.');
         const ocrData=await ocrRes.json();
-        if(!ocrData||typeof ocrData!=='object'){throw new Error('Invalid OCR response format');}
+        if(!ocrData||typeof ocrData!=='object'){throw new Error('Formato de respuesta OCR inválido');}
         if(!ocrRes.ok||!ocrData.ok){throw new Error(ocrData.error||'Error OCR');}
-        if(typeof ocrData.extractedText!=='string'){throw new Error('OCR response missing extractedText field');}
+        if(typeof ocrData.extractedText!=='string'){throw new Error('Respuesta OCR sin texto');}
         extractedText=ocrData.extractedText;
       }finally{
         clearTimeout(_tout3);
@@ -369,16 +413,15 @@ async function processDiligenciaOCR(dilId){
     }
 
     if(!extractedText||extractedText.length<50){
-      throw new Error('No se pudo extraer texto del documento');
+      throw new Error('No se pudo extraer texto del documento ('+extractedText.length+' caracteres)');
     }
 
-    /* Step 3: Generate quick summary with server (Haiku) */
+    /* ── PASO 3: Generar resumen rápido ── */
     try{
       const _ctrl4=new AbortController();
       const _tout4=setTimeout(()=>_ctrl4.abort(),60000);
       try{
-        const _fetchFn4=typeof authFetch==='function'?authFetch:fetch;
-        const sumRes=await _fetchFn4('/.netlify/functions/ocr',{
+        const sumRes=await _fetchFn('/.netlify/functions/ocr',{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({action:'summarize',text:extractedText.substring(0,4000)}),
           signal:_ctrl4.signal
@@ -388,19 +431,16 @@ async function processDiligenciaOCR(dilId){
         clearTimeout(_tout4);
       }
     }catch(e){}
-    }finally{
-      clearTimeout(_tout2);
-    }
 
-    /* Step 4: Save to Supabase */
+    /* ── PASO 4: Guardar en Supabase ── */
     await sb.from('diligencias').update({
-      extracted_text:extractedText,
+      extracted_text:extractedText.substring(0,200000),
       ai_summary:aiSummary,
       is_processed:true,
       processing_status:'completed'
     }).eq('id',dilId);
 
-    showToast(`✅ Procesado: ${dil.file_name} (${extractedText.length} caracteres)`);
+    showToast(`✅ Procesado: ${dil.file_name} (${extractedText.length} chars${usedVisionOCR?' + Vision OCR':''})`);
     await loadDiligenciasTab();
 
   }catch(err){
@@ -408,6 +448,38 @@ async function processDiligenciaOCR(dilId){
     showToast('❌ Error: '+err.message);
     console.error('processDiligenciaOCR:',err);
   }
+}
+
+/* ── Combinar texto de pdf.js + Vision OCR para PDFs mixtos ── */
+function _mergeOcrTexts(pdfJsText,visionText,totalPages){
+  /* Si Vision OCR no tiene marcadores de página, usarlo como un bloque adicional */
+  const hasPageMarkers=visionText.includes('=== PÁGINA');
+  if(hasPageMarkers){
+    /* Vision también tiene marcadores → usar el que tenga más contenido */
+    return visionText.length>pdfJsText.length?visionText:pdfJsText;
+  }
+  /* Dividir pdf.js en páginas y detectar las vacías */
+  const pageChunks=pdfJsText.split(/(?==== PÁGINA \d+ ===)/);
+  const result=[];
+  let visionUsed=false;
+  for(const chunk of pageChunks){
+    const m=chunk.match(/=== PÁGINA (\d+) ===/);
+    if(!m){if(chunk.trim())result.push(chunk);continue;}
+    const pageNum=parseInt(m[1]);
+    const textAfterMarker=chunk.replace(/=== PÁGINA \d+ ===\s*/,'');
+    if(textAfterMarker.trim().length<50){
+      /* Página con poco texto → marcar como escaneada, el Vision text se agrega al final */
+      result.push(`=== PÁGINA ${pageNum} ===\n[Página escaneada — ver OCR completo al final]\n`);
+      visionUsed=true;
+    } else {
+      result.push(chunk);
+    }
+  }
+  /* Agregar el texto completo de Vision OCR al final para las páginas escaneadas */
+  if(visionUsed){
+    result.push(`\n\n=== TEXTO OCR VISION (páginas escaneadas) ===\n${visionText}\n`);
+  }
+  return result.join('\n');
 }
 
 /* ── Extraer texto de PDF en el navegador con pdf.js ── */
