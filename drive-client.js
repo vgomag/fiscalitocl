@@ -101,11 +101,11 @@ function extractFolderIdFromUrl(url) {
   function sbH() { return {apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json'}; }
 
   async function sbDelete(table, id) {
-    var r = await fetch(SB_URL+'/rest/v1/'+table+'?id=eq.'+id, {method:'DELETE',headers:sbH()});
+    var r = await fetch(SB_URL+'/rest/v1/'+encodeURIComponent(table)+'?id=eq.'+encodeURIComponent(id), {method:'DELETE',headers:sbH()});
     return r.ok;
   }
   async function sbPatchRow(table, id, body) {
-    var r = await fetch(SB_URL+'/rest/v1/'+table+'?id=eq.'+id, {method:'PATCH',headers:{...sbH(),Prefer:'return=minimal'},body:JSON.stringify(body)});
+    var r = await fetch(SB_URL+'/rest/v1/'+encodeURIComponent(table)+'?id=eq.'+encodeURIComponent(id), {method:'PATCH',headers:{...sbH(),Prefer:'return=minimal'},body:JSON.stringify(body)});
     return r.ok;
   }
   async function sbInsert(table, body) {
@@ -612,7 +612,7 @@ function extractFolderIdFromUrl(url) {
         if (item.querySelector('.crud-btns')) return;
         var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
-        var id = m[1];
+        var id = escAttr(m[1]);
         var btns = document.createElement('span');
         btns.className = 'crud-btns';
         btns.style.cssText = 'float:right;white-space:nowrap;margin-left:6px;';
@@ -634,7 +634,7 @@ function extractFolderIdFromUrl(url) {
         if (item.querySelector('.crud-btns')) return;
         var m = (item.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
         if (!m) return;
-        var id = m[1];
+        var id = escAttr(m[1]);
         var btns = document.createElement('span');
         btns.className = 'crud-btns';
         btns.style.cssText = 'float:right;white-space:nowrap;';
