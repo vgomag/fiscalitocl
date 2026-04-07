@@ -2846,17 +2846,20 @@ async function deleteChatMsg(msgId,btn){
 async function loadChatHistory(caseId){
   if(!caseId||!session)return;
   if(_chatLoadedForCase===caseId)return;
+  _chatLoadedForCase=caseId; /* Marcar inmediatamente para evitar race condition */
   const msgs=document.getElementById('msgs');
+  if(!msgs)return;
   msgs.innerHTML='';
   try{
     const{data:allData,error}=await sb.from('chat_messages').select('id,role,content,fn_id,created_at').eq('case_id',caseId).order('created_at',{ascending:false}).limit(60);
+    if(currentCase?.id!==caseId){return;} /* El usuario cambió de caso mientras cargaba */
     const data=allData?allData.reverse():null;
-    if(error){console.warn('loadChatHistory:',error);showToast('⚠️ Error cargando historial');return;}
+    if(error){console.warn('loadChatHistory:',error);showToast('⚠️ Error cargando historial');_chatLoadedForCase=null;return;}
     if(data&&data.length>0){
       msgs.style.display='flex';
-      document.getElementById('chatMsgCountBtn').style.display='';
-      document.getElementById('exportTxtBtn').style.display='';
-      document.getElementById('exportMdBtn').style.display='';
+      const countBtn=document.getElementById('chatMsgCountBtn');if(countBtn)countBtn.style.display='';
+      const txtBtn=document.getElementById('exportTxtBtn');if(txtBtn)txtBtn.style.display='';
+      const mdBtn=document.getElementById('exportMdBtn');if(mdBtn)mdBtn.style.display='';
       data.forEach(m=>{
         const fn=FNS.find(f=>f.code===m.fn_id)||FNS[0];
         const av=m.role==='assistant'?`<div class="msg-av-icon">⚖️</div>`:`<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);font-size:11px;font-family:var(--font-body)">Yo</div>`;
@@ -2870,8 +2873,7 @@ async function loadChatHistory(caseId){
       });
       msgs.scrollTop=msgs.scrollHeight;
     }
-  }catch(e){console.warn('loadChatHistory error:',e);showToast('⚠️ Error cargando historial');}
-  _chatLoadedForCase=caseId;
+  }catch(e){console.warn('loadChatHistory error:',e);showToast('⚠️ Error cargando historial');_chatLoadedForCase=null;}
 }
 function exportChat(format){
   const msgs=document.getElementById('msgs');if(!msgs)return;
@@ -3597,7 +3599,7 @@ async function sendMessage(){
               streamError=true;
               console.warn('Stream error event:',evt);
             }
-          }catch{}
+          }catch(parseErr){console.warn('SSE JSON parse error:',parseErr.message,payload?.substring(0,100));}
         }
       }
     }catch(streamErr){
