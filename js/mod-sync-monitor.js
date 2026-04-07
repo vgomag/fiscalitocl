@@ -223,18 +223,20 @@
     };
   }
 
-  /* ── Eventos de red ── */
-  window.addEventListener('online', function(){
-    isOnline = true;
-    addLog('success', 'Conexión restaurada');
-    healthCheck();
-  });
-
-  window.addEventListener('offline', function(){
-    isOnline = false;
-    addLog('error', 'Conexión perdida');
-    updateBadge();
-  });
+  /* ── Eventos de red (con guardia anti-duplicado) ── */
+  if(!window._syncMonitorNetEventsRegistered){
+    window._syncMonitorNetEventsRegistered = true;
+    window.addEventListener('online', function(){
+      isOnline = true;
+      addLog('success', 'Conexión restaurada');
+      healthCheck();
+    });
+    window.addEventListener('offline', function(){
+      isOnline = false;
+      addLog('error', 'Conexión perdida');
+      updateBadge();
+    });
+  }
 
   /* ── API pública ── */
   window._syncMonitor = {

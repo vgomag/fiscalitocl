@@ -805,8 +805,9 @@ async function f11RefreshDevices(){
   }
 }
 
-/* Escuchar conexión/desconexión de dispositivos */
-if(navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function'){
+/* Escuchar conexión/desconexión de dispositivos (con guardia anti-duplicado) */
+if(navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function' && !window._f11DeviceChangeRegistered){
+  window._f11DeviceChangeRegistered = true;
   navigator.mediaDevices.addEventListener('devicechange', () => {
     const select = document.getElementById('f11AudioDevice');
     if(select) f11RefreshDevices();
