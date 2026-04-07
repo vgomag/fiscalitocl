@@ -319,6 +319,7 @@
         // Transformaciones
         if(cf.key.includes('denunciantes') || cf.key.includes('denunciados') || cf.key.includes('estamentos')){
           // Intentar parsear como array
+          val = String(val); /* Asegurar que es string antes de .includes() */
           if(val.includes(';')) val = val.split(';').map(function(s){return s.trim();});
           else if(val.includes(',') && !val.match(/^\d/)) val = val.split(',').map(function(s){return s.trim();});
           else val = [val];
