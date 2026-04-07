@@ -61,6 +61,7 @@
       tab.classList.add('active');
       // Mostrar/ocultar contenidos
       const parent = statsTabs.parentElement;
+      if(!parent) return;
       parent.querySelectorAll('.tab-content, [id^="statsTab"]').forEach(function(c){ c.style.display='none'; });
       const adv = document.getElementById('tabStatsAvanzado');
       if(adv) adv.style.display = '';

@@ -707,10 +707,16 @@ function mtSendToChatDirect(name,text){
 async function selectTemplate(code){
   _wizState.tplCode=code;_wizState.step=0;_wizState.modalidad="presencial";
   const caseObj=_wizState.linkedCase||(typeof currentCase!=="undefined"?currentCase:null);
-  _wizState.vals=await autoFillFromCase(caseObj);
-  // Show auto-fill count
-  const filled=Object.keys(_wizState.vals).filter(k=>_wizState.vals[k]&&_wizState.vals[k].trim()).length;
-  if(filled>0)showToast("✓ "+filled+" campos auto-rellenados desde el expediente");
+  try{
+    _wizState.vals=await autoFillFromCase(caseObj);
+    // Show auto-fill count
+    const filled=Object.keys(_wizState.vals).filter(k=>_wizState.vals[k]&&_wizState.vals[k].trim()).length;
+    if(filled>0)showToast("✓ "+filled+" campos auto-rellenados desde el expediente");
+  }catch(err){
+    console.warn('[cuestionarios] autoFillFromCase error:',err);
+    _wizState.vals={};
+    showToast("⚠ No se pudo auto-rellenar: "+err.message);
+  }
   renderCuestionariosView();
 }
 
