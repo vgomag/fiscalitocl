@@ -1,4 +1,12 @@
 /* Fiscalito — Drive Client v6 + Tab Auto-Loader + Contexto IA + CRUD completo */
+
+/* Helper global: extraer folder ID de una URL de Drive */
+function extractFolderIdFromUrl(url) {
+  if (!url) return null;
+  var m = String(url).match(/folders\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
 (function() {
 
   const TAB_LOADERS = {
@@ -20,7 +28,19 @@
     if (typeof pickCaseById === 'function') {
       var _orig = pickCaseById;
       window.pickCaseById = async function(id) {
-        if (id && window._casesMap && window._casesMap[id]) window._currentDriveCase = window._casesMap[id];
+        /* Buscar caso en _casesMap O en allCases (fallback principal) */
+        if (id) {
+          if (window._casesMap && window._casesMap[id]) {
+            window._currentDriveCase = window._casesMap[id];
+          } else if (typeof allCases !== 'undefined' && Array.isArray(allCases)) {
+            var found = allCases.find(function(c) { return c.id === id; });
+            if (found) window._currentDriveCase = found;
+          }
+          /* Asegurar que drive_folder_id esté presente si tenemos drive_folder_url */
+          if (window._currentDriveCase && !window._currentDriveCase.drive_folder_id && window._currentDriveCase.drive_folder_url) {
+            window._currentDriveCase.drive_folder_id = extractFolderIdFromUrl(window._currentDriveCase.drive_folder_url);
+          }
+        }
         return _orig.apply(this, arguments);
       };
     }
@@ -38,7 +58,8 @@
       var _origPickFn = pickFn;
       window.pickFn = async function(fnCode) {
         _origPickFn.apply(this, arguments);
-        var caseId = window._currentDriveCase?.id;
+        var caso = window._currentDriveCase || (typeof currentCase!=='undefined'?currentCase:null);
+        var caseId = caso?.id;
         if (caseId && !window._caseContextCache[caseId]) loadCaseContext(caseId).catch(function(){});
       };
     }
@@ -46,7 +67,8 @@
       var _origBuildContext = buildContext;
       window.buildContext = function(fnCode) {
         var base = _origBuildContext.apply(this, arguments);
-        var caseId = window._currentDriveCase?.id;
+        var caso = window._currentDriveCase || (typeof currentCase!=='undefined'?currentCase:null);
+        var caseId = caso?.id;
         if (!caseId) return base;
         var ctx = window._caseContextCache[caseId];
         if (!ctx) return base;
@@ -171,7 +193,7 @@
   }
 
   window.crudAddDiligencia = function() {
-    var caseId = window._currentDriveCase?.id; if(!caseId) return;
+    var caseId = (window._currentDriveCase||currentCase)?.id; if(!caseId) return;
     showEditModal('+ Nueva Diligencia', [
       {key:'diligencia_label',label:'Título / Descripción',type:'textarea',value:''},
       {key:'diligencia_type',label:'Tipo',type:'select',value:'diligencia',options:[
@@ -248,7 +270,7 @@
   }
 
   window.crudAddCronologia = function() {
-    var caseId = window._currentDriveCase?.id; if(!caseId) return;
+    var caseId = (window._currentDriveCase||currentCase)?.id; if(!caseId) return;
     showEditModal('+ Nuevo Evento de Cronología', [
       {key:'title',label:'Título del evento',type:'text',value:''},
       {key:'event_type',label:'Tipo',type:'select',value:'resolucion',options:[
@@ -331,7 +353,7 @@
   ];
 
   window.crudAddParticipante = function() {
-    var caseId = window._currentDriveCase?.id; if(!caseId) return;
+    var caseId = (window._currentDriveCase||currentCase)?.id; if(!caseId) return;
     showEditModal('+ Nuevo Participante', [
       {key:'name',label:'Nombre completo',type:'text',value:''},
       {key:'role',label:'Rol',type:'select',value:'denunciante',options:ROLES_PART},
@@ -364,7 +386,7 @@
       ], async function(data) {
         await sbPatchRow('case_participants', id, data);
         if(typeof loadParticipantes==='function') loadParticipantes();
-        delete window._caseContextCache[window._currentDriveCase?.id];
+        delete window._caseContextCache[(window._currentDriveCase||currentCase)?.id];
       });
     }).catch(function(e){console.error('[CRUD]',e);alert('Error al cargar participante: '+e.message);});
   };
@@ -402,7 +424,7 @@
   }
 
   window.crudAddAccion = function() {
-    var caseId = window._currentDriveCase?.id; if(!caseId) return;
+    var caseId = (window._currentDriveCase||currentCase)?.id; if(!caseId) return;
     showEditModal('+ Nueva Acción Pendiente', [
       {key:'title',label:'Título',type:'text',value:''},
       {key:'description',label:'Descripción',type:'textarea',value:''},
@@ -505,7 +527,7 @@
       fetch(url+'cronologia?select=event_date,title,event_type,description&case_id=eq.'+caseId+'&order=event_date.asc&limit=20',{headers:h}).then(r=>r.json()),
       fetch(url+'resoluciones?select=resolution_type,resolution_number,resolution_date,authority,fiscal_designado,facts_description&case_id=eq.'+caseId+'&order=created_at.asc',{headers:h}).then(r=>r.json())
     ]);
-    var caso = window._casesMap?.[caseId]||window._currentDriveCase;
+    var caso = window._casesMap?.[caseId]||window._currentDriveCase||(typeof currentCase!=='undefined'&&currentCase?.id===caseId?currentCase:null)||(typeof allCases!=='undefined'?allCases.find(function(c){return c.id===caseId;}):null);
     var ctx = {caso,parts:Array.isArray(parts)?parts:[],dils:Array.isArray(dils)?dils:[],etapas:Array.isArray(etapas)?etapas:[],cron:Array.isArray(cron)?cron:[],resoluciones:Array.isArray(resoluciones)?resoluciones:[]};
     window._caseContextCache[caseId] = ctx;
     return ctx;
@@ -701,9 +723,78 @@
 /* ── Drive API ── */
 async function callDrive(body){var fetchFn=(typeof authFetch==='function')?authFetch:fetch;var res=await fetchFn('/.netlify/functions/drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var d=await res.json();if(!d.ok)throw new Error(d.error||'Error en Drive');return d;}
 function fmtSize(b){if(!b)return'';var n=parseInt(b);if(n<1024)return n+'B';if(n<1048576)return(n/1024).toFixed(0)+'KB';return(n/1048576).toFixed(1)+'MB';}
-async function loadDriveTab(){var caso=window._currentDriveCase;var no=document.getElementById('driveNoFolder');var has=document.getElementById('driveHasFolder');var pic=document.getElementById('drivePicker');if(!no||!has||!pic)return;if(!caso){no.style.display='block';has.style.display='none';pic.style.display='none';return;}if(caso.drive_folder_id){no.style.display='none';has.style.display='block';pic.style.display='none';var link=document.getElementById('driveFolderLink');var name=document.getElementById('driveFolderName');if(link)link.href=caso.drive_folder_url||('https://drive.google.com/drive/folders/'+caso.drive_folder_id);if(name)name.textContent=(caso.name||'Caso')+' \u2014 Drive';await driveRefreshFiles();}else{no.style.display='block';has.style.display='none';pic.style.display='none';}}
-async function driveRefreshFiles(){var caso=window._currentDriveCase;if(!caso||!caso.drive_folder_id)return;var el=document.getElementById('driveFilesList');if(!el)return;el.innerHTML='<div class="drive-empty">Cargando...</div>';try{var r=await callDrive({action:'list',folderId:caso.drive_folder_id});if(!r.files||!r.files.length){el.innerHTML='<div class="drive-empty">Carpeta vac\u00eda.</div>';return;}el.innerHTML=r.files.map(function(f){var icon='&#128196;';if(f.mimeType&&f.mimeType.includes('pdf'))icon='&#128213;';else if(f.mimeType&&f.mimeType.includes('document'))icon='&#128196;';else if(f.mimeType&&f.mimeType.includes('sheet'))icon='&#128202;';return'<div class="drive-file-item"><span style="font-size:14px">'+icon+'</span><a href="'+f.webViewLink+'" target="_blank">'+f.name+'</a><span class="drive-file-size">'+fmtSize(f.size)+'</span></div>';}).join('');}catch(e){el.innerHTML='<div class="drive-empty" style="color:#c00">'+e.message+'</div>';}}
-async function driveCreateFolder(){var caso=window._currentDriveCase;if(!caso){alert('Selecciona un caso primero.');return;}var name=prompt('Nombre de la carpeta:',caso.rol?(caso.rol+' - '+caso.name):caso.name);if(!name)return;try{var r=await callDrive({action:'createFolder',caseId:caso.id,folderName:name});window._currentDriveCase.drive_folder_id=r.folder.id;window._currentDriveCase.drive_folder_url='https://drive.google.com/drive/folders/'+r.folder.id;if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=r.folder.id;window._casesMap[caso.id].drive_folder_url=window._currentDriveCase.drive_folder_url;}await loadDriveTab();}catch(e){alert('Error: '+e.message);}}
+async function loadDriveTab(){
+  /* Sincronizar _currentDriveCase con currentCase si no está definido */
+  if(!window._currentDriveCase && typeof currentCase!=='undefined' && currentCase) {
+    window._currentDriveCase = currentCase;
+  }
+  var caso=window._currentDriveCase;
+  /* Asegurar drive_folder_id derivado de drive_folder_url */
+  if(caso && !caso.drive_folder_id && caso.drive_folder_url){
+    caso.drive_folder_id = extractFolderIdFromUrl(caso.drive_folder_url);
+  }
+  var no=document.getElementById('driveNoFolder');var has=document.getElementById('driveHasFolder');var pic=document.getElementById('drivePicker');
+  if(!no||!has){
+    /* Si no existen los elementos del drive-client, delegar a loadDrivePanel de index.html */
+    if(typeof loadDrivePanel==='function'){loadDrivePanel();} return;
+  }
+  if(!pic) pic={style:{}};
+  if(!caso){no.style.display='block';has.style.display='none';pic.style.display='none';return;}
+  if(caso.drive_folder_id){
+    no.style.display='none';has.style.display='block';pic.style.display='none';
+    var link=document.getElementById('driveFolderLink');var name=document.getElementById('driveFolderName');
+    if(link)link.href=caso.drive_folder_url||('https://drive.google.com/drive/folders/'+caso.drive_folder_id);
+    if(name)name.textContent=(caso.name||'Caso')+' \u2014 Drive';
+    await driveRefreshFiles();
+  }else{no.style.display='block';has.style.display='none';pic.style.display='none';}
+}
+async function driveRefreshFiles(folderIdParam){
+  /* Aceptar folderId como parámetro (compatibilidad con index.html) o derivarlo del caso */
+  var caso=window._currentDriveCase || (typeof currentCase!=='undefined'?currentCase:null);
+  var folderId = folderIdParam || (caso && caso.drive_folder_id) || (caso && extractFolderIdFromUrl(caso.drive_folder_url));
+  if(!folderId){
+    /* Sin folder ID disponible — no podemos listar archivos */
+    var el2=document.getElementById('driveFilesList');
+    if(el2) el2.innerHTML='<div class="drive-empty">Sin carpeta vinculada.</div>';
+    return;
+  }
+  var el=document.getElementById('driveFilesList');if(!el)return;
+  el.innerHTML='<div class="drive-empty">Cargando...</div>';
+  try{
+    var r=await callDrive({action:'list',folderId:folderId,recursive:true,maxDepth:3});
+    var files=r.files||[];
+    if(!files.length){el.innerHTML='<div class="drive-empty">Carpeta vac\u00eda.</div>';return;}
+    el.innerHTML=files.map(function(f){
+      var icon='&#128196;';
+      if(f.mimeType&&f.mimeType.includes('pdf'))icon='&#128213;';
+      else if(f.mimeType&&f.mimeType.includes('document'))icon='&#128196;';
+      else if(f.mimeType&&f.mimeType.includes('sheet'))icon='&#128202;';
+      var link=f.webViewLink||'#';
+      return'<div class="drive-file-item"><span style="font-size:14px">'+icon+'</span><a href="'+link+'" target="_blank">'+f.name+'</a><span class="drive-file-size">'+fmtSize(f.size)+'</span></div>';
+    }).join('');
+  }catch(e){
+    el.innerHTML='<div class="drive-empty" style="color:#c00">'+e.message+'</div>';
+  }
+}
+async function driveCreateFolder(){var caso=window._currentDriveCase||(typeof currentCase!=='undefined'?currentCase:null);if(!caso){alert('Selecciona un caso primero.');return;}var name=prompt('Nombre de la carpeta:',caso.rol?(caso.rol+' - '+caso.name):caso.name);if(!name)return;try{var r=await callDrive({action:'createFolder',caseId:caso.id,folderName:name});window._currentDriveCase.drive_folder_id=r.folder.id;window._currentDriveCase.drive_folder_url='https://drive.google.com/drive/folders/'+r.folder.id;if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=r.folder.id;window._casesMap[caso.id].drive_folder_url=window._currentDriveCase.drive_folder_url;}await loadDriveTab();}catch(e){alert('Error: '+e.message);}}
 async function driveShowPicker(){var pic=document.getElementById('drivePicker');var list=document.getElementById('drivePickerList');if(!pic||!list)return;pic.style.display='block';list.innerHTML='<div class="drive-empty">Cargando...</div>';try{var r=await callDrive({action:'list'});if(!r.folders||!r.folders.length){list.innerHTML='<div class="drive-empty">No hay carpetas.</div>';return;}list.innerHTML=r.folders.map(function(f){return'<div class="drive-folder-option"><span>&#128193; '+f.name+'</span><button onclick="driveLinkFolder(\''+f.id+'\',\''+f.name.replace(/'/g,"\\'")+'\')">Vincular</button></div>';}).join('');}catch(e){list.innerHTML='<div class="drive-empty" style="color:#c00">'+e.message+'</div>';}}
-async function driveLinkFolder(folderId,folderName){var caso=window._currentDriveCase;if(!caso)return;try{await callDrive({action:'link',caseId:caso.id,folderId:folderId,folderName:folderName});window._currentDriveCase.drive_folder_id=folderId;window._currentDriveCase.drive_folder_url='https://drive.google.com/drive/folders/'+folderId;if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=folderId;window._casesMap[caso.id].drive_folder_url=window._currentDriveCase.drive_folder_url;}await loadDriveTab();}catch(e){alert('Error: '+e.message);}}
-async function driveUnlink(){if(!confirm('\u00bfDesvincular carpeta?'))return;var caso=window._currentDriveCase;if(!caso)return;try{await fetch(SB_URL+'/rest/v1/cases?id=eq.'+caso.id,{method:'PATCH',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({drive_folder_id:null,drive_folder_url:null})});window._currentDriveCase.drive_folder_id=null;window._currentDriveCase.drive_folder_url=null;if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=null;window._casesMap[caso.id].drive_folder_url=null;}await loadDriveTab();}catch(e){alert('Error: '+e.message);}}
+async function driveLinkFolder(folderId,folderName){var caso=window._currentDriveCase||(typeof currentCase!=='undefined'?currentCase:null);if(!caso)return;try{await callDrive({action:'link',caseId:caso.id,folderId:folderId,folderName:folderName});window._currentDriveCase.drive_folder_id=folderId;window._currentDriveCase.drive_folder_url='https://drive.google.com/drive/folders/'+folderId;if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=folderId;window._casesMap[caso.id].drive_folder_url=window._currentDriveCase.drive_folder_url;}await loadDriveTab();}catch(e){alert('Error: '+e.message);}}
+async function driveUnlink(){
+  if(!confirm('\u00bfDesvincular carpeta?'))return;
+  var caso=window._currentDriveCase || (typeof currentCase!=='undefined'?currentCase:null);
+  if(!caso)return;
+  try{
+    await fetch(SB_URL+'/rest/v1/cases?id=eq.'+caso.id,{method:'PATCH',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({drive_folder_id:null,drive_folder_url:null})});
+    caso.drive_folder_id=null;
+    caso.drive_folder_url=null;
+    if(window._currentDriveCase) { window._currentDriveCase.drive_folder_id=null; window._currentDriveCase.drive_folder_url=null; }
+    if(typeof currentCase!=='undefined'&&currentCase&&currentCase.id===caso.id){ currentCase.drive_folder_id=null; currentCase.drive_folder_url=null; }
+    if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=null;window._casesMap[caso.id].drive_folder_url=null;}
+    /* Actualizar allCases también */
+    if(typeof allCases!=='undefined'&&Array.isArray(allCases)){
+      var idx=allCases.findIndex(function(c){return c.id===caso.id;});
+      if(idx>=0){allCases[idx].drive_folder_id=null;allCases[idx].drive_folder_url=null;}
+    }
+    await loadDriveTab();
+  }catch(e){alert('Error: '+e.message);}
+}
