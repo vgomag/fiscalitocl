@@ -764,27 +764,73 @@ async function driveRefreshFiles(folderIdParam){
   var caso=window._currentDriveCase || (typeof currentCase!=='undefined'?currentCase:null);
   var folderId = folderIdParam || (caso && caso.drive_folder_id) || (caso && extractFolderIdFromUrl(caso.drive_folder_url));
   if(!folderId){
-    /* Sin folder ID disponible — no podemos listar archivos */
     var el2=document.getElementById('driveFilesList');
     if(el2) el2.innerHTML='<div class="drive-empty">Sin carpeta vinculada.</div>';
     return;
   }
   var el=document.getElementById('driveFilesList');if(!el)return;
-  el.innerHTML='<div class="drive-empty">Cargando...</div>';
+  el.innerHTML='<div class="drive-empty">Cargando archivos y subcarpetas\u2026</div>';
   try{
     var r=await callDrive({action:'list',folderId:folderId,recursive:true,maxDepth:3});
     var files=r.files||[];
-    if(!files.length){el.innerHTML='<div class="drive-empty">Carpeta vac\u00eda.</div>';return;}
-    el.innerHTML=files.map(function(f){
-      var icon='&#128196;';
-      if(f.mimeType&&f.mimeType.includes('pdf'))icon='&#128213;';
-      else if(f.mimeType&&f.mimeType.includes('document'))icon='&#128196;';
-      else if(f.mimeType&&f.mimeType.includes('sheet'))icon='&#128202;';
-      var link=f.webViewLink||'#';
-      return'<div class="drive-file-item"><span style="font-size:14px">'+icon+'</span><a href="'+link+'" target="_blank">'+f.name+'</a><span class="drive-file-size">'+fmtSize(f.size)+'</span></div>';
-    }).join('');
+    var folders=r.folders||[];
+    if(!files.length&&!folders.length){
+      var driveUrl=(caso&&caso.drive_folder_url)?caso.drive_folder_url:('https://drive.google.com/drive/folders/'+folderId);
+      el.innerHTML='<div class="drive-empty" style="padding:16px;text-align:center;color:var(--text-muted)">\ud83d\udcc2 Carpeta vac\u00eda.<br><a href="'+esc(driveUrl)+'" target="_blank" style="color:var(--gold);font-size:12px">Abrir en Drive \u2197</a></div>';
+      return;
+    }
+    /* Determinar icono por tipo MIME */
+    function fileIcon(f){
+      var m=f.mimeType||'';
+      if(m.includes('pdf'))return'\ud83d\udcd5';
+      if(m.includes('spreadsheet'))return'\ud83d\udcca';
+      if(m.includes('document'))return'\ud83d\udcdd';
+      if(m.includes('presentation'))return'\ud83d\udcd9';
+      if(m.includes('image'))return'\ud83d\uddbc';
+      return'\ud83d\udcc4';
+    }
+    /* Agrupar archivos por carpeta usando _path */
+    var byPath={};
+    files.forEach(function(f){
+      var parts=(f._path||f.name).split('/');
+      var folder=parts.length>1?parts.slice(0,-1).join('/'):('Ra\u00edz');
+      if(!byPath[folder])byPath[folder]=[];
+      byPath[folder].push(f);
+    });
+    /* Ordenar carpetas: Raíz primero, luego alfabéticamente */
+    var folderNames=Object.keys(byPath).sort(function(a,b){
+      if(a==='Ra\u00edz')return -1;
+      if(b==='Ra\u00edz')return 1;
+      return a.localeCompare(b);
+    });
+    var html='<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px;font-weight:500">'+files.length+' archivo(s) en '+folderNames.length+' carpeta(s)</div>';
+    folderNames.forEach(function(folder){
+      var flist=byPath[folder];
+      html+='<div style="margin-bottom:10px">';
+      html+='<div style="font-size:10px;font-weight:600;color:var(--gold);padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:4px">\ud83d\udcc1 '+esc(folder)+'</div>';
+      flist.forEach(function(f){
+        var link=f.webViewLink||'#';
+        var sizeStr=f.size?(parseInt(f.size)/1024).toFixed(0)+' KB':'Doc';
+        var dateStr=f.modifiedTime?(' \u00b7 '+new Date(f.modifiedTime).toLocaleDateString('es-CL')):'';
+        html+='<a href="'+esc(link)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:6px 10px;text-decoration:none;color:var(--text);transition:background .1s;border-radius:var(--radius-sm)" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
+        html+='<span style="font-size:14px">'+fileIcon(f)+'</span>';
+        html+='<div style="flex:1;min-width:0">';
+        html+='<div style="font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.name)+'</div>';
+        html+='<div style="font-size:9.5px;color:var(--text-muted)">'+sizeStr+dateStr+'</div>';
+        html+='</div>';
+        html+='<span style="font-size:9px;color:var(--text-muted)">\u2197</span>';
+        html+='</a>';
+      });
+      html+='</div>';
+    });
+    el.innerHTML=html;
   }catch(e){
-    el.innerHTML='<div class="drive-empty" style="color:#c00">'+e.message+'</div>';
+    var driveUrl2=(caso&&caso.drive_folder_url)?caso.drive_folder_url:'';
+    el.innerHTML='<div class="drive-empty" style="padding:16px;text-align:center">'
+      +'<div style="color:var(--text-muted);margin-bottom:8px">\ud83d\udcc2 Carpeta vinculada.</div>'
+      +(driveUrl2?'<a href="'+esc(driveUrl2)+'" target="_blank" style="color:var(--gold);font-size:12px;font-weight:500">Abrir en Drive \u2197</a>':'')
+      +'<div style="font-size:10px;color:#c00;margin-top:6px">'+esc(e.message)+'</div>'
+      +'</div>';
   }
 }
 async function driveCreateFolder(){var caso=window._currentDriveCase||(typeof currentCase!=='undefined'?currentCase:null);if(!caso){alert('Selecciona un caso primero.');return;}var name=prompt('Nombre de la carpeta:',caso.rol?(caso.rol+' - '+caso.name):caso.name);if(!name)return;try{var r=await callDrive({action:'createFolder',caseId:caso.id,folderName:name});window._currentDriveCase.drive_folder_id=r.folder.id;window._currentDriveCase.drive_folder_url='https://drive.google.com/drive/folders/'+r.folder.id;if(window._casesMap&&window._casesMap[caso.id]){window._casesMap[caso.id].drive_folder_id=r.folder.id;window._casesMap[caso.id].drive_folder_url=window._currentDriveCase.drive_folder_url;}await loadDriveTab();}catch(e){alert('Error: '+e.message);}}
