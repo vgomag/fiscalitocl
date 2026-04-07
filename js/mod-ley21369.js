@@ -1136,6 +1136,7 @@ ${secs.map(sec=>`${sec.num}) ${sec.label}: ${sec.cumple}/${sec.total} cumple, ${
         body:JSON.stringify(body),
         signal:_ctrl.signal
       });
+      if(!res.ok){const errTxt=await res.text().catch(()=>"");throw new Error("HTTP "+res.status+(errTxt?" — "+errTxt.substring(0,200):""));}
       const data=await res.json();
       const reply=(data.content&&data.content[0]?.text)||data.reply||"Sin respuesta";
       chatMessages.push({role:"assistant",content:reply});
