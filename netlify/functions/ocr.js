@@ -205,13 +205,29 @@ RESPONDE SOLO JSON puro (sin backticks ni markdown). Array de objetos:
 
 ${PRECISION_JURIDICA}`;
 
-      /* Pro plan: 26s allows larger analysis */
-      const chunk = text.substring(0, 60000);
+      /* Pro plan: 60s allows larger analysis */
+      const chunk = text.substring(0, 80000);
       const r = await callClaude(apiKey, HAIKU, prompt, `Expediente "${p.fileName||'doc'}":\n\n${chunk}`, 8000);
+
+      /* Check for API errors */
+      if (r.error) {
+        console.error('[ocr:analyze] Claude API error:', JSON.stringify(r.error));
+        return { statusCode: 502, headers: H, body: JSON.stringify({ ok: false, error: 'Error de IA: ' + (r.error.message || JSON.stringify(r.error)) }) };
+      }
+
       const rt = (r.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '[]';
 
       let dils = [];
-      try { dils = JSON.parse(rt.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()); } catch(e) {}
+      try { dils = JSON.parse(rt.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()); } catch(e) {
+        console.error('[ocr:analyze] JSON parse failed. Raw response:', rt.substring(0, 500));
+        /* Try to extract partial JSON array */
+        try {
+          const m = rt.match(/\[[\s\S]*\]/);
+          if (m) dils = JSON.parse(m[0]);
+        } catch(e2) {
+          return { statusCode: 200, headers: H, body: JSON.stringify({ ok: false, error: 'IA devolvió respuesta no-JSON: ' + rt.substring(0, 200), rawResponse: rt.substring(0, 500) }) };
+        }
+      }
       if (!Array.isArray(dils)) dils = [];
 
       return { statusCode: 200, headers: H, body: JSON.stringify({ ok: true, diligencias: dils, count: dils.length }) };
