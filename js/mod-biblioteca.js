@@ -1284,8 +1284,10 @@ ${[normasCtx, normativaInternaCtx, booksCtx].filter(Boolean).join('\n\n---\n\n')
         signal:_ctrl.signal
       });
 
+        if(!resp.ok){const errTxt=await resp.text().catch(()=>'');throw new Error('HTTP '+resp.status+(errTxt?' — '+errTxt.substring(0,200):''));}
         const data = await resp.json();
-      const reply = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || 'Sin respuesta.';
+      const content = Array.isArray(data?.content) ? data.content : [];
+      const reply = content.filter(b => b?.type === 'text').map(b => b.text).join('') || data?.reply || 'Sin respuesta.';
       biblioteca.chatMessages.push({ role: 'assistant', content: reply });
 
       const typing = document.getElementById('bibChatTyping');

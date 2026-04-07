@@ -331,8 +331,10 @@ async function processDiligenciaOCR(dilId){
         /* Fallback: try server-side OCR for non-PDF files */
         throw new Error('No se pudo descargar. Intente con archivo más pequeño.');
       }
+      if(!dlRes.ok){const errBody=await dlRes.text().catch(()=>'');throw new Error('HTTP '+dlRes.status+(errBody?' — '+errBody.substring(0,150):''));}
 
-    const dlData=await dlRes.json();
+    let dlData;
+    try{dlData=await dlRes.json();}catch(e){throw new Error('Respuesta del servidor no es JSON válido');}
     if(!dlData||typeof dlData!=='object'){throw new Error('Invalid response format from download');}
 
     if(dlData.ok&&dlData.base64){
