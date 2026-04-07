@@ -264,20 +264,20 @@ window.alertGoToCase = function(caseId){
 window.toggleAlertSetting = function(key, val){
   settings[key] = val;
   saveSettings();
-  generateAlerts();
+  generateAlerts().catch(function(e){console.warn('[alertas] toggleAlertSetting:',e);});
   renderSettingsPanel();
 };
 window.updateAlertSetting = function(key, val){
   settings[key] = val;
   saveSettings();
   renderSettingsPanel();
-  generateAlerts();
+  generateAlerts().catch(function(e){console.warn('[alertas] updateAlertSetting:',e);});
 };
 window.resetAlertSettings = function(){
   settings = { enabled: true, noActivityDays: 7, pendingTasksThreshold: 3, showCriticalOnly: false };
   saveSettings();
   renderSettingsPanel();
-  generateAlerts();
+  generateAlerts().catch(function(e){console.warn('[alertas] resetAlertSettings:',e);});
 };
 window.openAlertPanel = function(){
   const panel = document.getElementById('alertPanel');
@@ -343,9 +343,9 @@ function init(){
   const checkReady = setInterval(() => {
     if(typeof allCases !== 'undefined' && allCases.length > 0 && session){
       clearInterval(checkReady);
-      generateAlerts();
+      generateAlerts().catch(function(e){console.warn('[alertas] init:',e);});
       // Auto-refresh cada 5 minutos
-      refreshTimer = setInterval(generateAlerts, REFRESH_MS);
+      refreshTimer = setInterval(function(){generateAlerts().catch(function(e){console.warn('[alertas] refresh:',e);});}, REFRESH_MS);
     }
   }, 2000);
   console.log('[alertas-casos] Módulo cargado ✓');

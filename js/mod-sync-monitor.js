@@ -246,6 +246,7 @@
 
   /* ── Init ── */
   function init(){
+    if(checkTimer){clearInterval(checkTimer);checkTimer=null;} /* Evitar doble-init */
     createUI();
     monkeyPatchSupabase();
     healthCheck();
