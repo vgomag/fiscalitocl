@@ -13,6 +13,11 @@
 (function(){
   'use strict';
 
+  /* ───────────────────────────────────────────────────────────
+     PRIVATE SCOPE: All functions and variables here are internal
+     only window._ia.* methods are exposed to the global scope
+     ─────────────────────────────────────────────────────────── */
+
   const MOD_ID = 'mod-inteligencia';
   const TAB_ID = 'tabInteligencia';
   const API_BASE = '/.netlify/functions';
@@ -529,7 +534,16 @@
     }
   }
 
-  /* ── Exponer API global ── */
+  /* ── PUBLIC API: Expose only necessary functions to window._ia ──
+     These functions are called from:
+     - onclick="window._ia.analyzePrescription()" (lines 115-116)
+     - onclick="window._ia.analyzeStage()" (line 124)
+     - onclick="window._ia.runOcrBatch()" (line 133)
+     - onclick="window._ia.runOcrMasivo()" (line 134)
+     - onclick="window._ia.generateArt129()" (line 143)
+     - onclick="window._ia.copyArt129()" (line 491)
+     - onclick="window._ia.sendArt129ToChat()" (line 492)
+  */
   window._ia = {
     analyzePrescription: analyzePrescription,
     analyzeStage: analyzeStage,
@@ -553,4 +567,8 @@
     init();
   }
 
+/* ──────────────────────────────────────────────────────
+   END IIFE: All functions above are private except those
+   explicitly exposed via window._ia object
+   ────────────────────────────────────────────────────── */
 })();

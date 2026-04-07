@@ -12,12 +12,15 @@
  *   - dqCleanResync()  → usa funciones corregidas
  */
 
-const QDRANT_ENDPOINT = '/.netlify/functions/qdrant-ingest';
-const OCR_ENDPOINT = '/.netlify/functions/ocr';
-const DRIVE_ENDPOINT = '/.netlify/functions/drive';
+(function patchDriveQdrant() {
+  'use strict';
 
-/* ═══ dqScanFolder — Lista archivos de una carpeta Drive ═══ */
-window.dqScanFolder = async function dqScanFolder() {
+  const QDRANT_ENDPOINT = '/.netlify/functions/qdrant-ingest';
+  const OCR_ENDPOINT = '/.netlify/functions/ocr';
+  const DRIVE_ENDPOINT = '/.netlify/functions/drive';
+
+  /* ═══ dqScanFolder — Lista archivos de una carpeta Drive ═══ */
+  window.dqScanFolder = async function dqScanFolder() {
   if (!dq.selectedFolderId) return showToast('⚠ Selecciona una carpeta primero');
   dq.scanning = true;
   renderDQView();
@@ -43,10 +46,10 @@ window.dqScanFolder = async function dqScanFolder() {
 
   dq.scanning = false;
   renderDQView();
-};
+  };
 
-/* ═══ dqProcessFile — Procesa un archivo: Lee texto + Embeddings + Qdrant ═══ */
-window.dqProcessFile = async function dqProcessFile(sb, file, folder) {
+  /* ═══ dqProcessFile — Procesa un archivo: Lee texto + Embeddings + Qdrant ═══ */
+  window.dqProcessFile = async function dqProcessFile(sb, file, folder) {
   const folderId = folder?.id || dq.selectedFolderId;
   const collection = folder?.qdrant_collection || 'administrative_discipline';
 
@@ -117,10 +120,10 @@ window.dqProcessFile = async function dqProcessFile(sb, file, folder) {
     await dqRecordFile(sb, file, folderId, collection, 'error', 0);
     return { success: false, error: err.message };
   }
-};
+  };
 
-/* ═══ dqSyncNew — Sincroniza solo archivos nuevos ═══ */
-window.dqSyncNew = async function dqSyncNew() {
+  /* ═══ dqSyncNew — Sincroniza solo archivos nuevos ═══ */
+  window.dqSyncNew = async function dqSyncNew() {
   if (!dq.selectedFolderId) return showToast('⚠ Selecciona una carpeta primero');
   dq.syncing = true;
   dq.syncProgress = { current: 0, total: 0, errors: 0, file: '' };
@@ -166,10 +169,10 @@ window.dqSyncNew = async function dqSyncNew() {
   dq.syncing = false;
   await dqLoadAll();
   renderDQView();
-};
+  };
 
-/* ═══ dqSyncAll — Sincroniza TODOS los archivos (nuevos y existentes) ═══ */
-window.dqSyncAll = async function dqSyncAll() {
+  /* ═══ dqSyncAll — Sincroniza TODOS los archivos (nuevos y existentes) ═══ */
+  window.dqSyncAll = async function dqSyncAll() {
   if (!dq.selectedFolderId) return showToast('⚠ Selecciona una carpeta');
   if (!confirm('¿Resincronizar TODOS los archivos de esta carpeta? Esto puede tomar varios minutos.')) return;
 
@@ -206,10 +209,10 @@ window.dqSyncAll = async function dqSyncAll() {
   dq.bulkSyncing = false;
   await dqLoadAll();
   renderDQView();
-};
+  };
 
-/* ═══ dqForceSync — Fuerza re-sincronización limpiando archivos procesados ═══ */
-window.dqForceSync = async function dqForceSync() {
+  /* ═══ dqForceSync — Fuerza re-sincronización limpiando archivos procesados ═══ */
+  window.dqForceSync = async function dqForceSync() {
   if (!dq.selectedFolderId) return showToast('⚠ Selecciona una carpeta');
   if (!confirm('¿Forzar re-sincronización? Se eliminarán los registros de archivos procesados y se volverán a indexar.')) return;
 
@@ -253,10 +256,10 @@ window.dqForceSync = async function dqForceSync() {
   dq.forceSyncing = false;
   await dqLoadAll();
   renderDQView();
-};
+  };
 
-/* ═══ dqCleanResync — Limpia colección y reindexar ═══ */
-window.dqCleanResync = async function dqCleanResync() {
+  /* ═══ dqCleanResync — Limpia colección y reindexar ═══ */
+  window.dqCleanResync = async function dqCleanResync() {
   if (!dq.selectedFolderId) return showToast('⚠ Selecciona una carpeta');
   const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId);
   if (!folder) return;
@@ -296,11 +299,11 @@ window.dqCleanResync = async function dqCleanResync() {
   dq.cleaning = false;
   await dqLoadAll();
   renderDQView();
-};
+  };
 
-/* ═══ Override dqCreateCollection para usar Qdrant API ═══ */
-const _origCreateCollection = window.dqCreateCollection;
-window.dqCreateCollection = async function dqCreateCollection() {
+  /* ═══ Override dqCreateCollection para usar Qdrant API ═══ */
+  const _origCreateCollection = window.dqCreateCollection;
+  window.dqCreateCollection = async function dqCreateCollection() {
   const name = prompt('Nombre de la nueva colección (snake_case):');
   if (!name || !name.trim()) return;
 
@@ -335,11 +338,11 @@ window.dqCreateCollection = async function dqCreateCollection() {
     console.error('dqCreateCollection error:', err);
     showToast('❌ Error: ' + err.message);
   }
-};
+  };
 
-/* ═══ Override dqDeleteCollection para usar Qdrant API ═══ */
-const _origDeleteCollection = window.dqDeleteCollection;
-window.dqDeleteCollection = async function dqDeleteCollection(dbId, name) {
+  /* ═══ Override dqDeleteCollection para usar Qdrant API ═══ */
+  const _origDeleteCollection = window.dqDeleteCollection;
+  window.dqDeleteCollection = async function dqDeleteCollection(dbId, name) {
   if (!confirm('¿Eliminar la colección "' + name + '"? Los datos indexados se perderán.')) return;
 
   try {
@@ -360,10 +363,10 @@ window.dqDeleteCollection = async function dqDeleteCollection(dbId, name) {
     console.error('dqDeleteCollection error:', err);
     showToast('❌ Error: ' + err.message);
   }
-};
+  };
 
-/* ═══ Override dqRecordFile — firma compatible con el patch ═══ */
-window.dqRecordFile = async function dqRecordFile(sb, file, folderId, collection, status, chunks) {
+  /* ═══ Override dqRecordFile — firma compatible con el patch ═══ */
+  window.dqRecordFile = async function dqRecordFile(sb, file, folderId, collection, status, chunks) {
   try {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return;
@@ -399,6 +402,7 @@ window.dqRecordFile = async function dqRecordFile(sb, file, folderId, collection
   } catch (e) {
     console.warn('dqRecordFile error:', e.message);
   }
-};
+  };
 
-console.log('%c🔧 Parche Qdrant cargado — funciones corregidas para usar Netlify', 'color:#10b981;font-weight:bold');
+  console.log('%c🔧 Parche Qdrant cargado — funciones corregidas para usar Netlify', 'color:#10b981;font-weight:bold');
+})();

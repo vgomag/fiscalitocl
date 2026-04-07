@@ -15,6 +15,9 @@
    - custom_qdrant_collections → colecciones personalizadas
    ================================================================ */
 
+(function initDriveQdrant() {
+  'use strict';
+
 /* ────────────────────────────────────────────────────────────────
    1 · DATOS BASE
    ──────────────────────────────────────────────────────────────── */
@@ -872,6 +875,26 @@ function dqEsc(s) {
 }
 
 /* ────────────────────────────────────────────────────────────────
+   11.5 · EXPOSE PUBLIC API ON WINDOW
+   ──────────────────────────────────────────────────────────────── */
+window.dqAllFolders        = dqAllFolders;
+window.dqCollectionLabel   = dqCollectionLabel;
+window.openMonitorDrive    = openMonitorDrive;
+window.dqLoadAll           = dqLoadAll;
+window.dqSwitchTab         = dqSwitchTab;
+window.dqScanFolder        = dqScanFolder;
+window.dqSyncNew           = dqSyncNew;
+window.dqSyncAll           = dqSyncAll;
+window.dqForceSync         = dqForceSync;
+window.dqCleanResync       = dqCleanResync;
+window.dqProcessFile       = dqProcessFile;
+window.dqRecordFile        = dqRecordFile;
+window.dqCreateCollection  = dqCreateCollection;
+window.dqDeleteCollection  = dqDeleteCollection;
+window.dqDelay             = dqDelay;
+window.dqEsc               = dqEsc;
+
+/* ────────────────────────────────────────────────────────────────
    12 · CSS
    ──────────────────────────────────────────────────────────────── */
 (function injectDQCSS() {
@@ -961,4 +984,7 @@ function dqEsc(s) {
   const welcome = document.getElementById('viewWelcome');
   if (welcome) welcome.parentNode.insertBefore(view, welcome);
   else document.querySelector('.main')?.appendChild(view);
+})();
+
+  console.log('%c✅ MOD-DRIVE-QDRANT cargado (IIFE)', 'color:#3b82f6;font-weight:bold');
 })();

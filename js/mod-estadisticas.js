@@ -1,3 +1,4 @@
+(function(){
 /**
  * MOD-ESTADISTICAS.JS — Dashboard Completo con Tabs y Chat IA
  * ═══════════════════════════════════════════════════════════
@@ -685,3 +686,17 @@ async function exportStatsCSV(){
 }
 
 console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:#4f46e5;font-weight:bold');
+
+
+  /* ═══ EXPOSE PUBLIC API ═══ */
+  window.loadStats = loadStats;
+  window.renderDashboard = renderDashboard;
+  window.renderActivosTab = renderActivosTab;
+  window.renderTerminadosTab = renderTerminadosTab;
+  window.renderStatsChat = renderStatsChat;
+  window.statsChatSend = statsChatSend;
+  window.exportStatsCSV = exportStatsCSV;
+  window.calcPrescripcion = calcPrescripcion;
+
+  console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:#4f46e5;font-weight:bold');
+})();
