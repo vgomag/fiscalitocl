@@ -314,7 +314,7 @@ async function processDiligenciaOCR(dilId){
   try{
     /* Step 1: Download PDF as binary from Drive (via server) */
     const _ctrl2=new AbortController();
-    const _tout2=setTimeout(()=>_ctrl2.abort(),30000);
+    const _tout2=setTimeout(()=>_ctrl2.abort(),120000);
     let extractedText='';
     let aiSummary=null;
     try{
@@ -345,7 +345,7 @@ async function processDiligenciaOCR(dilId){
       /* File too large for download endpoint — use server OCR */
       showToast('📥 Archivo grande — usando OCR servidor…');
       const _ctrl3=new AbortController();
-      const _tout3=setTimeout(()=>_ctrl3.abort(),30000);
+      const _tout3=setTimeout(()=>_ctrl3.abort(),120000);
       try{
         const _fetchFn3=typeof authFetch==='function'?authFetch:fetch;
         const ocrRes=await _fetchFn3('/.netlify/functions/ocr',{
