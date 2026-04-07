@@ -714,3 +714,7 @@ export default async (req) => {
     return jsonRes({ error: err.message }, 500, CORS);
   }
 };
+
+export const config = {
+  maxDuration: 60
+};

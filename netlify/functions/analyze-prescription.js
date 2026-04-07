@@ -423,3 +423,7 @@ Línea temporal: ${JSON.stringify(analysis.timeline)}`;
     };
   }
 };
+
+export const config = {
+  maxDuration: 60
+};

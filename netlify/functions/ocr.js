@@ -293,3 +293,7 @@ ${PRECISION_JURIDICA}`;
     return { statusCode: 400, headers: H, body: JSON.stringify({ error: err.message }) };
   }
 };
+
+export const config = {
+  maxDuration: 60
+};

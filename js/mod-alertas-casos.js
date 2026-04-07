@@ -335,6 +335,25 @@ function injectAlertUI(){
   }
 }
 
+/* ── Init ── */
+function init(){
+  loadPersistedState();
+  injectAlertUI();
+  // Generar alertas después de que los casos se carguen
+  const checkReady = setInterval(() => {
+    if(typeof allCases !== 'undefined' && allCases.length > 0 && session){
+      clearInterval(checkReady);
+      generateAlerts();
+      // Auto-refresh cada 5 minutos
+      refreshTimer = setInterval(generateAlerts, REFRESH_MS);
+    }
+  }, 2000);
+  console.log('[alertas-casos] Módulo cargado ✓');
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+
 /* ── CSS ── */
 (function(){
   const old = document.getElementById('alertas-css');
@@ -403,23 +422,4 @@ function injectAlertUI(){
   document.head.appendChild(s);
 })();
 
-/* ── Init ── */
-function init(){
-  loadPersistedState();
-  injectAlertUI();
-  // Generar alertas después de que los casos se carguen
-  const checkReady = setInterval(() => {
-    if(typeof allCases !== 'undefined' && allCases.length > 0 && session){
-      clearInterval(checkReady);
-      generateAlerts();
-      // Auto-refresh cada 5 minutos
-      refreshTimer = setInterval(generateAlerts, REFRESH_MS);
-    }
-  }, 2000);
-  console.log('[alertas-casos] Módulo cargado ✓');
-}
-
-if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-else init();
-
-})();
+})(); // END OF MAIN IIFE

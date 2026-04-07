@@ -248,3 +248,7 @@ ${buildLightDirectives()}`;
     };
   }
 };
+
+export const config = {
+  maxDuration: 60
+};

@@ -274,3 +274,7 @@ function json(data, status, cors = {}) {
     }
   });
 }
+
+export const config = {
+  maxDuration: 60
+};

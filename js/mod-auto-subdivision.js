@@ -368,6 +368,19 @@ window.loadCases = async function(){
   updateCatCounts();
 };
 
+/* ── Inicialización ── */
+function init(){
+  enhanceTabs();
+  enableDragDrop();
+  console.log('[auto-subdivision] Módulo cargado ✓');
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
 /* ── Inyectar CSS para drag & drop y compartidos ── */
 (function injectCSS(){
   const old = document.getElementById('auto-subdiv-css');
@@ -396,17 +409,4 @@ window.loadCases = async function(){
   document.head.appendChild(s);
 })();
 
-/* ── Inicialización ── */
-function init(){
-  enhanceTabs();
-  enableDragDrop();
-  console.log('[auto-subdivision] Módulo cargado ✓');
-}
-
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
-
-})();
+})(); // END OF MAIN IIFE

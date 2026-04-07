@@ -332,6 +332,10 @@ exports.handler = async (event) => {
   }
 };
 
+export const config = {
+  maxDuration: 30
+};
+
 /* Clasificar archivo por nombre */
 function classifyFile(name) {
   const fn = (name || '').toLowerCase();

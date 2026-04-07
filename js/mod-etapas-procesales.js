@@ -437,6 +437,16 @@ if(window._etapasPatched) {
   window._etapasPatched = true;
 }
 
+/* ── Inicialización ── */
+function init(){
+  patchShowTab();
+  injectEtapasTab();
+  console.log('[etapas-procesales] Módulo cargado ✓');
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+
 /* ── Inyectar CSS ── */
 (function injectCSS(){
   const old = document.getElementById('etapas-css');
@@ -547,16 +557,4 @@ if(window._etapasPatched) {
   document.head.appendChild(s);
 })();
 
-/* ── Inicialización ── */
-function init(){
-  injectEtapasTab();
-  console.log('[etapas-procesales] Módulo cargado ✓');
-}
-
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
-
-})();
+})(); // END OF MAIN IIFE

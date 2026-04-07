@@ -244,3 +244,7 @@ export default async (req) => {
     return new Response(JSON.stringify({ error: err.message, success: false }), { status: 400, headers: CORS });
   }
 };
+
+export const config = {
+  maxDuration: 30
+};

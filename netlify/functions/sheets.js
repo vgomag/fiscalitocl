@@ -266,3 +266,7 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message || 'Error interno' }) };
   }
 };
+
+export const config = {
+  maxDuration: 30
+};

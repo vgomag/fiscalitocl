@@ -276,4 +276,7 @@ function addField(p, b, n, v) { p.push(Buffer.from('--'+b+'\r\nContent-Dispositi
 function addFile(p, b, n, f, m, d) { p.push(Buffer.from('--'+b+'\r\nContent-Disposition: form-data; name="'+n+'"; filename="'+f+'"\r\nContent-Type: '+m+'\r\n\r\n')); p.push(d); p.push(Buffer.from('\r\n')); }
 function json(d, s, cors = {}) { return new Response(JSON.stringify(d), { status: s||200, headers: { 'Content-Type': 'application/json', ...cors } }); }
 
-export const config = { path: '/.netlify/functions/chat' };
+export const config = {
+  path: '/.netlify/functions/chat',
+  maxDuration: 60
+};

@@ -694,3 +694,7 @@ exports.handler = async (event) => {
     };
   }
 };
+
+export const config = {
+  maxDuration: 60
+};

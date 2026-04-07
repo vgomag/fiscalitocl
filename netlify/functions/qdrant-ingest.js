@@ -355,3 +355,7 @@ export default async (req) => {
     return new Response(JSON.stringify({ error: err.message }), { status: 400, headers });
   }
 };
+
+export const config = {
+  maxDuration: 60
+};

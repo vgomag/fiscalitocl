@@ -252,3 +252,7 @@ export default async (req) => {
     return new Response(JSON.stringify({ error: err.message, context: '', sources: [] }), { status: 500, headers });
   }
 };
+
+export const config = {
+  maxDuration: 60
+};
