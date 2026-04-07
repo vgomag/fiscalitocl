@@ -449,15 +449,16 @@ async function extractPdfTextClientSide(base64Data){
    ANALIZAR EXPEDIENTE — Extrae texto client-side + IA por lotes
    Inspirado en ExpedienteSplitter: pdf.js local + batches de 80pp
    ══════════════════════════════════════════════════════════════ */
-const PAGES_PER_BATCH=80;
-const CHARS_PER_BATCH=30000;
+const PAGES_PER_BATCH=50;
+const CHARS_PER_BATCH=50000;
 
 function buildBatchText(pageTexts,startPage,endPage){
   let result='';
   for(let i=startPage-1;i<endPage&&i<pageTexts.length;i++){
     const t=pageTexts[i]||'';
-    const head=t.substring(0,1200);
-    const tail=t.length>1400?'\n[...]\n'+t.substring(t.length-200):'';
+    /* Incluir más texto por página para no perder marcadores de diligencias */
+    const head=t.substring(0,3000);
+    const tail=t.length>3500?'\n[...]\n'+t.substring(t.length-500):'';
     const entry=`=== PÁGINA ${i+1} ===\n${head}${tail}\n\n`;
     if(result.length+entry.length>CHARS_PER_BATCH)break;
     result+=entry;
@@ -483,7 +484,7 @@ async function analyzeExpediente(dilId){
 
       showToast('📥 Etapa 1/2: Descargando PDF…');
       const _ctrl5=new AbortController();
-      const _tout5=setTimeout(()=>_ctrl5.abort(),30000);
+      const _tout5=setTimeout(()=>_ctrl5.abort(),120000);
       try{
         const _fetchFn5=typeof authFetch==='function'?authFetch:fetch;
         const dlRes=await _fetchFn5('/.netlify/functions/drive',{
