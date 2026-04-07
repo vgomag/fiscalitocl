@@ -565,7 +565,7 @@ async function analyzeExpediente(dilId){
 
       try{
         const _ctrl6=new AbortController();
-        const _tout6=setTimeout(()=>_ctrl6.abort(),30000);
+        const _tout6=setTimeout(()=>_ctrl6.abort(),120000);
         try{
           const _fetchFn6=typeof authFetch==='function'?authFetch:fetch;
           const res=await _fetchFn6('/.netlify/functions/ocr',{
@@ -577,16 +577,32 @@ async function analyzeExpediente(dilId){
             }),
             signal:_ctrl6.signal
           });
-          const ct=res.headers.get('content-type')||'';
-          if(ct.includes('json')){
-            const data=await res.json();
-            if(data.ok&&data.diligencias)allDiligencias.push(...data.diligencias);
+          if(!res.ok){
+            const errBody=await res.text().catch(()=>'');
+            console.warn(`Lote ${i+1} HTTP ${res.status}:`,errBody);
+            showToast(`⚠️ Lote ${i+1}/${batches.length}: Error HTTP ${res.status}`);
+          } else {
+            const ct=res.headers.get('content-type')||'';
+            if(ct.includes('json')){
+              const data=await res.json();
+              if(data.ok&&data.diligencias&&data.diligencias.length>0){
+                allDiligencias.push(...data.diligencias);
+                showToast(`✅ Lote ${i+1}: ${data.diligencias.length} diligencia(s) encontrada(s)`);
+              } else if(data.error){
+                showToast(`⚠️ Lote ${i+1}: ${data.error}`);
+              } else {
+                showToast(`ℹ️ Lote ${i+1}: 0 diligencias detectadas`);
+              }
+            } else {
+              showToast(`⚠️ Lote ${i+1}: Respuesta no JSON del servidor`);
+            }
           }
         }finally{
           clearTimeout(_tout6);
         }
       }catch(e){
         console.warn(`Lote ${i+1} error:`,e.message);
+        showToast(`❌ Lote ${i+1}/${batches.length}: ${e.message.includes('abort')?'Timeout (>120s)':e.message}`);
       }
     }
 
