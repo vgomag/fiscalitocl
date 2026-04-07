@@ -765,8 +765,8 @@ async function analyzeAllPending(){
   const originals=allDils.filter(d=>d.drive_file_id && d.fojas_inicio==null);
   const childCount=allDils.filter(d=>d.fojas_inicio!=null).length;
 
-  /* Paso 1: Extraer texto de los que no tienen */
-  const needOcr=originals.filter(d=>!d.extracted_text || d.extracted_text.length < 200);
+  /* Paso 1: Extraer texto de los que no tienen (o que quedaron stuck en 'processing') */
+  const needOcr=originals.filter(d=>!d.extracted_text || d.extracted_text.length < 200 || (!d.is_processed && d.drive_file_id));
   if(needOcr.length>0){
     showToast(`📥 Extrayendo texto de ${needOcr.length} documento(s)…`);
     for(const d of needOcr){
