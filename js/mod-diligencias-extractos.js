@@ -660,28 +660,52 @@ async function analyzeExpediente(dilId){
 /* ── Analizar todas las diligencias pendientes ── */
 async function analyzeAllPending(){
   if(!currentCase)return;
-  const{data}=await sb.from('diligencias').select('id,file_name,is_processed,drive_file_id,extracted_text')
-    .eq('case_id',currentCase.id).eq('is_processed',false);
-  if(!data?.length){showToast('✅ Todas procesadas');return;}
 
-  const withDrive=data.filter(d=>d.drive_file_id);
-  if(!withDrive.length){showToast('⚠️ Sin archivos Drive para procesar');return;}
+  /* Buscar TODAS las diligencias del caso (no solo is_processed=false) */
+  const{data:allDils}=await sb.from('diligencias').select('id,file_name,is_processed,drive_file_id,extracted_text,fojas_inicio')
+    .eq('case_id',currentCase.id).order('order_index',{ascending:true});
+  if(!allDils?.length){showToast('📋 Sin diligencias para procesar');return;}
 
-  showToast(`⏳ Procesando ${withDrive.length} documento(s)… Cada PDF será analizado por diligencias múltiples`);
-  for(const d of withDrive){
-    const isPdf=/\.pdf/i.test(d.file_name);
-    // Paso 1: extraer texto si no tiene
-    if(!d.extracted_text || d.extracted_text.length < 200){
+  /* Separar: archivos originales (importados desde Drive) vs diligencias hijas (creadas por analyzeExpediente) */
+  const originals=allDils.filter(d=>d.drive_file_id && d.fojas_inicio==null);
+  const childCount=allDils.filter(d=>d.fojas_inicio!=null).length;
+
+  /* Paso 1: Extraer texto de los que no tienen */
+  const needOcr=originals.filter(d=>!d.extracted_text || d.extracted_text.length < 200);
+  if(needOcr.length>0){
+    showToast(`📥 Extrayendo texto de ${needOcr.length} documento(s)…`);
+    for(const d of needOcr){
       await processDiligenciaOCR(d.id);
       await new Promise(r=>setTimeout(r,1000));
     }
-    // Paso 2: analizar por diligencias múltiples si es PDF
-    if(isPdf){
-      try{await analyzeExpediente(d.id);}catch(e){console.warn('Análisis múltiple:',e.message);}
+  }
+
+  /* Paso 2: Analizar PDFs que no tienen diligencias hijas aún */
+  const pdfs=originals.filter(d=>/\.pdf/i.test(d.file_name));
+  /* Un PDF necesita análisis si no hay hijas con su mismo drive_file_id */
+  const childDriveIds=new Set(allDils.filter(d=>d.fojas_inicio!=null).map(d=>d.drive_file_id).filter(Boolean));
+  const needAnalysis=pdfs.filter(d=>!childDriveIds.has(d.drive_file_id));
+
+  if(needAnalysis.length>0){
+    showToast(`🔍 Analizando ${needAnalysis.length} PDF(s) para identificar diligencias…`);
+    for(const d of needAnalysis){
+      try{
+        await analyzeExpediente(d.id);
+      }catch(e){
+        console.warn('Análisis múltiple:',e.message);
+        showToast(`❌ Error analizando ${d.file_name}: ${e.message}`);
+      }
       await new Promise(r=>setTimeout(r,1500));
     }
+  } else if(pdfs.length>0 && childCount>0){
+    showToast(`✅ ${pdfs.length} PDF(s) ya analizados (${childCount} diligencias identificadas)`);
   }
-  showToast('✅ Análisis completado');
+
+  if(needOcr.length===0 && needAnalysis.length===0){
+    showToast('✅ Todas las diligencias ya están procesadas');
+  } else {
+    showToast('✅ Análisis completado');
+  }
 }
 
 /* ── Generar resumen IA para diligencia ya procesada ── */
