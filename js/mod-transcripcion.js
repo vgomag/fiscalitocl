@@ -633,6 +633,14 @@ window.f11LinkCase = function(caseId) {
   renderF11Panel();
 };
 
+/** Desvincular caso — permite trabajar sin expediente */
+window.f11UnlinkCase = function() {
+  currentCase = null;
+  transcripcion.linkedCase = null;
+  showToast('📋 Caso desvinculado — Puedes transcribir sin expediente. Para guardar en un caso, vincúlalo después.');
+  renderF11Panel();
+};
+
 /** Mostrar selector de caso — usa buildCaseSelectorHTML global (solo casos activos) */
 window.f11ShowCaseSelector = function() {
   const info = document.getElementById('f11CaseInfo');
@@ -734,9 +742,12 @@ function _buildF11PanelHTML(){
     <div id="f11CaseInfo" style="margin-bottom:12px;padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:11px;color:var(--text-muted)">
       ${lnk
         ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">⚖️ Caso: <strong style="color:var(--gold)">' + (lnk.name || lnk.nueva_resolucion || '—') + '</strong>'
-          + '<button class="btn-sm" onclick="f11ShowCaseSelector()" style="font-size:10px;padding:3px 8px" title="Cambiar caso">Cambiar</button></div>'
+          + '<div style="display:flex;gap:4px">'
+          + '<button class="btn-sm" onclick="f11ShowCaseSelector()" style="font-size:10px;padding:3px 8px" title="Cambiar caso">Cambiar</button>'
+          + '<button class="btn-sm" onclick="f11UnlinkCase()" style="font-size:10px;padding:3px 8px;background:var(--red);color:#fff" title="Desvincular caso">Desvincular</button>'
+          + '</div></div>'
         : '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-          + '<span>⚠️ Sin caso vinculado</span>'
+          + '<span>📋 Sin caso vinculado (puedes transcribir así)</span>'
           + (typeof buildCaseSelectorHTML==='function' ? buildCaseSelectorHTML('f11LinkCase') : '<span style="font-size:11px">Cargando...</span>')
           + '</div>'}
     </div>
