@@ -2970,7 +2970,13 @@ async function sendMessage(){
   }
 
   if(!text||!session)return;
-  if(currentCase)await loadChatHistory(currentCase.id);
+  /* #14: Límite de tamaño de input */
+  if(text.length>50000){showToast('⚠ Mensaje demasiado largo (máx 50KB)');return;}
+  /* #30: Detección offline */
+  if(!navigator.onLine){showToast('⚠ Sin conexión a internet');return;}
+  /* #9: Snapshot del caso actual para evitar race condition */
+  const _caseSnapshot=currentCase?{...currentCase}:null;
+  if(_caseSnapshot)await loadChatHistory(_caseSnapshot.id);
   inputBox.value='';autoResize(inputBox);
   const msgs=document.getElementById('msgs');
   const panel=document.getElementById('fnPanel');
