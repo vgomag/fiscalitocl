@@ -1450,39 +1450,81 @@ async function f11Paso2_Editar(){
     const editedSec = document.getElementById('f11EditedResultSection');
     if(editedSec) editedSec.style.display = 'block';
 
-    /* ── Llamar con streaming — sin timeout ── */
-    const resultText = await _f11StreamStructure({
-      systemPrompt: sysPrompt,
-      userMsg: userMsg,
-      maxTokens: maxTok,
-      onProgress: (partial) => {
-        const pct = Math.min(15 + (partial.length / (maxTok * 3)) * 80, 95);
-        bar.style.width = pct + '%';
-        status.textContent = `Recibiendo texto… (${partial.length} caracteres)`;
-        /* Vista previa en tiempo real */
-        const editedEl = document.getElementById('f11EditedResult');
-        if(editedEl) editedEl.value = partial;
+    /* ── Llamar con streaming + guardado progresivo ── */
+    _f11StartStreamDraftSave('paso2');
+
+    let resultText = '';
+    let lastRetryError = null;
+    const MAX_RETRIES = 2;
+
+    for(let attempt = 0; attempt <= MAX_RETRIES; attempt++){
+      try {
+        if(attempt > 0){
+          status.textContent = `Reintentando (${attempt}/${MAX_RETRIES})…`;
+          await new Promise(r => setTimeout(r, 2000 * attempt)); /* backoff */
+        }
+        resultText = await _f11StreamStructure({
+          systemPrompt: sysPrompt,
+          userMsg: userMsg,
+          maxTokens: maxTok,
+          onProgress: (partial) => {
+            _f11StreamDraftText = partial; /* para guardado periódico */
+            const pct = Math.min(15 + (partial.length / (maxTok * 3)) * 80, 95);
+            bar.style.width = pct + '%';
+            status.textContent = `Recibiendo texto… (${partial.length} caracteres)`;
+            const editedEl = document.getElementById('f11EditedResult');
+            if(editedEl) editedEl.value = partial;
+          }
+        });
+        lastRetryError = null;
+        break; /* éxito */
+      } catch(retryErr){
+        lastRetryError = retryErr;
+        console.warn('[F11] Paso 2 intento ' + (attempt+1) + ' falló:', retryErr.message);
+        /* Si hay texto parcial del draft, preservarlo */
+        const draft = _f11LoadText('streaming_draft');
+        if(draft && draft.length > 100){
+          _f11EditedText = draft;
+          _f11SaveText('editedText', draft);
+          showToast('⚠ Se guardó texto parcial (' + draft.length + ' chars). Puedes reintentar.');
+        }
+        if(attempt === MAX_RETRIES) throw retryErr;
       }
-    });
+    }
+
+    _f11StopStreamDraftSave();
 
     _f11EditedText = resultText;
     transcripcion.structuredText = resultText;
     _f11CurrentStep = 2;
 
+    /* Auto-guardar checkpoint */
+    _f11CheckpointState();
+
     bar.style.width = '100%';
     bar.style.background = 'var(--green)';
-    status.textContent = `✅ Texto refundido generado (${resultText.length} caracteres)`;
+    status.textContent = `✅ Texto refundido generado (${resultText.length} caracteres) — respaldo automático activo`;
 
     const _er=document.getElementById('f11EditedResult');if(_er)_er.value = _f11EditedText;
     const _es=document.getElementById('f11EditedResultSection');if(_es)_es.style.display = 'block';
     const _s3=document.getElementById('f11Step3Section');if(_s3)_s3.style.display = 'block';
 
     _f11UpdateSteps();
-    showToast('✅ Paso 2 completado: texto refundido listo');
+    showToast('✅ Paso 2 completado: texto refundido listo (respaldo automático)');
 
   } catch(e){
+    _f11StopStreamDraftSave();
     bar.style.background = 'var(--red)';
-    status.textContent = '❌ Error: ' + e.message;
+    /* Si hay texto parcial guardado, informar */
+    const draft = _f11LoadText('streaming_draft') || _f11LoadText('editedText');
+    if(draft && draft.length > 100){
+      status.textContent = '❌ Error: ' + e.message + ' — Texto parcial guardado (' + draft.length + ' chars). Puedes reintentar.';
+      _f11EditedText = draft;
+      const _er2=document.getElementById('f11EditedResult');if(_er2) _er2.value = draft;
+      const _es2=document.getElementById('f11EditedResultSection');if(_es2) _es2.style.display = 'block';
+    } else {
+      status.textContent = '❌ Error: ' + e.message;
+    }
     console.error('[F11] Paso 2 error:', e);
     showToast('❌ Error en edición: ' + e.message);
   } finally {
