@@ -344,6 +344,10 @@ REGLAS DE ESTILO IMPERATIVAS (aplicar a TODO el documento):
 - Individualización completa de cada persona: nombre completo, RUT si consta, cargo, calidad procesal.
 - Las declaraciones se sintetizan con DETALLE (no genéricamente), con lenguaje indirecto formal ("manifiesta que...", "señala que...", "indica que...").
 - Los testimonios de oídas se identifican expresamente como tales.
+- DISTINCIÓN FUNDAMENTAL DE ESTILOS EN LOS CONSIDERANDOS:
+  * DILIGENCIAS: Redacción SOBRIA, OBJETIVA, DESCRIPTIVA. Solo se da cuenta de lo que consta en el expediente. Sin valoraciones, sin conclusiones, sin calificar conductas. No anticipar el resultado del análisis.
+  * HECHOS ACREDITADOS: AQUÍ cambia el estilo. Se valoran los hechos en función de las diligencias practicadas, se analiza la prueba, se contrastan declaraciones y se extraen conclusiones fácticas.
+  Esta separación es OBLIGATORIA en todo documento que incluya considerandos.
 ` + HUMAN_WRITING_STYLE;
 
 /* ── System prompts per mode ── */
@@ -536,15 +540,24 @@ Redactar como UN SOLO PÁRRAFO CORRIDO (NO numerado):
 - Normativa aplicable separada por punto y coma
 - Terminar con ".-"
 
-CONSIDERANDO:
-- Un numeral por CADA diligencia o pieza del expediente, siguiendo el orden de fojas
-- Cada numeral inicia con: "Que, de fojas [XX] a [YY] del expediente, consta [tipo de documento]..."
-- DESARROLLAR EN EXTENSO: nombres completos con tratamiento formal, cargos, fechas exactas, síntesis jurídica detallada
-- Declaraciones con lenguaje indirecto formal ("manifiesta que...", "señala que...")
-- Documentos administrativos: describir contenido y relevancia procesal
-- Expresiones: "obra", "rola", "consta", "se desprende", "se advierte"
-- Cada considerando termina con punto y coma (;) excepto el último
-- Los considerandos se numeran: "1.      Que,..."
+CONSIDERANDO (tiene DOS PARTES con estilos DIFERENTES):
+
+  PARTE A — DILIGENCIAS DEL EXPEDIENTE (estilo DESCRIPTIVO-OBJETIVO):
+  - Un numeral por cada diligencia RELEVANTE del expediente, en orden de fojas.
+  - No es obligatorio individualizar absolutamente todas las diligencias; prioriza las que aportan contenido sustantivo. Las meramente formales pueden omitirse o agruparse.
+  - Redacción SOBRIA, OBJETIVA, sin valoraciones ni conclusiones.
+  - Solo describe lo que CONSTA: qué documento es, quién lo emite, qué fecha tiene, qué dice.
+  - NUNCA anticipar conclusiones ni calificar conductas en esta parte.
+  - NUNCA usar expresiones valorativas ("lo que demuestra...", "quedando en evidencia...", "lo cual resulta grave...").
+  - Declaraciones: reproducir con lenguaje indirecto formal ("manifiesta que...", "señala que...") SIN valorar.
+  - Expresiones: "obra", "rola", "consta", "se consigna", "se registra".
+  - Cada considerando termina con punto y coma (;).
+
+  PARTE B — HECHOS ACREDITADOS (estilo VALORATIVO-ANALÍTICO):
+  - Tras las diligencias, un considerando establece: "Que, de los antecedentes reunidos y de las diligencias practicadas..."
+  - AQUÍ SÍ se valoran los hechos, se analiza la prueba, se contrastan declaraciones, se extraen conclusiones fácticas.
+  - Usar sub-numeración si es necesario (ej: 17.1, 17.2...).
+  - Lenguaje analítico: "se acredita que...", "se desprende de los antecedentes que...", "queda establecido que...".
 
 ANÁLISIS JURÍDICO:
 - Subsunción de hechos en normas aplicables
