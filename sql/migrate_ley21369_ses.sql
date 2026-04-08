@@ -3,6 +3,21 @@
 -- Ejecutar en Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════════════════
 
+/* #31: Safe constraint migration — Check for invalid values first */
+-- Before applying new constraints, validate that existing data will not violate them
+DO $$
+DECLARE
+  _invalid_count INTEGER;
+BEGIN
+  -- Check for status values that won't fit the new constraint
+  SELECT COUNT(*) INTO _invalid_count FROM ley21369_items
+  WHERE status NOT IN ('cumple','parcial','no_cumple','sin_evaluar','pendiente','en_proceso','cumplido','no_aplica');
+
+  IF _invalid_count > 0 THEN
+    RAISE WARNING '[migrate_ley21369_ses] Found % rows with unexpected status values. Review and clean before applying constraint.', _invalid_count;
+  END IF;
+END $$;
+
 -- 1. Actualizar CHECK constraint de status en ley21369_items
 --    Cambio: 4 estados → 4 estados (reemplazar pendiente/en_proceso por sin_evaluar/parcial/no_cumple)
 ALTER TABLE ley21369_items DROP CONSTRAINT IF EXISTS ley21369_items_status_check;
