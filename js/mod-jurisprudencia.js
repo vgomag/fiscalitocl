@@ -619,6 +619,42 @@ async function juriSkillSearch() {
       );
     }
 
+    // Búsqueda CGR vía Netlify cgr-search
+    if (searchCgr) {
+      promises.push(
+        _juriSearchCGR(keywords, 'dictamenes', juri.skillCount)
+          .then(cgrData => {
+            if (cgrData.results && cgrData.results.length > 0) {
+              cgrData.results.forEach((r, i) => {
+                const title = r.nDictamen
+                  ? `Dictamen N° ${r.nDictamen} (${r.fecha || r.fechaISO?.substring(0,10) || ''})`
+                  : r.docId || `Dictamen CGR ${i + 1}`;
+                const meta = [r.origen, r.descriptores, r.fuentes].filter(Boolean).join(' | ');
+                results.push({
+                  title:     title,
+                  source:    'cgr',
+                  sourceIcon:'🏛',
+                  date:      r.fecha || '',
+                  snippet:   (r.materia ? r.materia + '\n' : '') + (meta ? meta + '\n' : '') + (r.docCompleto || '').substring(0, 300),
+                  url:       r.url || '',
+                  score:     0.85 - (i * 0.02),
+                  selected:  false,
+                  content:   (r.materia ? '📋 MATERIA: ' + r.materia + '\n\n' : '')
+                           + (r.descriptores ? '🏷 DESCRIPTORES: ' + r.descriptores + '\n' : '')
+                           + (r.fuentes ? '📖 FUENTES LEGALES: ' + r.fuentes + '\n' : '')
+                           + (meta ? '---\n\n' : '')
+                           + (r.docCompleto || ''),
+                });
+              });
+            }
+          })
+          .catch(err => {
+            console.warn('CGR search error:', err.message);
+            showToast('⚠ Error buscando en CGR: ' + err.message);
+          })
+      );
+    }
+
     // Esperar todas las búsquedas en paralelo
     if (promises.length > 0) {
       await Promise.all(promises);
