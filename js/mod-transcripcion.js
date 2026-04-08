@@ -1789,7 +1789,7 @@ async function f11SaveRawToCase(){
 
 /* ══════════════════ GUARDAR ACTA FINAL ══════════════════ */
 async function f11SaveToCase(){
-  if(!currentCase || !session) return showToast('⚠ Vincula un caso primero');
+  if(!currentCase || !session) return showToast('⚠ Para guardar en el expediente, primero vincula un caso usando el selector de arriba');
 
   const actaText = _f11FinalActa || _f11EditedText || _f11RawText;
   if(!actaText) return showToast('⚠ Sin texto para guardar');
