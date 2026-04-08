@@ -1747,7 +1747,7 @@ async function f11Paso3_GenerarActa(){
 /* ══════════════════ GUARDAR EN CASO ══════════════════ */
 /* ══════════════════ GUARDAR TRANSCRIPCIÓN CRUDA (Paso 1) ══════════════════ */
 async function f11SaveRawToCase(){
-  if(!currentCase || !session) return showToast('⚠ Vincula un caso primero');
+  if(!currentCase || !session) return showToast('⚠ Para guardar en el expediente, primero vincula un caso usando el selector de arriba');
   if(!_f11RawText) return showToast('⚠ Sin transcripción para guardar');
 
   const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
