@@ -1140,8 +1140,27 @@ async function juriExtractUrl(type) {
       }
     }
     showToast('ℹ No se encontró el ROL. Pega el contenido manualmente en "Texto libre".');
-  } else {
-    showToast('ℹ Pega el contenido del documento manualmente en la pestaña "Texto libre". La extracción automática de URLs CGR no está disponible por ahora.');
+  } else if (type === 'cgr') {
+    // Intentar extraer número de dictamen de la URL o texto
+    const dictMatch = url.match(/(?:D|OF|E)?\s*(\d{1,6})(?:N\d{2})?/i);
+    if (dictMatch) {
+      showToast('🔍 Buscando dictamen ' + dictMatch[0] + ' en CGR...');
+      try {
+        const data = await _juriSearchCGR(dictMatch[0], 'dictamenes', 5);
+        if (data.results && data.results.length > 0) {
+          data.results.forEach(r => {
+            const title = `Dictamen CGR N° ${r.nDictamen || dictMatch[0]} (${r.fecha || ''})`;
+            const meta = [r.materia, r.descriptores, r.fuentes].filter(Boolean).join('\n');
+            juriAddDoc(title, (meta ? meta + '\n\n' : '') + (r.docCompleto || ''));
+          });
+          showToast('✓ ' + data.results.length + ' dictamen(es) añadido(s) al contexto');
+          return;
+        }
+      } catch (err) {
+        console.warn('CGR extract error:', err);
+      }
+    }
+    showToast('ℹ No se encontró el dictamen. Pega el contenido manualmente en "Texto libre".');
   }
 }
 
