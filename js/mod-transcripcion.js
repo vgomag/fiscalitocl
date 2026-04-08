@@ -498,8 +498,13 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
 
   if(!authToken) throw new Error('Sesión no activa. Inicia sesión para usar esta función.');
 
+  /* Timeout explícito de 120 s para la conexión inicial */
+  const _streamAbort = new AbortController();
+  const _streamTimeout = setTimeout(function(){ _streamAbort.abort(); }, 120000);
+
   const resp = await fetch('/api/chat-stream', {
     method: 'POST',
+    signal: _streamAbort.signal,
     headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken },
     body: JSON.stringify({
       model: typeof CLAUDE_HAIKU !== 'undefined' ? CLAUDE_HAIKU : 'claude-haiku-4-5-20251001',
@@ -508,6 +513,7 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
       messages: [{ role: 'user', content: userMsg }]
     })
   });
+  clearTimeout(_streamTimeout);
 
   if(!resp.ok){
     const ct = resp.headers.get('content-type') || '';
@@ -551,7 +557,13 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
     }
   } catch(e){
     console.error('Error reading SSE stream:', e);
-    throw new Error('Conexión interrumpida al procesar respuesta de IA: ' + (e.message || 'stream malformado'));
+    /* Guardar texto parcial acumulado antes de lanzar error */
+    if(accumulated && accumulated.length > 50){
+      _f11SaveText('streaming_draft', accumulated);
+      console.log('[F11-Recovery] Texto parcial guardado (' + accumulated.length + ' chars) tras error de stream.');
+    }
+    const errType = e.name === 'AbortError' ? 'Tiempo agotado (120s)' : (e.message || 'stream interrumpido');
+    throw new Error('Conexión interrumpida: ' + errType + (accumulated.length > 50 ? ' — texto parcial guardado' : ''));
   }
 
   if(!accumulated.trim()) throw new Error('La IA no generó texto. Verifica que ANTHROPIC_API_KEY esté configurada en Netlify.');
@@ -1591,33 +1603,61 @@ async function f11Paso3_GenerarActa(){
     const finalSec = document.getElementById('f11FinalSection');
     if(finalSec) finalSec.style.display = 'block';
 
-    /* ── Llamar con streaming — sin timeout ── */
-    const resultText = await _f11StreamStructure({
-      systemPrompt: sysPrompt,
-      userMsg: userMsg,
-      maxTokens: 8000,
-      onProgress: (partial) => {
-        const pct = Math.min(15 + (partial.length / 24000) * 80, 95);
-        bar.style.width = pct + '%';
-        status.textContent = `Generando acta… (${partial.length} caracteres)`;
-        /* Vista previa en tiempo real */
-        const preview = document.getElementById('f11FinalPreview');
-        if(preview){
-          preview.innerHTML = partial
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/_{30,}/g, '<div style="border-bottom:1px solid #333;width:60%;margin:12px auto 4px"></div>')
-            .replace(/\n/g, '<br>');
+    /* ── Llamar con streaming + guardado progresivo + reintentos ── */
+    _f11StartStreamDraftSave('paso3');
+
+    let resultText = '';
+    const MAX_RETRIES = 2;
+
+    for(let attempt = 0; attempt <= MAX_RETRIES; attempt++){
+      try {
+        if(attempt > 0){
+          status.textContent = `Reintentando (${attempt}/${MAX_RETRIES})…`;
+          await new Promise(r => setTimeout(r, 2000 * attempt));
         }
+        resultText = await _f11StreamStructure({
+          systemPrompt: sysPrompt,
+          userMsg: userMsg,
+          maxTokens: 8000,
+          onProgress: (partial) => {
+            _f11StreamDraftText = partial;
+            const pct = Math.min(15 + (partial.length / 24000) * 80, 95);
+            bar.style.width = pct + '%';
+            status.textContent = `Generando acta… (${partial.length} caracteres)`;
+            const preview = document.getElementById('f11FinalPreview');
+            if(preview){
+              preview.innerHTML = partial
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/_{30,}/g, '<div style="border-bottom:1px solid #333;width:60%;margin:12px auto 4px"></div>')
+                .replace(/\n/g, '<br>');
+            }
+          }
+        });
+        break; /* éxito */
+      } catch(retryErr){
+        console.warn('[F11] Paso 3 intento ' + (attempt+1) + ' falló:', retryErr.message);
+        const draft = _f11LoadText('streaming_draft');
+        if(draft && draft.length > 100){
+          _f11FinalActa = draft;
+          _f11SaveText('finalActa', draft);
+          showToast('⚠ Se guardó acta parcial (' + draft.length + ' chars). Puedes reintentar.');
+        }
+        if(attempt === MAX_RETRIES) throw retryErr;
       }
-    });
+    }
+
+    _f11StopStreamDraftSave();
 
     _f11FinalActa = resultText;
     transcripcion.actaFinal = resultText;
     _f11CurrentStep = 3;
 
+    /* Auto-guardar checkpoint */
+    _f11CheckpointState();
+
     bar.style.width = '100%';
     bar.style.background = 'var(--green)';
-    status.textContent = '✅ Acta lista para firmar';
+    status.textContent = '✅ Acta lista para firmar — respaldo automático activo';
 
     const preview = document.getElementById('f11FinalPreview');
     if(preview){
@@ -1629,11 +1669,20 @@ async function f11Paso3_GenerarActa(){
     const _fs=document.getElementById('f11FinalSection');if(_fs)_fs.style.display = 'block';
 
     _f11UpdateSteps();
-    showToast('✅ Paso 3 completado: acta lista para firmar');
+    showToast('✅ Paso 3 completado: acta lista para firmar (respaldo automático)');
 
   } catch(e){
+    _f11StopStreamDraftSave();
     bar.style.background = 'var(--red)';
-    status.textContent = '❌ Error: ' + e.message;
+    const draft = _f11LoadText('streaming_draft') || _f11LoadText('finalActa');
+    if(draft && draft.length > 100){
+      status.textContent = '❌ Error: ' + e.message + ' — Acta parcial guardada (' + draft.length + ' chars). Puedes reintentar.';
+      _f11FinalActa = draft;
+      const p2=document.getElementById('f11FinalPreview');
+      if(p2) p2.innerHTML = draft.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+    } else {
+      status.textContent = '❌ Error: ' + e.message;
+    }
     console.error('[F11] Paso 3 error:', e);
     showToast('❌ Error generando acta: ' + e.message);
   } finally {
