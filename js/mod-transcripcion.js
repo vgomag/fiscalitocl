@@ -67,6 +67,300 @@ const transcripcion = {
   meta:{ tipoDeclarante:'testigo', nombreDeclarante:'', fecha:'', lugar:'Punta Arenas' },
 };
 
+/* ══════════════════ RESILIENCIA — A PRUEBA DE FALLOS ══════════════════ */
+/*
+ * Sistema de protección multi-capa para la función F11:
+ * 1. IndexedDB: guarda audio blob (grande para sessionStorage)
+ * 2. sessionStorage: guarda textos de cada paso completado
+ * 3. Auto-save progresivo durante streaming SSE
+ * 4. Detección offline/online con aviso inmediato
+ * 5. beforeunload: previene cierre accidental con datos sin guardar
+ * 6. Recuperación automática al abrir F11
+ */
+
+const _F11_DB_NAME = 'fiscalito_f11_recovery';
+const _F11_DB_VERSION = 1;
+const _F11_STORE = 'audio_backup';
+const _F11_SS_PREFIX = 'f11_'; // sessionStorage prefix
+
+/* ── IndexedDB helpers para audio blob ── */
+function _f11OpenDB(){
+  return new Promise(function(resolve, reject){
+    try {
+      const req = indexedDB.open(_F11_DB_NAME, _F11_DB_VERSION);
+      req.onupgradeneeded = function(e){
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains(_F11_STORE)){
+          db.createObjectStore(_F11_STORE, {keyPath:'id'});
+        }
+      };
+      req.onsuccess = function(e){ resolve(e.target.result); };
+      req.onerror = function(e){
+        console.warn('[F11-Recovery] IndexedDB open error:', e.target.error);
+        resolve(null);
+      };
+    } catch(e){
+      console.warn('[F11-Recovery] IndexedDB not available:', e);
+      resolve(null);
+    }
+  });
+}
+
+function _f11SaveAudioToDB(blob){
+  _f11OpenDB().then(function(db){
+    if(!db) return;
+    try {
+      const tx = db.transaction(_F11_STORE, 'readwrite');
+      tx.objectStore(_F11_STORE).put({
+        id: 'current_audio',
+        blob: blob,
+        timestamp: Date.now(),
+        size: blob.size,
+        type: blob.type
+      });
+      tx.oncomplete = function(){ console.log('[F11-Recovery] Audio blob guardado en IndexedDB (' + (blob.size/1024).toFixed(0) + 'KB)'); };
+      tx.onerror = function(e){ console.warn('[F11-Recovery] Error guardando audio:', e.target.error); };
+    } catch(e){ console.warn('[F11-Recovery] IndexedDB write error:', e); }
+  });
+}
+
+/* Guarda chunks parciales durante la grabación (cada 30 s) */
+function _f11SavePartialAudioToDB(chunksArray, mimeType){
+  if(!chunksArray || !chunksArray.length) return;
+  try {
+    const partialBlob = new Blob(chunksArray, {type: mimeType || 'audio/webm'});
+    _f11OpenDB().then(function(db){
+      if(!db) return;
+      try {
+        const tx = db.transaction(_F11_STORE, 'readwrite');
+        tx.objectStore(_F11_STORE).put({
+          id: 'partial_audio',
+          blob: partialBlob,
+          timestamp: Date.now(),
+          size: partialBlob.size,
+          type: mimeType || 'audio/webm',
+          chunksCount: chunksArray.length,
+          isPartial: true
+        });
+      } catch(e){}
+    });
+  } catch(e){ console.warn('[F11-Recovery] Error guardando audio parcial:', e); }
+}
+
+function _f11LoadAudioFromDB(){
+  return new Promise(function(resolve){
+    _f11OpenDB().then(function(db){
+      if(!db) return resolve(null);
+      try {
+        const tx = db.transaction(_F11_STORE, 'readonly');
+        const req = tx.objectStore(_F11_STORE).get('current_audio');
+        req.onsuccess = function(e){
+          const result = e.target.result;
+          if(result && result.blob && (Date.now() - result.timestamp < 12 * 60 * 60 * 1000)){
+            resolve(result);
+          } else { resolve(null); }
+        };
+        req.onerror = function(){ resolve(null); };
+      } catch(e){ resolve(null); }
+    });
+  });
+}
+
+function _f11LoadPartialAudioFromDB(){
+  return new Promise(function(resolve){
+    _f11OpenDB().then(function(db){
+      if(!db) return resolve(null);
+      try {
+        const tx = db.transaction(_F11_STORE, 'readonly');
+        const req = tx.objectStore(_F11_STORE).get('partial_audio');
+        req.onsuccess = function(e){
+          const result = e.target.result;
+          if(result && result.blob && result.isPartial && (Date.now() - result.timestamp < 2 * 60 * 60 * 1000)){
+            resolve(result);
+          } else { resolve(null); }
+        };
+        req.onerror = function(){ resolve(null); };
+      } catch(e){ resolve(null); }
+    });
+  });
+}
+
+function _f11ClearDB(){
+  _f11OpenDB().then(function(db){
+    if(!db) return;
+    try {
+      const tx = db.transaction(_F11_STORE, 'readwrite');
+      tx.objectStore(_F11_STORE).clear();
+    } catch(e){}
+  });
+}
+
+/* ── sessionStorage helpers para textos ── */
+function _f11SaveText(key, value){
+  try { if(value) sessionStorage.setItem(_F11_SS_PREFIX + key, value); }
+  catch(e){ console.warn('[F11-Recovery] sessionStorage write error:', e); }
+}
+function _f11LoadText(key){
+  try { return sessionStorage.getItem(_F11_SS_PREFIX + key) || ''; }
+  catch(e){ return ''; }
+}
+function _f11ClearTexts(){
+  try {
+    ['rawText','editedText','finalActa','step','streaming_draft','meta'].forEach(function(k){
+      sessionStorage.removeItem(_F11_SS_PREFIX + k);
+    });
+  } catch(e){}
+}
+
+/* Guarda estado completo de texto después de cada paso */
+function _f11CheckpointState(){
+  _f11SaveText('rawText', _f11RawText);
+  _f11SaveText('editedText', _f11EditedText);
+  _f11SaveText('finalActa', _f11FinalActa);
+  _f11SaveText('step', String(_f11CurrentStep));
+  /* Guardar metadatos del declarante */
+  try {
+    const meta = {
+      tipo: document.getElementById('f11Tipo')?.value || '',
+      nombre: document.getElementById('f11NombreDeclarante')?.value || '',
+      fecha: document.getElementById('f11Fecha')?.value || '',
+      lugar: document.getElementById('f11Lugar')?.value || ''
+    };
+    _f11SaveText('meta', JSON.stringify(meta));
+  } catch(e){}
+}
+
+/* ── Detección offline/online ── */
+let _f11WasOffline = false;
+
+function _f11OnOffline(){
+  _f11WasOffline = true;
+  /* Guardar todo lo que tengamos inmediatamente */
+  _f11CheckpointState();
+  showToast('⚠ SIN CONEXIÓN A INTERNET — Tu trabajo está guardado localmente. Cuando vuelva la conexión podrás continuar.', 8000);
+  console.warn('[F11-Recovery] Offline detectado. Estado guardado.');
+}
+
+function _f11OnOnline(){
+  if(_f11WasOffline){
+    _f11WasOffline = false;
+    showToast('✅ Conexión restaurada — Puedes continuar con normalidad.', 5000);
+    console.log('[F11-Recovery] Online restaurado.');
+  }
+}
+
+window.addEventListener('offline', _f11OnOffline);
+window.addEventListener('online', _f11OnOnline);
+
+/* ── beforeunload: prevenir cierre accidental ── */
+function _f11BeforeUnload(e){
+  const hayDatosSinGuardar = _f11Recording || _f11Processing ||
+    (_f11RawText && _f11CurrentStep >= 1) ||
+    (_f11EditedText && _f11CurrentStep >= 2) ||
+    (_f11FinalActa && _f11CurrentStep >= 3);
+
+  if(hayDatosSinGuardar){
+    /* Guardado de emergencia antes de cerrar */
+    _f11CheckpointState();
+    e.preventDefault();
+    e.returnValue = 'Tienes una transcripción en progreso. ¿Segura que quieres salir?';
+    return e.returnValue;
+  }
+}
+window.addEventListener('beforeunload', _f11BeforeUnload);
+
+/* ── Recuperación al abrir F11 ── */
+async function _f11CheckRecovery(){
+  const savedStep = parseInt(_f11LoadText('step') || '0');
+  if(savedStep < 1) return false;
+
+  const savedRaw = _f11LoadText('rawText');
+  const savedEdited = _f11LoadText('editedText');
+  const savedActa = _f11LoadText('finalActa');
+
+  if(!savedRaw) return false;
+
+  /* Hay datos recuperables */
+  const steps = [];
+  if(savedRaw) steps.push('transcripción cruda');
+  if(savedEdited) steps.push('texto refundido');
+  if(savedActa) steps.push('acta final');
+
+  const msg = '🔄 Se encontró trabajo previo sin guardar:\n' +
+    '• ' + steps.join(', ') + '\n\n' +
+    '¿Deseas recuperar esta sesión?';
+
+  if(confirm(msg)){
+    _f11RawText = savedRaw;
+    _f11EditedText = savedEdited || '';
+    _f11FinalActa = savedActa || '';
+    _f11CurrentStep = savedStep;
+    transcripcion.rawText = savedRaw;
+    transcripcion.structuredText = savedEdited || '';
+    transcripcion.actaFinal = savedActa || '';
+
+    /* Intentar recuperar audio de IndexedDB */
+    const audioData = await _f11LoadAudioFromDB();
+    if(audioData && audioData.blob){
+      _f11AudioBlob = audioData.blob;
+      if(_f11AudioUrl) URL.revokeObjectURL(_f11AudioUrl);
+      _f11AudioUrl = URL.createObjectURL(audioData.blob);
+      transcripcion.audioFile = audioData.blob;
+      transcripcion.audioUrl = _f11AudioUrl;
+    }
+
+    /* Recuperar metadatos */
+    try {
+      const metaStr = _f11LoadText('meta');
+      if(metaStr){
+        const meta = JSON.parse(metaStr);
+        setTimeout(function(){
+          const el1 = document.getElementById('f11Tipo'); if(el1 && meta.tipo) el1.value = meta.tipo;
+          const el2 = document.getElementById('f11NombreDeclarante'); if(el2 && meta.nombre) el2.value = meta.nombre;
+          const el3 = document.getElementById('f11Fecha'); if(el3 && meta.fecha) el3.value = meta.fecha;
+          const el4 = document.getElementById('f11Lugar'); if(el4 && meta.lugar) el4.value = meta.lugar;
+        }, 200);
+      }
+    } catch(e){}
+
+    showToast('✅ Sesión recuperada — Paso ' + savedStep + ' restaurado');
+    return true;
+  } else {
+    /* Usuario rechazó recuperación — limpiar */
+    _f11ClearTexts();
+    _f11ClearDB();
+    return false;
+  }
+}
+
+/* ── Guardado periódico del streaming draft ── */
+let _f11StreamDraftInterval = null;
+let _f11StreamDraftText = '';
+
+function _f11StartStreamDraftSave(stepLabel){
+  _f11StreamDraftText = '';
+  _f11StreamDraftInterval = setInterval(function(){
+    if(_f11StreamDraftText){
+      _f11SaveText('streaming_draft', _f11StreamDraftText);
+      _f11SaveText('streaming_step', stepLabel);
+    }
+  }, 5000); /* Guarda cada 5 segundos */
+}
+
+function _f11StopStreamDraftSave(){
+  if(_f11StreamDraftInterval){
+    clearInterval(_f11StreamDraftInterval);
+    _f11StreamDraftInterval = null;
+  }
+  _f11StreamDraftText = '';
+  try {
+    sessionStorage.removeItem(_F11_SS_PREFIX + 'streaming_draft');
+    sessionStorage.removeItem(_F11_SS_PREFIX + 'streaming_step');
+  } catch(e){}
+}
+
+console.log('%c🛡️ F11 Sistema de resiliencia activo — IndexedDB + sessionStorage + offline detection', 'color:#059669;font-weight:bold');
+
 /* ══════════════════ UTILIDADES ══════════════════ */
 function _f11Ext(n) { if(!n)return''; const p=n.toLowerCase().split('.'); return p.length>1?p.pop():''; }
 function _f11Mime(file) { const e=_f11Ext(file.name); return T_MIME[e]||(file.type&&file.type!=='application/octet-stream'?file.type:'audio/mpeg'); }
@@ -879,14 +1173,24 @@ async function f11StartRecording(){
       if(MediaRecorder.isTypeSupported(m)){ selectedMime = m; break; }
     }
 
+    /* Auto-save de audio parcial cada 30 s durante grabación */
+    let _f11ChunkSaveInterval = null;
+
     _f11Recorder = new MediaRecorder(stream, selectedMime ? {mimeType:selectedMime} : {});
     _f11Recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
     _f11Recorder.onerror = e => {
       console.error('[F11] MediaRecorder error:', e);
-      showToast('❌ Error en grabación: '+(e.error?.message||'desconocido'));
+      /* Guardar lo que se haya grabado hasta ahora */
+      if(chunks.length > 0){
+        _f11SavePartialAudioToDB(chunks, selectedMime);
+        showToast('❌ Error en grabación — Se guardó audio parcial (' + chunks.length + ' fragmentos). Puedes recuperarlo.', 8000);
+      } else {
+        showToast('❌ Error en grabación: '+(e.error?.message||'desconocido'));
+      }
       f11StopRecording();
     };
     _f11Recorder.onstop = () => {
+      if(_f11ChunkSaveInterval){ clearInterval(_f11ChunkSaveInterval); _f11ChunkSaveInterval = null; }
       stream.getTracks().forEach(t=>t.stop());
       const mimeType = _f11Recorder.mimeType || selectedMime || 'audio/webm';
       const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
