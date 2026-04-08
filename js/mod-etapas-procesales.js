@@ -88,10 +88,19 @@ const STAGE_KEYS = STAGE_DEFINITIONS.map(s => s.key);
 /* ── Datos de la etapa actual del caso ── */
 let currentEtapa = null;  // Registro de la tabla etapas
 
-/* ── Cargar etapa de un caso ── */
+/* ── Cargar etapa de un caso (con verificación de ownership #13) ── */
 async function loadCaseEtapa(caseId){
   const s = _sb();
   if(!s || !caseId) return null;
+  /* #13: Verificar que el caso pertenece al usuario o está compartido */
+  if(typeof currentCase !== 'undefined' && currentCase && currentCase.id === caseId){
+    /* OK — estamos en el caso activo del usuario */
+  } else if(typeof allCases !== 'undefined' && Array.isArray(allCases)){
+    if(!allCases.some(c => c.id === caseId)){
+      console.warn('[etapas] Caso no pertenece al usuario:', caseId);
+      return null;
+    }
+  }
   const { data, error } = await s.from('etapas')
     .select('*')
     .eq('case_id', caseId)

@@ -18,10 +18,15 @@
 export default async (req) => {
   const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
 
+  /* #11: CORS dinámico en vez de wildcard */
+  const _origin = req.headers.get('Origin') || '';
+  const _allowedOrigins = (Netlify.env.get('ALLOWED_ORIGINS') || '').split(',').map(s=>s.trim()).filter(Boolean);
+  const _corsOrigin = _allowedOrigins.includes(_origin) ? _origin : (_allowedOrigins[0] || _origin || 'https://fiscalito.cl');
   const CORS = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': _corsOrigin,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin'
   };
 
   if (req.method === 'OPTIONS') {

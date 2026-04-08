@@ -2989,11 +2989,11 @@ async function sendMessage(){
   const typingId=showTyping();
   setLoading(true);
   try{
-    // Build context
+    // Build context — usar _caseSnapshot (#9) para evitar race condition
     // Auto-activate Ley Karin mode when case materia involves género/acoso
     let fnInstr=FN_INSTRUCTIONS[activeFn]||FN_INSTRUCTIONS['F0'];
-    if(currentCase){
-      const mat=(currentCase.materia||'').toLowerCase();
+    if(_caseSnapshot){
+      const mat=(_caseSnapshot.materia||'').toLowerCase();
       const isGender=mat.includes('género')||mat.includes('genero')||mat.includes('acoso')||mat.includes('violencia')||mat.includes('karin')||mat.includes('21.369')||mat.includes('21.643');
       if(isGender && activeFn!=='F10' && activeFn!=='F11'){
         // Append Ley Karin context to existing instruction
@@ -3006,12 +3006,12 @@ async function sendMessage(){
     const _ctxTimeout=(activeFn==='F7'||activeFn==='F8')?20000:8000;
     const _withTimeout=(p,ms=_ctxTimeout)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
     let caseContext='';
-    if(currentCase){
+    if(_caseSnapshot){
       const fmtArrCtx=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
-      caseContext=`\n\n## EXPEDIENTE ACTIVO\n- Nombre: ${currentCase.name}\n- Resolución que instruye: ${currentCase.nueva_resolucion||'—'}\n- Carátula: ${currentCase.caratula||'—'}\n- Descripción: ${currentCase.description||'—'}\n- Estado: ${currentCase.status}\n- Tipo: ${currentCase.tipo_procedimiento||'—'}\n- Materia: ${currentCase.materia||'—'}\n- Protocolo: ${currentCase.protocolo||'—'}\n- Denunciante(s): ${fmtArrCtx(currentCase.denunciantes)}\n- Estamento denunciante: ${fmtArrCtx(currentCase.estamentos_denunciante)}\n- Carrera/Dep. denunciante: ${currentCase.carrera_denunciante||'—'}\n- Denunciado/a(s): ${fmtArrCtx(currentCase.denunciados)}\n- Estamento denunciado: ${fmtArrCtx(currentCase.estamentos_denunciado)}\n- Carrera/Dep. denunciado: ${currentCase.carrera_denunciado||'—'}\n- Resultado: ${currentCase.resultado||'Pendiente'}\n- Fecha recepción: ${currentCase.fecha_recepcion_fiscalia||'—'}\n- Fecha vista: ${currentCase.fecha_vista||'—'}\n- Carpeta Drive: ${currentCase.drive_folder_url||'No vinculada'}`;
+      caseContext=`\n\n## EXPEDIENTE ACTIVO\n- Nombre: ${_caseSnapshot.name}\n- Resolución que instruye: ${_caseSnapshot.nueva_resolucion||'—'}\n- Carátula: ${_caseSnapshot.caratula||'—'}\n- Descripción: ${_caseSnapshot.description||'—'}\n- Estado: ${_caseSnapshot.status}\n- Tipo: ${_caseSnapshot.tipo_procedimiento||'—'}\n- Materia: ${_caseSnapshot.materia||'—'}\n- Protocolo: ${_caseSnapshot.protocolo||'—'}\n- Denunciante(s): ${fmtArrCtx(_caseSnapshot.denunciantes)}\n- Estamento denunciante: ${fmtArrCtx(_caseSnapshot.estamentos_denunciante)}\n- Carrera/Dep. denunciante: ${_caseSnapshot.carrera_denunciante||'—'}\n- Denunciado/a(s): ${fmtArrCtx(_caseSnapshot.denunciados)}\n- Estamento denunciado: ${fmtArrCtx(_caseSnapshot.estamentos_denunciado)}\n- Carrera/Dep. denunciado: ${_caseSnapshot.carrera_denunciado||'—'}\n- Resultado: ${_caseSnapshot.resultado||'Pendiente'}\n- Fecha recepción: ${_caseSnapshot.fecha_recepcion_fiscalia||'—'}\n- Fecha vista: ${_caseSnapshot.fecha_vista||'—'}\n- Carpeta Drive: ${_caseSnapshot.drive_folder_url||'No vinculada'}`;
       /* ── Fetch all internal case data for full context ── */
       try{
-        const cid=currentCase.id;
+        const cid=_caseSnapshot.id;
         const _isVista=activeFn==='F7'||activeFn==='F8';
         const _dilSelect=_isVista?
           'id,diligencia_label,diligencia_type,fecha_diligencia,file_name,ai_summary,extracted_text,fojas_inicio,fojas_fin,drive_file_id,mime_type':
