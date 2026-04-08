@@ -1357,16 +1357,19 @@ async function f11Paso1_Transcribir(){
     transcripcion.rawText = transcriptText;
     _f11CurrentStep = 1;
 
+    /* Auto-guardar checkpoint */
+    _f11CheckpointState();
+
     bar.style.width = '100%';
     bar.style.background = 'var(--green)';
-    status.textContent = '✅ Transcripción completada — texto crudo guardado';
+    status.textContent = '✅ Transcripción completada — texto crudo guardado (respaldo automático activo)';
 
     const _rr=document.getElementById('f11RawResult');if(_rr)_rr.value = _f11RawText;
     const _rs=document.getElementById('f11RawResultSection');if(_rs)_rs.style.display = 'block';
     const _s2=document.getElementById('f11Step2Section');if(_s2)_s2.style.display = 'block';
 
     _f11UpdateSteps();
-    showToast('✅ Paso 1 completado: transcripción cruda guardada');
+    showToast('✅ Paso 1 completado: transcripción cruda guardada (respaldo automático)');
 
   } catch(e){
     bar.style.background = 'var(--red)';
