@@ -596,8 +596,11 @@ async function statsChatSend(quickQ){
   msgs.innerHTML+=`<div id="statsChatTyping" style="align-self:flex-start;color:var(--text-muted);font-size:11px;padding:6px">⏳ Analizando datos…</div>`;
   msgs.scrollTop=msgs.scrollHeight;
 
-  /* Build data summary for context */
+  /* Build data summary for context (truncated to avoid token overflow) */
   const d=_statsData;
+  const _maxCases=80;
+  const _activosList=d.activos.slice(0,_maxCases).map(c=>`- ${c.nueva_resolucion||c.name} | Cat: ${c.categoria} | Tipo: ${c.tipo_procedimiento||'—'} | Materia: ${c.materia||'—'} | Protocolo: ${c.protocolo||'—'} | Carrera Dte: ${c.carrera_denunciante||'—'} | Carrera Ddo: ${c.carrera_denunciado||'—'}`).join('\n');
+  const _termList=d.terminados.slice(0,_maxCases).map(c=>`- ${c.nueva_resolucion||c.name} | Tipo: ${c.tipo_procedimiento||'—'} | Resultado: ${RESULTADO_LABELS[c.resultado]||c.resultado||'—'} | Duración: ${c.duracion_dias||'—'} días | Materia: ${c.materia||'—'} | Carrera Dte: ${c.carrera_denunciante||'—'} | Carrera Ddo: ${c.carrera_denunciado||'—'}`).join('\n');
   const dataSummary=`DATOS DE CASOS FISCALITO (${d.cases.length} casos totales):
 
 DISTRIBUCIÓN POR CATEGORÍA:
@@ -621,11 +624,11 @@ RESULTADOS: ${Object.entries(d.dist.resultados).map(([k,v])=>k+': '+v).join(', '
 DILIGENCIAS: ${d.dils.length} total
 PARTICIPANTES: ${d.parts.length} total
 
-LISTA DE CASOS ACTIVOS:
-${d.activos.map(c=>`- ${c.nueva_resolucion||c.name} | Cat: ${c.categoria} | Tipo: ${c.tipo_procedimiento||'—'} | Materia: ${c.materia||'—'} | Protocolo: ${c.protocolo||'—'} | Carrera Dte: ${c.carrera_denunciante||'—'} | Carrera Ddo: ${c.carrera_denunciado||'—'}`).join('\n')}
+LISTA DE CASOS ACTIVOS (${d.activos.length}):
+${_activosList}${d.activos.length>_maxCases?`\n... y ${d.activos.length-_maxCases} casos más`:''}
 
-LISTA DE CASOS TERMINADOS:
-${d.terminados.map(c=>`- ${c.nueva_resolucion||c.name} | Tipo: ${c.tipo_procedimiento||'—'} | Resultado: ${RESULTADO_LABELS[c.resultado]||c.resultado||'—'} | Duración: ${c.duracion_dias||'—'} días | Materia: ${c.materia||'—'} | Carrera Dte: ${c.carrera_denunciante||'—'} | Carrera Ddo: ${c.carrera_denunciado||'—'}`).join('\n')}`;
+LISTA DE CASOS TERMINADOS (${d.terminados.length}):
+${_termList}${d.terminados.length>_maxCases?`\n... y ${d.terminados.length-_maxCases} casos más`:''}`.substring(0,12000);
 
   try{
     _statsChatHistory.push({role:'user',content:text});
