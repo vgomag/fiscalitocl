@@ -1104,11 +1104,32 @@ const CHAT_STREAM_ENDPOINT='/api/chat-stream';
 const CLAUDE_SONNET = 'claude-sonnet-4-20250514';
 const CLAUDE_HAIKU = 'claude-haiku-4-5-20251001';
 
-/** Fetch autenticado — envía token de Supabase en cada request al chat */
+/** Fetch autenticado — envía token de Supabase en cada request al chat.
+ *  Si recibe 401, intenta refrescar el token y reintentar una vez. (#8) */
 async function authFetch(url, options = {}) {
   const token = session?.access_token || '';
   const headers = { ...(options.headers || {}), 'x-auth-token': token };
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
+  if(res.status === 401 && session){
+    try{
+      const{data}=await sb.auth.refreshSession();
+      if(data?.session){
+        session=data.session;
+        const h2={...(options.headers||{}),'x-auth-token':session.access_token};
+        return fetch(url,{...options,headers:h2});
+      }
+    }catch(e){console.warn('[authFetch] Token refresh failed:',e);}
+  }
+  return res;
+}
+
+/** Cerrar sesión (#7) */
+async function doLogout(){
+  try{await sb.auth.signOut();}catch(e){console.warn('[logout]',e);}
+  session=null;currentCase=null;allCases=[];
+  document.getElementById('appScreen').style.display='none';
+  document.getElementById('authScreen').style.display='flex';
+  showToast('Sesión cerrada');
 }
 const sb=supabase.createClient(SB_URL,SB_KEY);
 // Also expose as supabaseClient for modules
