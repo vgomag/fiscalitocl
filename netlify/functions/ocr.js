@@ -5,6 +5,10 @@
  *   action=extract : Download PDF from Drive + Claude OCR → return text
  *   action=analyze : Receive text → identify diligencias → return JSON
  */
+
+/* #29 TODO: This file currently uses req.destroy() pattern for timeouts.
+   Consider migrating to AbortController in a future refactor for consistency with
+   other functions (generate-vista-stream.js, chat.js use AbortController). */
 const crypto = require('crypto');
 const https = require('https');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
