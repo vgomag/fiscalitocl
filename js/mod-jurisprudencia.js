@@ -113,7 +113,7 @@ const juri = {
   activeAnalysisId: null,
   // SKILL state
   skillKeywords: '',
-  skillSources:  new Set(['cgr','qdrant']),
+  skillSources:  new Set(['cgr','pjud','qdrant']),
   skillCount:    10,
   skillLoading:  false,
   skillResults:  [],     // [{title, source, date, snippet, url, selected}]
@@ -142,6 +142,27 @@ async function _juriSearchRAG(query, folder = 'todos') {
   if (!resp.ok) {
     const errText = await resp.text();
     throw new Error('RAG HTTP ' + resp.status + ': ' + errText.substring(0, 200));
+  }
+  return resp.json();
+}
+
+/**
+ * Busca sentencias en PJUD vía /.netlify/functions/pjud-search.
+ * @param {string} query - Texto a buscar
+ * @param {string} court - Tipo de corte (Corte_Suprema, Corte_de_Apelaciones, Laborales, etc.)
+ * @param {number} count - Número de resultados (max 20)
+ * @returns {Promise<{totalCount:number, count:number, court:string, results:Array}>}
+ */
+async function _juriSearchPJUD(query, court = 'Corte_Suprema', count = 10) {
+  const _fetchFn = typeof authFetch === 'function' ? authFetch : fetch;
+  const resp = await _fetchFn('/.netlify/functions/pjud-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, court, count })
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error('PJUD HTTP ' + resp.status + ': ' + errText.substring(0, 200));
   }
   return resp.json();
 }
@@ -510,33 +531,79 @@ async function juriSkillSearch() {
   renderJuriView();
 
   const searchQdrant = juri.skillSources.has('qdrant');
+  const searchPjud   = juri.skillSources.has('pjud');
 
   try {
     const results = [];
+    const promises = [];
 
     // Búsqueda Qdrant vía Netlify RAG
     if (searchQdrant) {
-      const ragData = await _juriSearchRAG(keywords, juri.skillFolder || 'todos');
-      if (ragData.context && ragData.count > 0) {
-        // Parsear resultados del contexto RAG
-        const blocks = ragData.context.split('\n\n---\n\n');
-        blocks.forEach((block, i) => {
-          const headerMatch = block.match(/\[Fuente:\s*(.+?)\s*\|\s*Colección:\s*(.+?)\s*\|\s*Relevancia:\s*(\d+)%\]/);
-          const content = headerMatch ? block.substring(headerMatch[0].length).trim() : block;
-          results.push({
-            title:     headerMatch ? headerMatch[1] : `Resultado ${i + 1}`,
-            source:    'qdrant',
-            sourceIcon:'📚',
-            date:      '',
-            snippet:   content.substring(0, 400),
-            url:       '',
-            score:     headerMatch ? parseInt(headerMatch[3]) / 100 : 0,
-            selected:  false,
-            content:   content,
-          });
-        });
-      }
+      promises.push(
+        _juriSearchRAG(keywords, juri.skillFolder || 'todos')
+          .then(ragData => {
+            if (ragData.context && ragData.count > 0) {
+              const blocks = ragData.context.split('\n\n---\n\n');
+              blocks.forEach((block, i) => {
+                const headerMatch = block.match(/\[Fuente:\s*(.+?)\s*\|\s*Colección:\s*(.+?)\s*\|\s*Relevancia:\s*(\d+)%\]/);
+                const content = headerMatch ? block.substring(headerMatch[0].length).trim() : block;
+                results.push({
+                  title:     headerMatch ? headerMatch[1] : `Resultado ${i + 1}`,
+                  source:    'qdrant',
+                  sourceIcon:'📚',
+                  date:      '',
+                  snippet:   content.substring(0, 400),
+                  url:       '',
+                  score:     headerMatch ? parseInt(headerMatch[3]) / 100 : 0,
+                  selected:  false,
+                  content:   content,
+                });
+              });
+            }
+          })
+          .catch(err => console.warn('Qdrant search error:', err.message))
+      );
     }
+
+    // Búsqueda PJUD vía Netlify pjud-search
+    if (searchPjud) {
+      promises.push(
+        _juriSearchPJUD(keywords, 'Corte_Suprema', juri.skillCount)
+          .then(pjudData => {
+            if (pjudData.results && pjudData.results.length > 0) {
+              pjudData.results.forEach((r, i) => {
+                const title = r.rol
+                  ? `ROL ${r.rol} — ${r.caratulado || 'Sin caratulado'}`
+                  : r.caratulado || `Sentencia PJUD ${i + 1}`;
+                const meta = [r.fecha, r.sala, r.tipoRecurso, r.resultado].filter(Boolean).join(' | ');
+                results.push({
+                  title:     title,
+                  source:    'pjud',
+                  sourceIcon:'⚖️',
+                  date:      r.fecha || '',
+                  snippet:   (meta ? meta + '\n' : '') + (r.preview || '').substring(0, 400),
+                  url:       r.url || '',
+                  score:     0.8 - (i * 0.02),
+                  selected:  false,
+                  content:   (meta ? '--- ' + meta + ' ---\n\n' : '') + (r.fullText || r.preview || ''),
+                });
+              });
+            }
+          })
+          .catch(err => {
+            console.warn('PJUD search error:', err.message);
+            showToast('⚠ Error buscando en PJUD: ' + err.message);
+          })
+      );
+    }
+
+    // Esperar todas las búsquedas en paralelo
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+
+    // Ordenar: PJUD por fecha (más recientes primero), Qdrant por score
+    results.sort((a, b) => (b.score || 0) - (a.score || 0));
 
     if (!results.length) {
       results.push({
@@ -993,7 +1060,31 @@ async function juriExtractUrl(type) {
   const id = type === 'cgr' ? 'juriCgrUrl' : 'juriPjudUrl';
   const url = document.getElementById(id)?.value.trim();
   if (!url) { showToast('⚠ Ingresa una URL'); return; }
-  showToast('ℹ Pega el contenido del documento manualmente en la pestaña "Texto libre". La extracción automática de URLs no está disponible por ahora.');
+
+  if (type === 'pjud') {
+    // Intentar extraer ROL de la URL para buscar en PJUD
+    const rolMatch = url.match(/(\d{1,7}[-–]\d{4})/);
+    if (rolMatch) {
+      showToast('🔍 Buscando ROL ' + rolMatch[1] + ' en PJUD...');
+      try {
+        const data = await _juriSearchPJUD(rolMatch[1], 'Corte_Suprema', 5);
+        if (data.results && data.results.length > 0) {
+          data.results.forEach(r => {
+            const title = `ROL ${r.rol || rolMatch[1]} — ${r.caratulado || 'PJUD'}`;
+            const meta = [r.fecha, r.sala, r.tipoRecurso].filter(Boolean).join(' | ');
+            juriAddDoc(title, (meta ? meta + '\n\n' : '') + (r.fullText || r.preview || ''));
+          });
+          showToast('✓ ' + data.results.length + ' sentencia(s) añadida(s) al contexto');
+          return;
+        }
+      } catch (err) {
+        console.warn('PJUD extract error:', err);
+      }
+    }
+    showToast('ℹ No se encontró el ROL. Pega el contenido manualmente en "Texto libre".');
+  } else {
+    showToast('ℹ Pega el contenido del documento manualmente en la pestaña "Texto libre". La extracción automática de URLs CGR no está disponible por ahora.');
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────
