@@ -1,13 +1,18 @@
 /* =========================================================
    MOD-TRANSCRIPCION.JS — F11 Transcripción de Actas
-   v9.1 · 2026-04-02 · Fiscalito / UMAG
+   v10.0 · 2026-04-08 · Fiscalito / UMAG
    =========================================================
+   v10.0: A PRUEBA DE FALLOS — Sistema de resiliencia completo
+   · IndexedDB: auto-guardado de audio blob + chunks parciales cada 30 s
+   · sessionStorage: checkpoint de textos tras cada paso completado
+   · Guardado progresivo cada 5 s durante streaming SSE (Paso 2/3)
+   · Detección offline/online con aviso inmediato + guardado de emergencia
+   · beforeunload: previene cierre accidental con datos sin guardar
+   · Recuperación automática al abrir F11 (detecta sesión previa)
+   · Reintentos automáticos (2 intentos con backoff) en Paso 2/3
+   · Timeout explícito 120 s en fetch de streaming
+   · Si el stream falla, el texto parcial acumulado se preserva
    v9.1: Fix grabadora + error handling Paso 2/3
-   · Grabadora: quita sampleRate constraint (OverconstrainedError),
-     pre-checks mediaDevices/MediaRecorder, timeout getUserMedia 15 s,
-     onerror handler, mensajes de error descriptivos con showToast
-   · Paso 2/3: timeout 60 s con AbortController, validación Content-Type
-     antes de parsear JSON, errores descriptivos por código HTTP
    v9.0: UI unificada estilo Actas-Audio (3 pasos visibles)
    · Paso 1: Grabar/subir → transcribir con ElevenLabs/Whisper
    · Paso 2: Edición IA — texto refundido con cuestionario guía
