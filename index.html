@@ -1111,6 +1111,9 @@ const CHAT_STREAM_ENDPOINT='/api/chat-stream';
 const CLAUDE_SONNET = 'claude-sonnet-4-20250514';
 const CLAUDE_HAIKU = 'claude-haiku-4-5-20251001';
 
+/* Standard column selections to keep queries consistent across modules (#17) */
+const CASE_COLUMNS = 'id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento,user_id,caratula,description,resolucion_termino,propuesta,judicializada,medida_cautelar,deleted_at';
+
 /** Fetch autenticado — envía token de Supabase en cada request al chat.
  *  Si recibe 401, intenta refrescar el token y reintentar una vez. (#8) */
 async function authFetch(url, options = {}) {
@@ -1584,6 +1587,11 @@ Si el estamento NO está determinado, señálalo como [ESTAMENTO NO DETERMINADO 
 /* ── Auth state ── */
 let session=null,currentCase=null,allCases=[],activeFn='F0',activeCatTab='genero';
 
+/* #19: Cleanup registry for dynamic event listeners */
+const _cleanupFns=[];
+function registerCleanup(fn){_cleanupFns.push(fn);}
+function runCleanups(){while(_cleanupFns.length){try{_cleanupFns.pop()();}catch(e){}}}
+
 /* #22: Global handler for unhandled promise rejections */
 window.addEventListener('unhandledrejection', e => {
   console.warn('[Fiscalito] Unhandled rejection:', e.reason);
@@ -1840,7 +1848,7 @@ function showTab(tabId){
 }
 
 /* ── Views ── */
-function showView(id){document.querySelectorAll('.view').forEach(v=>{v.classList.toggle('active',v.id===id);});}
+function showView(id){runCleanups();document.querySelectorAll('.view').forEach(v=>{v.classList.toggle('active',v.id===id);});}
 
 /* ── Multi-select helpers ── */
 function toggleMultiSelect(wrap){wrap.classList.toggle('open');}
@@ -3563,7 +3571,10 @@ async function sendMessage(){
       body.system = body.system.substring(0, _maxSystemLen) + '\n\n[Contexto truncado por límite de tokens]';
     }
 
-    const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    /* #10: Stream timeout — 120 seconds maximum */
+    const _streamAbort=new AbortController();
+    const _streamTimeout=setTimeout(()=>{_streamAbort.abort();},120000);
+    const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:_streamAbort.signal});
     removeTyping(typingId);
     if(!r.ok){const e=await r.text().catch(()=>'');try{const ej=JSON.parse(e);appendMsg('assistant','⚠️ Error: '+(ej.error||r.status));}catch{appendMsg('assistant','⚠️ Error: '+r.status);}return;}
 
@@ -3654,7 +3665,12 @@ async function sendMessage(){
       }
     }catch(streamErr){
       streamError=true;
-      console.warn('Stream read error:',streamErr);
+      if(streamErr.name==='AbortError'){
+        console.warn('Stream timeout: 120s exceeded');
+        showToast('⚠️ Streaming timeout: respuesta interrumpida después de 120 segundos');
+      }else{
+        console.warn('Stream read error:',streamErr);
+      }
     }
     _activeReader=null;
     const _scBtn=document.getElementById('streamControlBtn');if(_scBtn)_scBtn.remove();
@@ -3692,7 +3708,7 @@ async function sendMessage(){
       sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
     }
   }catch(err){_activeReader=null;const _scb=document.getElementById('streamControlBtn');if(_scb)_scb.remove();removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
-  finally{setLoading(false);_currentVFSection=null;}
+  finally{clearTimeout(_streamTimeout);setLoading(false);_currentVFSection=null;}
 }
 
 function quickChat(text){showView('viewWelcome');pickFn('F0');document.getElementById('inputBox').value=text;sendMessage();}

@@ -15,6 +15,9 @@
  *   - event: meta  → { modelsUsed: [...] }
  *   - Anthropic SSE events (content_block_delta with text)
  */
+
+/* ⚠️ IMPORTANT: This file's prompts MUST stay in sync with generate-vista.js.
+   Any prompt changes must be applied to BOTH files. Consider extracting shared prompts to writing-style.js. */
 import { corsHeaders } from './shared/cors-esm.js';
 import {
   HUMAN_WRITING_STYLE, PRECISION_JURIDICA,

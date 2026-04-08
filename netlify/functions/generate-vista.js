@@ -12,6 +12,9 @@
  * POST { caseId, caseData, diligencias, participants, chronology, mode }
  *   mode: "informe" | "sancion" | "sobreseimiento" | "art129"
  */
+
+/* ⚠️ IMPORTANT: This file's prompts MUST stay in sync with generate-vista-stream.js.
+   Any prompt changes must be applied to BOTH files. Consider extracting shared prompts to writing-style.js. */
 const https = require('https');
 const { callAnthropic: _sharedCall, MODEL_SONNET } = require('./shared/anthropic');
 const { checkRateLimit, rateLimitResponse, extractUserIdFromToken } = require('./shared/rate-limit');
