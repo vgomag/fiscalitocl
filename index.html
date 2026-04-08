@@ -53,7 +53,7 @@
   --shadow-md:0 4px 6px rgba(0,0,0,.05),0 2px 4px rgba(0,0,0,.04);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;-webkit-font-smoothing:antialiased;}
+html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);font-family:var(--font-body, 'Plus Jakarta Sans', system-ui, sans-serif);font-size:14px;-webkit-font-smoothing:antialiased;}
 *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.1) transparent;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:4px;}
@@ -179,7 +179,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 
 /* ── BUTTONS ── */
 .btn-save{background:var(--gold);border:none;color:#ffffff;padding:7px 16px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font-body);transition:all .15s;}
-.btn-save:hover{background:#e0b85a;}
+.btn-save:hover{background:var(--gold-dim, #e0b85a);}
 .btn-save:disabled{opacity:.5;cursor:not-allowed;}
 .btn-cancel{background:none;border:1px solid var(--border2);color:var(--text-dim);padding:7px 16px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-family:var(--font-body);transition:all .15s;}
 .btn-cancel:hover{background:var(--surface2);}
@@ -333,7 +333,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .input-box:focus{border-color:var(--gold-dim);}
 .input-box::placeholder{color:var(--text-muted);}
 .send-btn{background:var(--gold);border:none;color:#fff;width:34px;height:34px;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
-.send-btn:hover{background:#e0b85a;}
+.send-btn:hover{background:var(--gold-dim, #e0b85a);}
 .send-btn:disabled{opacity:.4;cursor:not-allowed;}
 .send-btn svg{width:15px;height:15px;fill:currentColor;}
 .input-hint{display:flex;justify-content:space-between;padding:3px 14px 5px;flex-shrink:0;}
@@ -377,7 +377,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .field input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-family:var(--font-body);font-size:13px;outline:none;transition:border-color .15s;}
 .field input:focus{border-color:var(--gold-dim);}
 .btn-primary{width:100%;background:var(--gold);border:none;color:#fff;padding:9px;border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:700;font-family:var(--font-body);transition:background .15s;margin-bottom:6px;}
-.btn-primary:hover{background:#e0b85a;}
+.btn-primary:hover{background:var(--gold-dim, #e0b85a);}
 .auth-switch{font-size:11px;color:var(--text-muted);}
 .auth-switch a{color:var(--gold);cursor:pointer;text-decoration:none;}
 
@@ -439,7 +439,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .juri-search-input{flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-family:var(--font-body);font-size:12.5px;outline:none;transition:border-color .15s;}
 .juri-search-input:focus{border-color:var(--gold-dim);}
 .juri-search-btn{background:var(--gold);border:none;color:#fff;padding:7px 13px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font-body);display:flex;align-items:center;gap:5px;transition:background .15s;white-space:nowrap;}
-.juri-search-btn:hover{background:#e0b85a;}
+.juri-search-btn:hover{background:var(--gold-dim, #e0b85a);}
 .juri-options{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
 .juri-opt-label{font-size:10.5px;color:var(--text-muted);}
 .juri-opt-num{width:52px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:var(--radius);font-family:var(--font-body);font-size:12px;outline:none;}

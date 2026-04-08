@@ -13,14 +13,14 @@
         max_results: 3,
         max_chars_per_result: 1200
       });
-      if (error) { console.warn('CE-patch library RPC error:', error); return ''; }
+      if (error) { console.warn('[CE-patch] library RPC error:', error); return ''; }
       if (!data || !data.length) return '';
       let ctx = '\n\n## BIBLIOTECA DE REFERENCIA (Libros y Normativa Interna)\n';
       data.forEach(r => {
         ctx += '\n### [' + (r.source_table === 'reference_books' ? 'Libro' : 'Normativa') + '] ' + r.doc_name + '\n' + (r.snippet || '').substring(0, 1200);
       });
       return ctx + '\n--- FIN BIBLIOTECA ---\n';
-    } catch (e) { console.warn('CE-patch library:', e.message); return ''; }
+    } catch (e) { console.warn('[CE-patch] library error:', e.message); return ''; }
   }
 
   async function _ceSearchQdrant(query, caseType) {
@@ -44,8 +44,8 @@
       if (d.sources && d.sources.length) ctx += '\n\nFuentes: ' + d.sources.join(', ');
       return ctx + '\n--- FIN QDRANT ---\n';
     } catch (e) {
-      if (e.name === 'AbortError') console.warn('CE-patch Qdrant timeout (6s)');
-      else console.warn('CE-patch Qdrant:', e.message);
+      if (e.name === 'AbortError') console.warn('[CE-patch] Qdrant timeout (6s)');
+      else console.warn('[CE-patch] Qdrant error:', e.message);
       return '';
     }
   }
@@ -110,10 +110,10 @@
         if (extraCtx.length > 50) {
           body.system = systemPrompt + '\n\n' + extraCtx;
           options = Object.assign({}, options, { body: JSON.stringify(body) });
-          console.log('CE-patch: +' + extraCtx.length + ' chars inyectados (lib:' + results[0].length + ' qdrant:' + results[1].length + ' bcn:' + results[2].length + ')');
+          console.log('[CE-patch] +' + extraCtx.length + ' chars inyectados (lib:' + results[0].length + ' qdrant:' + results[1].length + ' bcn:' + results[2].length + ')');
         }
       } catch (e) {
-        console.warn('CE-patch parse error:', e.message);
+        console.warn('[CE-patch] parse error:', e.message);
       }
 
       return origFetch.call(this, url, options);
@@ -161,9 +161,9 @@
           var extraCtx = results[0] + results[1] + results[2];
           if (extraCtx.length > 50) {
             window._escritosLibraryCtx = extraCtx;
-            console.log('Escritos: +' + extraCtx.length + ' chars de biblioteca preparados');
+            console.log('[CE-patch] +' + extraCtx.length + ' chars de biblioteca preparados');
           }
-        } catch (e) { console.warn('Escritos library error:', e.message); }
+        } catch (e) { console.warn('[CE-patch] library error:', e.message); }
 
         return window._origGenerateEscrito.apply(this, arguments);
       };
@@ -181,7 +181,7 @@
             if (body.system && body.system.indexOf('escrito') !== -1) {
               body.system += window._escritosLibraryCtx;
               opts = Object.assign({}, opts, { body: JSON.stringify(body) });
-              console.log('Escritos: biblioteca inyectada al system prompt');
+              console.log('[CE-patch] biblioteca inyectada al system prompt');
               delete window._escritosLibraryCtx;
             }
           } catch (e) {}

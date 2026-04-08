@@ -58,13 +58,13 @@ async function loadBibliotecaBooks() {
         biblioteca.books = [];
         showToast('ℹ Tabla reference_books no encontrada — modo demo activado');
       } else {
-        console.error('Biblioteca error:', error);
+        console.error('[BIB] error:', error);
       }
     } else {
       biblioteca.books = data || [];
     }
   } catch (err) {
-    console.error('Biblioteca load error:', err);
+    console.error('[BIB] load error:', err);
   } finally {
     biblioteca.loading = false;
     renderBibliotecaView();
@@ -855,7 +855,7 @@ async function handleNormaFileSelect(input) {
       }
     }
   } catch (err) {
-    console.error('[NORMA] extract error:', err);
+    console.error('[BIB] extract error:', err);
     if (ext) ext.innerHTML = '<span style="color:var(--text-muted)">ℹ No se pudo extraer texto. Pégalo manualmente.</span>';
   }
 }

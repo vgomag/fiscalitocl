@@ -16,6 +16,12 @@ const { corsHeaders } = require('./shared/cors');
 const { MODEL_SONNET, MODEL_HAIKU } = require('./shared/anthropic');
 const { PRECISION_JURIDICA } = require('./shared/writing-style');
 
+/* ── Timeout Constants ── */
+const OAUTH_TIMEOUT_MS = 30000;    // 30s for OAuth token requests
+const DRIVE_TIMEOUT_MS = 30000;    // 30s for Google Drive API calls
+const CLAUDE_TIMEOUT_MS = 55000;   // 55s for Claude API calls
+const CLAUDE_MAX_TOKENS = 4000;    // Default max tokens for Claude responses
+
 function base64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
@@ -31,10 +37,10 @@ async function getAccessToken(sa) {
     .sign(sa.private_key,'base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${header}.${payload}.${sig}`;
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
+    const _to = setTimeout(() => req.destroy(), OAUTH_TIMEOUT_MS);
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},
-      timeout: 30000
+      timeout: OAUTH_TIMEOUT_MS
     }, (res) => {
       clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
@@ -56,8 +62,8 @@ async function getAccessToken(sa) {
 
 function driveGet(path, token, binary) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
-    const req = https.get('https://www.googleapis.com' + path, { headers: { Authorization: 'Bearer ' + token }, timeout: 30000 }, (res) => {
+    const _to = setTimeout(() => req.destroy(), DRIVE_TIMEOUT_MS);
+    const req = https.get('https://www.googleapis.com' + path, { headers: { Authorization: 'Bearer ' + token }, timeout: DRIVE_TIMEOUT_MS }, (res) => {
       clearTimeout(_to);
       if (binary) { const c = []; res.on('data', d => c.push(d)); res.on('end', () => resolve({ status: res.statusCode, data: Buffer.concat(c) })); }
       else { let d = ''; res.on('data', c => d += c); res.on('end', () => { try { resolve({ status: res.statusCode, data: res.statusCode < 300 ? JSON.parse(d) : d }); } catch(e) { resolve({ status: res.statusCode, data: d }); } }); }
@@ -76,8 +82,8 @@ function driveGet(path, token, binary) {
 
 function driveText(path, token) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
-    const req = https.get('https://www.googleapis.com' + path, { headers: { Authorization: 'Bearer ' + token }, timeout: 30000 }, (res) => {
+    const _to = setTimeout(() => req.destroy(), DRIVE_TIMEOUT_MS);
+    const req = https.get('https://www.googleapis.com' + path, { headers: { Authorization: 'Bearer ' + token }, timeout: DRIVE_TIMEOUT_MS }, (res) => {
       clearTimeout(_to);
       let d = ''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, data: d }));
     });
@@ -95,11 +101,11 @@ function driveText(path, token) {
 
 function callClaude(apiKey, model, system, userContent, maxTokens) {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ model, max_tokens: maxTokens || 4000, system, messages: [{ role: 'user', content: userContent }] });
-    const _to = setTimeout(() => req.destroy(), 55000);
+    const body = JSON.stringify({ model, max_tokens: maxTokens || CLAUDE_MAX_TOKENS, system, messages: [{ role: 'user', content: userContent }] });
+    const _to = setTimeout(() => req.destroy(), CLAUDE_TIMEOUT_MS);
     const req = https.request('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      timeout: 55000
+      timeout: CLAUDE_TIMEOUT_MS
     }, (res) => {
       clearTimeout(_to);
       let d = ''; res.on('data', c => d += c);
