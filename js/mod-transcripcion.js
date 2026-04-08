@@ -645,7 +645,7 @@ window.f11ShowCaseSelector = function() {
 /* ════════════════════════════════════════════
    RENDER PRINCIPAL — F11
    ════════════════════════════════════════════ */
-function renderF11Panel(){
+async function renderF11Panel(){
   const panel = document.getElementById('fnPanel');
   const msgs  = document.getElementById('msgs');
   const ragBar = document.getElementById('ragBar');
@@ -656,6 +656,42 @@ function renderF11Panel(){
   panel.innerHTML = _buildF11PanelHTML();
   _initF11Panel();
   buildF11Chips();
+
+  /* ── Intentar recuperación de sesión previa ── */
+  if(_f11CurrentStep === 0){
+    const recovered = await _f11CheckRecovery();
+    if(recovered){
+      /* Re-renderizar con datos recuperados */
+      panel.innerHTML = _buildF11PanelHTML();
+      _initF11Panel();
+      _f11RestoreUI();
+    }
+  }
+}
+
+/* Restaura la UI según el estado recuperado */
+function _f11RestoreUI(){
+  if(_f11RawText){
+    const rr=document.getElementById('f11RawResult');if(rr) rr.value=_f11RawText;
+    const rs=document.getElementById('f11RawResultSection');if(rs) rs.style.display='block';
+    const s2=document.getElementById('f11Step2Section');if(s2) s2.style.display='block';
+  }
+  if(_f11EditedText){
+    const er=document.getElementById('f11EditedResult');if(er) er.value=_f11EditedText;
+    const es=document.getElementById('f11EditedResultSection');if(es) es.style.display='block';
+    const s3=document.getElementById('f11Step3Section');if(s3) s3.style.display='block';
+  }
+  if(_f11FinalActa){
+    const fp=document.getElementById('f11FinalPreview');
+    if(fp) fp.innerHTML=_f11FinalActa.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+    const fs=document.getElementById('f11FinalSection');if(fs) fs.style.display='block';
+  }
+  if(_f11AudioUrl){
+    const player=document.getElementById('f11AudioPlayer');if(player) player.src=_f11AudioUrl;
+    const prev=document.getElementById('f11AudioPreview');if(prev) prev.style.display='block';
+    const tb=document.getElementById('f11TranscribeBtn');if(tb) tb.disabled=false;
+  }
+  _f11UpdateSteps();
 }
 
 function updateTransPanel(){ renderF11Panel(); }
@@ -2229,6 +2265,11 @@ function f11Reset(){
   transcripcion.actaFinal = '';
   transcripcion.step = 'upload';
 
+  /* Limpiar respaldos */
+  _f11ClearTexts();
+  _f11ClearDB();
+  _f11StopStreamDraftSave();
+
   renderF11Panel();
 }
 
@@ -2256,5 +2297,6 @@ function stopTransRecording(){ f11StopRecording(); }
 function resetTranscripcion(){ f11Reset(); }
 
 /* ══════════════════ LOG ══════════════════ */
-console.log('%c🎙️ Módulo F11 Transcripción v9.1 — Fix grabadora + error handling', 'color:#7c3aed;font-weight:bold');
-console.log('%c   ✓ ElevenLabs/Whisper  ✓ Edición IA  ✓ Acta firmable  ✓ Diagnósticos mejorados', 'color:#666');
+console.log('%c🎙️ Módulo F11 Transcripción v10.0 — A prueba de fallos', 'color:#7c3aed;font-weight:bold');
+console.log('%c   ✓ ElevenLabs/Whisper  ✓ Edición IA  ✓ Acta firmable  ✓ Auto-guardado IndexedDB+sessionStorage', 'color:#666');
+console.log('%c   ✓ Detección offline  ✓ Reintentos automáticos  ✓ Recuperación de sesión  ✓ beforeunload', 'color:#666');
