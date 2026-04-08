@@ -5,6 +5,10 @@
  * BUSCA AUTOMÁTICAMENTE modelos de referencia en casos terminados de Supabase
  * para conservar el estilo institucional, razonamiento jurídico y lenguaje administrativo.
  *
+ * SECURITY NOTE: This function receives sensitive case data including participant names,
+ * RUTs, and denunciante/denunciado information. Do NOT log full request/response bodies.
+ * Log only error codes/messages. See _sanitizeLog() helper for PII masking if logging is needed.
+ *
  * POST { caseId, caseData, diligencias, participants, chronology, mode }
  *   mode: "informe" | "sancion" | "sobreseimiento" | "art129"
  */

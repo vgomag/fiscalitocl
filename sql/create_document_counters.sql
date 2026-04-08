@@ -63,6 +63,11 @@ DECLARE
   v_format TEXT;
   v_formatted TEXT;
 BEGIN
+  -- SECURITY: Validate that p_user_id matches authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: p_user_id does not match authenticated user';
+  END IF;
+
   -- Insertar o actualizar atómicamente
   INSERT INTO document_counters (user_id, doc_type, year, last_number, prefix, format_template)
   VALUES (

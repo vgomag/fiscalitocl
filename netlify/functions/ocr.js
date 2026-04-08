@@ -123,6 +123,12 @@ const HAIKU = MODEL_HAIKU;
  * OCR — Extracción de texto y análisis de diligencias con Claude Vision.
  * Pipeline de dos etapas: extracción de PDF + análisis de contenido.
  *
+ * RESPONSE FORMAT:
+ *   - extract: {ok:true, name:string, mimeType:string, fileSize:number, extractedText:string, aiSummary:string, charCount:number}
+ *   - analyze: {ok:true, diligencias:Array, count:number}
+ *   - summarize: {ok:true, summary:string}
+ *   - On error: {error: string} or {ok: false, error: string} (HTTP 400, 401, 429, or 502)
+ *
  * @route POST /.netlify/functions/ocr
  * @param {Object} body
  * @param {string} body.action - 'extract' | 'analyze' | 'summarize'

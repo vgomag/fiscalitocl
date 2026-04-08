@@ -338,7 +338,7 @@
     var db = _sb();
     if (!db) return;
     try {
-      var res = await db.from('external_case_analyses').select('*').eq('id', id).single();
+      var res = await db.from('external_case_analyses').select('*').eq('id', id).eq('user_id', _userId()).single();
       if (!res.data) { showToast('✗ Análisis no encontrado'); return; }
       var d = res.data;
       ce.analysisId = d.id;
@@ -424,6 +424,7 @@
       var res = await db.from('external_case_messages')
         .select('*')
         .eq('analysis_id', ce.analysisId)
+        .eq('user_id', _userId())
         .order('created_at', { ascending: true })
         .limit(50);
       ce.chatMessages = (res.data || []).map(function (m) {

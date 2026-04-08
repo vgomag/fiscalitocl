@@ -156,6 +156,9 @@ async function _checkRL(token, endpoint) {
  * Convierte transcripciones de audio en documentos jurídicos formateados.
  * Soporta múltiples formatos: pregunta-respuesta, acta formal, relleno de plantilla.
  *
+ * RESPONSE FORMAT: {ok: true, structuredText: string, charCount: number}
+ *   On error: {error: string} (HTTP 400 or 401 or 429)
+ *
  * @route POST /.netlify/functions/structure
  * @param {Object} body
  * @param {string} body.rawText - Texto de la transcripción (max 14000 caracteres)

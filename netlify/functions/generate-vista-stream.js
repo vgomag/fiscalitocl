@@ -4,6 +4,10 @@
  * ESM version of generate-vista that streams the Anthropic response via SSE,
  * avoiding Netlify's inactivity timeout for long-running generations.
  *
+ * SECURITY NOTE: This function receives sensitive case data including participant names,
+ * RUTs, and denunciante/denunciado information. Do NOT log full request/response bodies.
+ * Log only error codes/messages. See _sanitizeLog() helper for PII masking if logging is needed.
+ *
  * POST { caseId, caseData, diligencias, participants, chronology, mode }
  *   mode: "informe" | "sancion" | "sobreseimiento" | "art129" | "vistos" | "hechos" | "estrategias" | "genero"
  *

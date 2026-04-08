@@ -3,14 +3,81 @@ import { corsHeaders as _corsHeaders } from './shared/cors-esm.js';
 /* ── Claude Model Constants ── */
 const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
 
+/* ── PII Sanitization for Logging ── */
+/**
+ * Removes/masks sensitive personal information from objects before logging.
+ * Masks: emails, RUTs (XX.XXX.XXX-X), phone numbers, names in known fields.
+ */
+function _sanitizeLog(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+
+  const sanitized = JSON.parse(JSON.stringify(obj)); // Deep clone
+
+  const walk = (node) => {
+    if (typeof node !== 'object' || !node) return;
+    for (const key in node) {
+      const val = node[key];
+      // Mask known PII fields
+      if (/name|nombre|denunciante|denunciado|person|author|remitente/i.test(key) && typeof val === 'string') {
+        node[key] = '[MASKED_NAME]';
+      }
+      // Mask emails
+      else if (typeof val === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        node[key] = '[MASKED_EMAIL]';
+      }
+      // Mask RUTs (XX.XXX.XXX-X pattern)
+      else if (typeof val === 'string' && /^\d{1,2}\.\d{3}\.\d{3}-[\dkK]$/.test(val)) {
+        node[key] = '[MASKED_RUT]';
+      }
+      // Mask phone numbers (9-12 digits, may have spaces/dashes)
+      else if (typeof val === 'string' && /^(\+?56)?[\s\-]?\d{2}[\s\-]?\d{4}[\s\-]?\d{4}$/.test(val.replace(/\s/g, ''))) {
+        node[key] = '[MASKED_PHONE]';
+      }
+      // Recurse
+      else if (typeof val === 'object') {
+        walk(val);
+      }
+    }
+  };
+
+  walk(sanitized);
+  return sanitized;
+}
+
 /* ── Rate Limiting ── */
 const _RL_LIMITS = { chat:60, structure:60, rag:60, 'qdrant-ingest':30, 'drive-extract':30 };
+
+/**
+ * Validates JWT token format and extracts user ID.
+ * LIMITATION: Does not verify JWT signature (would require Supabase auth endpoint).
+ * As a practical safeguard: validates token format (3 parts) and that sub claim is
+ * a valid UUID-like string. For full security, verify tokens via Supabase auth endpoint
+ * before use in production rate-limiting critical operations.
+ */
+function _validateTokenAndExtractUid(token) {
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const payload = JSON.parse(atob(parts[1]));
+    const uid = payload.sub;
+
+    // Validate sub looks like a UUID (basic check)
+    if (!uid || !/^[a-f0-9\-]{36}$/i.test(uid)) {
+      return null;
+    }
+
+    return uid;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function _checkRL(token, endpoint) {
   if (!token) return { allowed: false };
   try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return { allowed: false };
-    const uid = JSON.parse(atob(parts[1])).sub;
+    const uid = _validateTokenAndExtractUid(token);
     if (!uid) return { allowed: false };
     const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
     const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');

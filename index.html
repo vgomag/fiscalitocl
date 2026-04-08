@@ -1583,6 +1583,13 @@ Si el estamento NO está determinado, señálalo como [ESTAMENTO NO DETERMINADO 
 
 /* ── Auth state ── */
 let session=null,currentCase=null,allCases=[],activeFn='F0',activeCatTab='genero';
+
+/* #22: Global handler for unhandled promise rejections */
+window.addEventListener('unhandledrejection', e => {
+  console.warn('[Fiscalito] Unhandled rejection:', e.reason);
+  if(typeof showToast === 'function') showToast('⚠ Error inesperado');
+  e.preventDefault();
+});
 let sortField=null,sortDir='asc';
 let _juriSelectedSources=new Set(['cgr','pjud','qdrant']);
 let _chatLoadedForCase=null;
@@ -1613,14 +1620,6 @@ async function doLogin(){
 }
 async function doRegister(){
   showToast('⚠ Registro deshabilitado. Contacte al administrador.');
-  return;
-  const email=document.getElementById('regEmail').value.trim();
-  const pass=document.getElementById('regPass').value;
-  const err=document.getElementById('regErr');const ok=document.getElementById('regOk');
-  err.style.display='none';ok.style.display='none';
-  const {error}=await sb.auth.signUp({email,password:pass});
-  if(error){err.textContent=error.message;err.style.display='block';}
-  else{ok.textContent='✓ Revisa tu correo para confirmar la cuenta.';ok.style.display='block';}
 }
 function showLogin(){document.getElementById('loginForm').style.display='';document.getElementById('registerForm').style.display='none';}
 function showRegister(){document.getElementById('loginForm').style.display='none';document.getElementById('registerForm').style.display='';}
@@ -1653,15 +1652,24 @@ function buildFnList(){
 /* Mapa case_id → cantidad de diligencias (piezas del expediente) */
 let _dilCountMap={};
 
+/* #27: Request deduplication for loadCases() */
+let _loadCasesInProgress=false;
+
 async function loadCases(){
-  if(!session)return;
-  const{data,error}=await sb.from('cases').select('*').is('deleted_at',null).order('updated_at',{ascending:false});
-  if(error){console.error(error);return;}
-  allCases=data||[];
-  renderCaseList();
-  updateCatCounts();
-  /* Cargar conteo de diligencias por caso en background */
-  loadDilCounts();
+  if(_loadCasesInProgress) return;
+  _loadCasesInProgress = true;
+  try{
+    if(!session)return;
+    const{data,error}=await sb.from('cases').select('*').is('deleted_at',null).order('updated_at',{ascending:false});
+    if(error){console.error(error);return;}
+    allCases=data||[];
+    renderCaseList();
+    updateCatCounts();
+    /* Cargar conteo de diligencias por caso en background */
+    loadDilCounts();
+  } finally {
+    _loadCasesInProgress = false;
+  }
 }
 
 async function loadDilCounts(){
@@ -3547,6 +3555,14 @@ async function sendMessage(){
       messages:[...historyMsgs,{role:'user',content:userContent}],
       stream:true
     };
+
+    /* #28: Presupuesto máximo de tokens para system prompt (~150KB ≈ 40K tokens) */
+    const _maxSystemLen = 150000;
+    if(body.system && body.system.length > _maxSystemLen){
+      console.warn('[sendMessage] System prompt truncated from', body.system.length, 'to', _maxSystemLen);
+      body.system = body.system.substring(0, _maxSystemLen) + '\n\n[Contexto truncado por límite de tokens]';
+    }
+
     const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     removeTyping(typingId);
     if(!r.ok){const e=await r.text().catch(()=>'');try{const ej=JSON.parse(e);appendMsg('assistant','⚠️ Error: '+(ej.error||r.status));}catch{appendMsg('assistant','⚠️ Error: '+r.status);}return;}

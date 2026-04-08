@@ -167,6 +167,10 @@ async function _checkRL(token, endpoint) {
  * Drive Extract — Extracción de texto de archivos Drive con Claude Vision.
  * Descarga archivos de Drive y extrae texto completo preservando estructura.
  *
+ * RESPONSE FORMAT:
+ *   Success: {success: true, text: string, fileName: string, mimeType: string, chars: number}
+ *   Error: {error: string, success: false} (HTTP 400 or 401 or 429)
+ *
  * @route POST /.netlify/functions/drive-extract
  * @param {Object} body
  * @param {string} body.fileId - ID del archivo en Google Drive

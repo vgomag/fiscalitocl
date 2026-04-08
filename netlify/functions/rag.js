@@ -165,6 +165,9 @@ async function _checkRL(token, endpoint) {
  * Realiza búsqueda vectorial usando embeddings de Google Gemini.
  * Retorna documentos relevantes de múltiples colecciones de referencia.
  *
+ * RESPONSE FORMAT: {context: string, sources: Array, count: number}
+ *   On error: {error: string, context: '', sources: []} (HTTP 400, 401, 429, or 500)
+ *
  * @route POST /.netlify/functions/rag
  * @param {Object} body
  * @param {string} body.query - Consulta de búsqueda (texto natural)
