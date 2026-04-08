@@ -185,7 +185,7 @@ const _origUpdateCatCounts = typeof updateCatCounts === 'function' ? updateCatCo
 window.updateCatCounts = function(){
   const userId = session?.user?.id;
   // Counts por categoría
-  ['genero','no_genero','cargos','finalizacion','terminado'].forEach(cat => {
+  ['genero','no_genero','cargos','probatorio','finalizacion','terminado'].forEach(cat => {
     const el = document.getElementById('cnt-' + cat);
     if(el) el.textContent = allCases.filter(c => {
       if(userId && c.user_id !== userId && sharedCaseIds.has(c.id)) return false;

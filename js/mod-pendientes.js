@@ -59,7 +59,7 @@ function pendRender() {
   const filtered = pendGetFiltered();
   const caseCount = new Set(filtered.map(a=>a.case_id)).size;
   const catBase = pend.catTab==='all' ? pend.acciones : pend.acciones.filter(a=>pend.cases[a.case_id]?.categoria===pend.catTab);
-  const CATS=[{id:'all',l:'Todos',i:'📋'},{id:'genero',l:'Género',i:'👥'},{id:'no_genero',l:'No Género',i:'📂'},{id:'cargos',l:'Cargos',i:'⚖️'},{id:'finalizacion',l:'Finalización',i:'✅'}];
+  const CATS=[{id:'all',l:'Todos',i:'📋'},{id:'genero',l:'Género',i:'👥'},{id:'no_genero',l:'No Género',i:'📂'},{id:'cargos',l:'Cargos',i:'⚖️'},{id:'probatorio',l:'Probatorio',i:'🔍'},{id:'finalizacion',l:'Finalización',i:'✅'}];
   const STATS=[{id:'all',l:'Todos'},{id:'pendiente',l:'Pendientes'},{id:'en_progreso',l:'En progreso'},{id:'completado',l:'Completadas'}];
 
   main.innerHTML = `
@@ -121,7 +121,7 @@ function pendRenderLista(filtered) {
   const byCase={};
   filtered.forEach(a=>{if(!byCase[a.case_id])byCase[a.case_id]=[];byCase[a.case_id].push(a);});
   const sorted=Object.entries(byCase).sort(([,al],[,bl])=>(al.some(a=>a.priority==='alta'||a.priority==='urgente')?0:1)-(bl.some(b=>b.priority==='alta'||b.priority==='urgente')?0:1));
-  const CAT_CLR={genero:'#db2777',no_genero:'#d97706',cargos:'#4f46e5',finalizacion:'#059669',terminado:'#6b7280'};
+  const CAT_CLR={genero:'#db2777',no_genero:'#d97706',cargos:'#4f46e5',probatorio:'#7c3aed',finalizacion:'#059669',terminado:'#6b7280'};
   return sorted.map(([cid,items])=>{
     const c=pend.cases[cid]||{};
     const isOpen=!pend.collapsed.has(cid);

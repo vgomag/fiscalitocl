@@ -33,7 +33,7 @@ const ESTAMENTO_LABELS={
   docente_honorario:'Doc. Honorario',otro:'Otro',
 };
 
-const CAT_LABELS_STAT={genero:'Género',no_genero:'No Género',cargos:'Cargos',finalizacion:'Finalización',terminado:'Terminado'};
+const CAT_LABELS_STAT={genero:'Género',no_genero:'No Género',cargos:'Cargos',probatorio:'Probatorio',finalizacion:'Finalización',terminado:'Terminado'};
 
 /* ═══ DÍAS HÁBILES UMAG ═══ */
 function countBusinessDays(startDate,endDate){
@@ -139,14 +139,14 @@ async function loadStats(){
     if(!cases.length){el.innerHTML=renderEmptyStats();return;}
 
     /* Classify */
-    const catGroups={genero:[],no_genero:[],cargos:[],finalizacion:[],terminado:[]};
+    const catGroups={genero:[],no_genero:[],cargos:[],probatorio:[],finalizacion:[],terminado:[]};
     cases.forEach(c=>{
-      const cat=c.categoria||'no_genero';
+      const cat=(typeof getCaseCat==='function')?getCaseCat(c):(c.categoria||'no_genero');
       if(catGroups[cat])catGroups[cat].push(c);
       else catGroups.no_genero.push(c);
     });
 
-    const activos=[...catGroups.genero,...catGroups.no_genero,...catGroups.cargos,...catGroups.finalizacion];
+    const activos=[...catGroups.genero,...catGroups.no_genero,...catGroups.cargos,...catGroups.probatorio,...catGroups.finalizacion];
     const terminados=catGroups.terminado;
 
     /* Maps */
@@ -265,10 +265,11 @@ function renderActivosTab(){
 
   el.innerHTML=`
     <!-- Subcategorías activos -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
       ${kpiCard('♀ Género',cg.genero.length,'',STAT_COLORS.pink)}
       ${kpiCard('📄 No Género',cg.no_genero.length,'',STAT_COLORS.blue)}
       ${kpiCard('⚖️ Cargos',cg.cargos.length,'',STAT_COLORS.orange)}
+      ${kpiCard('🔍 Probatorio',cg.probatorio.length,'',STAT_COLORS.purple)}
       ${kpiCard('📋 Finalización',cg.finalizacion.length,'',STAT_COLORS.cyan)}
     </div>
 
@@ -300,7 +301,7 @@ function renderActivosTab(){
     <!-- Lista por categoría -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:16px">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">📋 Detalle por Categoría</div>
-      ${['genero','no_genero','cargos','finalizacion'].map(cat=>{
+      ${['genero','no_genero','cargos','probatorio','finalizacion'].map(cat=>{
         const list=cg[cat]||[];
         if(!list.length)return'';
         return`<details style="margin-bottom:8px">
@@ -324,8 +325,8 @@ function renderActivosTab(){
     if(Object.keys(matAct).length)makePie('chartActMateria',Object.keys(matAct),Object.values(matAct));
 
     /* Categoría */
-    const catData=['genero','no_genero','cargos','finalizacion'].map(k=>d.catGroups[k]?.length||0);
-    makePie('chartActCategoria',['Género','No Género','Cargos','Finalización'],catData);
+    const catData=['genero','no_genero','cargos','probatorio','finalizacion'].map(k=>d.catGroups[k]?.length||0);
+    makePie('chartActCategoria',['Género','No Género','Cargos','Probatorio','Finalización'],catData);
 
     /* Protocolo */
     const protAct={};d.activos.forEach(c=>{if(c.protocolo)protAct[c.protocolo]=(protAct[c.protocolo]||0)+1;});
@@ -596,6 +597,7 @@ DISTRIBUCIÓN POR CATEGORÍA:
 - Género: ${d.catGroups.genero.length} casos
 - No Género: ${d.catGroups.no_genero.length} casos
 - Cargos: ${d.catGroups.cargos.length} casos
+- Probatorio: ${d.catGroups.probatorio.length} casos
 - Finalización: ${d.catGroups.finalizacion.length} casos
 - Terminados: ${d.terminados.length} casos
 
