@@ -243,8 +243,8 @@ function buildCaseContext(data, modelReports) {
 
   // Diligencias — incluir TODAS, con texto completo en modo informe/hechos
   if (diligencias && diligencias.length) {
-    ctx += `DILIGENCIAS (${diligencias.length} documentos — TODAS deben aparecer como considerandos individuales):\n`;
-    ctx += `INSTRUCCIÓN CRÍTICA: Debes generar UN considerando detallado por CADA diligencia listada abajo. NO omitas ninguna.\n\n`;
+    ctx += `DILIGENCIAS (${diligencias.length} documentos del expediente):\n`;
+    ctx += `INSTRUCCIÓN: Incluye como considerandos individuales las diligencias RELEVANTES para la investigación. No es obligatorio individualizar absolutamente todas; prioriza las que aportan contenido sustantivo al análisis. Las diligencias menores o meramente formales pueden omitirse o agruparse brevemente.\n\n`;
     const maxCharsPerDiligencia = isInforme ? 6000 : 1500;
     diligencias.forEach((d, i) => {
       const fojas = d.fojas || '';
