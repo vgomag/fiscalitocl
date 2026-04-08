@@ -2000,6 +2000,7 @@ async function confirmDeleteCase(){
   if(!confirm(`¿Eliminar el expediente "${currentCase.name}"?`))return;
   const{error}=await sb.from('cases').update({deleted_at:new Date().toISOString()}).eq('id',currentCase.id);
   if(error)return showToast('⚠ Error: '+error.message);
+  logAuditEvent('delete_case',{case_id:currentCase.id,case_name:currentCase.name});
   allCases=allCases.filter(c=>c.id!==currentCase.id);
   currentCase=null;showView('viewWelcome');renderCaseList();updateCatCounts();showToast('✓ Expediente eliminado');
 }
@@ -2875,7 +2876,7 @@ function clearChatView(){
 async function clearChatFull(){
   clearChatView();
   if(currentCase&&session){
-    try{await sb.from('chat_messages').delete().eq('case_id',currentCase.id).eq('user_id',session.user.id);showToast('✓ Historial del chat borrado');}catch(e){console.warn('Error deleting chat:',e);}
+    try{await sb.from('chat_messages').delete().eq('case_id',currentCase.id).eq('user_id',session.user.id);logAuditEvent('delete_chat_history',{case_id:currentCase.id});showToast('✓ Historial del chat borrado');}catch(e){console.warn('Error deleting chat:',e);}
   }
 }
 async function deleteChatMsg(msgId,btn){
@@ -2883,6 +2884,7 @@ async function deleteChatMsg(msgId,btn){
   const msgEl=btn.closest('.msg');
   try{
     await sb.from('chat_messages').delete().eq('id',msgId);
+    logAuditEvent('delete_chat_message',{case_id:currentCase?.id,message_id:msgId});
     if(msgEl){msgEl.style.transition='opacity .2s';msgEl.style.opacity='0';setTimeout(()=>msgEl.remove(),200);}
     showToast('✓ Mensaje eliminado');
   }catch(e){console.warn('Error deleting msg:',e);showToast('⚠ Error al eliminar','error');}
@@ -4018,6 +4020,7 @@ function editParticipante(p){
 async function deleteParticipante(id,name){
   if(!confirm('¿Eliminar a '+name+'?'))return;
   await sb.from('case_participants').delete().eq('id',id);
+  logAuditEvent('delete_participant',{case_id:currentCase?.id,participant_id:id,participant_name:name});
   await loadParticipantes();showToast('✓ Participante eliminado');
 }
 
@@ -4086,6 +4089,7 @@ async function saveResolucion(){
 async function deleteResolucion(id){
   if(!confirm('¿Eliminar esta resolución?'))return;
   await sb.from('resoluciones').delete().eq('id',id);
+  logAuditEvent('delete_resolucion',{case_id:currentCase?.id,resolucion_id:id});
   await loadResoluciones();showToast('✓ Resolución eliminada');
 }
 function editResolucion(r){
@@ -4213,6 +4217,7 @@ async function editChecklistItem(id){
 async function deleteChecklistItem(id){
   if(!confirm('¿Eliminar este paso del checklist?'))return;
   await sb.from('case_checklist_items').delete().eq('id',id);
+  logAuditEvent('delete_checklist_item',{case_id:currentCase?.id,item_id:id});
   await loadChecklist();showToast('✓ Paso eliminado');
 }
 async function addChecklistItem(){
@@ -4340,6 +4345,7 @@ async function togglePendiente(id,done){
 async function deletePendiente(id){
   if(!confirm('¿Eliminar este pendiente?'))return;
   await sb.from('acciones_pendientes').delete().eq('id',id);
+  logAuditEvent('delete_pendiente',{case_id:currentCase?.id,pendiente_id:id});
   await loadAcciones();showToast('✓ Pendiente eliminado');
 }
 
@@ -4456,6 +4462,7 @@ async function addNewNotaWithSource(prefillTitle,prefillContent,source){
 async function deleteNota(id){
   if(!confirm('¿Eliminar esta nota?'))return;
   await sb.from('case_notes').delete().eq('id',id);
+  logAuditEvent('delete_nota',{case_id:currentCase?.id,nota_id:id});
   await loadNotas();showToast('✓ Nota eliminada');
 }
 /* ── Save chat message as Nota or Pendiente ── */
@@ -4581,6 +4588,7 @@ async function driveUnlink(){
   if(!currentCase||!confirm('¿Desvincular la carpeta Drive de este caso?'))return;
   await sb.from('cases').update({drive_folder_url:null,updated_at:new Date().toISOString()}).eq('id',currentCase.id);
   await sb.from('case_metadata').delete().eq('case_id',currentCase.id).eq('key','drive_folder_id');
+  logAuditEvent('unlink_drive_folder',{case_id:currentCase.id});
   currentCase.drive_folder_url=null;
   const idx=allCases.findIndex(c=>c.id===currentCase.id);
   if(idx>=0)allCases[idx].drive_folder_url=null;

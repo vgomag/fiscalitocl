@@ -208,6 +208,8 @@ async function inviteUserToCase(caseId){
     });
     if(error)throw error;
 
+    logAuditEvent('share_case',{case_id:caseId,shared_with_user_id:targetUserId,shared_with_email:email,role:role});
+
     showToast(`✅ Caso compartido con ${email} como ${SHARE_ROLES[role]?.label||role}`);
     document.getElementById('shareCaseModal')?.remove();
     openShareCaseModal(caseId); /* Refresh */
@@ -229,6 +231,7 @@ async function removeShare(shareId,caseId){
   if(!confirm('¿Quitar acceso a este usuario?'))return;
   const{error}=await sb.from('case_shares').delete().eq('id',shareId);
   if(error){showToast('❌ '+error.message);return;}
+  logAuditEvent('unshare_case',{case_id:caseId,share_id:shareId});
   showToast('✅ Acceso removido');
   document.getElementById('shareCaseModal')?.remove();
   openShareCaseModal(caseId);
@@ -348,6 +351,8 @@ async function inviteUserToLey(){
     });
     if(error)throw error;
 
+    logAuditEvent('share_ley21369',{shared_with_user_id:targetUserId,shared_with_email:email,role:role});
+
     showToast(`✅ Dashboard compartido con ${email} como ${LEY_ROLES[role]?.label||role}`);
     document.getElementById('shareLeyModal')?.remove();
     openShareLeyModal();
@@ -364,6 +369,7 @@ async function removeLeyShare(shareId){
   if(!confirm('¿Quitar acceso a este usuario?'))return;
   const{error}=await sb.from('ley21369_shares').delete().eq('id',shareId);
   if(error){showToast('❌ '+error.message);return;}
+  logAuditEvent('unshare_ley21369',{share_id:shareId});
   showToast('✅ Acceso removido');
   document.getElementById('shareLeyModal')?.remove();
   openShareLeyModal();
