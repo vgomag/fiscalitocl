@@ -1217,8 +1217,14 @@ async function f11StartRecording(){
       if(btn) btn.disabled = false;
       const dSt = document.getElementById('f11DeviceStatus');
       if(dSt) dSt.textContent = `✅ Grabado desde: ${trackLabel}`;
+      /* Guardar audio completo en IndexedDB como respaldo */
+      _f11SaveAudioToDB(_f11AudioBlob);
     };
     _f11Recorder.start(1000);
+    /* Iniciar auto-guardado parcial cada 30 s */
+    _f11ChunkSaveInterval = setInterval(function(){
+      if(chunks.length > 0) _f11SavePartialAudioToDB(chunks, selectedMime);
+    }, 30000);
     _f11Recording = true;
     transcripcion.isRecording = true;
 
