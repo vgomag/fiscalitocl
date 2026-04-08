@@ -2113,7 +2113,7 @@ async function f11LoadPrevTranscriptions(){
   if(!listEl) return;
 
   if(!currentCase || !session){
-    showToast('⚠ Vincula un caso primero para ver transcripciones guardadas');
+    showToast('⚠ Para ver transcripciones guardadas, vincula un caso primero');
     listEl.style.display = 'none';
     return;
   }
