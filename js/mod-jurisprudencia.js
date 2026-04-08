@@ -553,6 +553,7 @@ async function juriSkillSearch() {
 
   const searchQdrant = juri.skillSources.has('qdrant');
   const searchPjud   = juri.skillSources.has('pjud');
+  const searchCgr    = juri.skillSources.has('cgr');
 
   try {
     const results = [];
