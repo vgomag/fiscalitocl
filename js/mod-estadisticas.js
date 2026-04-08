@@ -128,9 +128,16 @@ async function loadStats(){
   el.innerHTML='<div class="loading" style="padding:40px;text-align:center">Cargando estadísticas…</div>';
 
   try{
+    /* Asegurar que los datos de etapas procesales estén cargados ANTES de clasificar.
+       Esto es necesario para que getCaseCat() detecte correctamente probatorio, cargos, etc.
+       basándose en la etapa procesal de cada caso (tabla etapas). */
+    if(typeof loadSubdivisionData==='function'){
+      try { await loadSubdivisionData(); } catch(e){ console.warn('[Stats] loadSubdivisionData warn:', e); }
+    }
+
     const uid=session.user.id;
     const[rCases,rDils,rParts]=await Promise.all([
-      sb.from('cases').select('id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno').is('deleted_at',null),
+      sb.from('cases').select('id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento').is('deleted_at',null),
       sb.from('diligencias').select('case_id,diligencia_type,is_processed'),
       sb.from('case_participants').select('case_id,role,estamento'),
     ]);
@@ -138,7 +145,7 @@ async function loadStats(){
     const cases=rCases.data||[]; const dils=rDils.data||[]; const parts=rParts.data||[];
     if(!cases.length){el.innerHTML=renderEmptyStats();return;}
 
-    /* Classify */
+    /* Classify — getCaseCat() usa etapasMap (cargado arriba) + c.estado_procedimiento como fallback */
     const catGroups={genero:[],no_genero:[],cargos:[],probatorio:[],finalizacion:[],terminado:[]};
     cases.forEach(c=>{
       const cat=(typeof getCaseCat==='function')?getCaseCat(c):(c.categoria||'no_genero');
