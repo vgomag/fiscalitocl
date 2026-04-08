@@ -14,7 +14,10 @@ async function _checkRL(token, endpoint) {
     if (!uid) return { allowed: false };
     const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
     const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
-    if (!sbUrl || !sbKey) return { allowed: false };
+    if (!sbUrl || !sbKey) {
+      console.warn('[chat/_checkRL] Missing Supabase config — allowing request (fail-open)');
+      return { allowed: true };
+    }
     const _ac = new AbortController();
     const _to = setTimeout(() => _ac.abort(), 10000);
     const r = await fetch(`${sbUrl}/rest/v1/rpc/check_rate_limit`, {
@@ -24,9 +27,15 @@ async function _checkRL(token, endpoint) {
       signal: _ac.signal,
     });
     clearTimeout(_to);
-    if (!r.ok) return { allowed: false };
-    return (await r.json()) || { allowed: false };
-  } catch (e) { return { allowed: false }; }
+    if (!r.ok) {
+      console.warn('[chat/_checkRL] RPC error:', r.status, '— allowing request (fail-open)');
+      return { allowed: true };
+    }
+    return (await r.json()) || { allowed: true };
+  } catch (e) {
+    console.warn('[chat/_checkRL] Exception:', e.message, '— allowing request (fail-open)');
+    return { allowed: true };
+  }
 }
 
 /**
@@ -245,6 +254,8 @@ export default async (req) => {
     }
 
     /* Modo sin streaming (fallback para compatibilidad) */
+    if (!Array.isArray(body.messages) || !body.messages.length) return json({ error: 'messages requerido' }, 400, CORS);
+    const maxTok = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 16000);
     const nsController = new AbortController();
     const nsTimeout = setTimeout(() => nsController.abort(), 55000);
     try {
@@ -253,7 +264,7 @@ export default async (req) => {
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: body.model || MODEL_SONNET,
-          max_tokens: body.max_tokens || 2000,
+          max_tokens: maxTok,
           system: body.system,
           messages: body.messages,
         }),
@@ -261,7 +272,8 @@ export default async (req) => {
       });
       clearTimeout(nsTimeout);
       const data = await res.json();
-      return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS } });
+      /* Propagar el status real de Anthropic (400, 401, 429, 500…) */
+      return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     } catch (fetchErr) {
       clearTimeout(nsTimeout);
       const msg = fetchErr.name === 'AbortError' ? 'Timeout (55s)' : fetchErr.message;
