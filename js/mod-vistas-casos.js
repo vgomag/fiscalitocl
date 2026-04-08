@@ -579,10 +579,10 @@ function renderKanban(casesOverride){
           const procMap = {'Investigación Sumaria':'IS','Sumario Administrativo':'SA','Sumario':'S','Procedimiento Disciplinario':'PD'};
           return `
           <div class="kanban-card" draggable="true"
-               data-caseid="${c.id}"
-               ondragstart="handleKanbanDragStart(event,'${c.id}')"
+               data-caseid="${typeof esc==='function'?esc(c.id):c.id}"
+               ondragstart="handleKanbanDragStart(event,'${typeof esc==='function'?esc(c.id):c.id}')"
                ondragend="this.classList.remove('dragging')"
-               onclick="pickCaseById('${c.id}')">
+               onclick="pickCaseById('${typeof esc==='function'?esc(c.id):c.id}')">
             <div class="kanban-card-name">${esc(c.name||'Sin nombre')}</div>
             ${c.nueva_resolucion?`<div class="kanban-card-rol">${esc(c.nueva_resolucion)}</div>`:''}
             <div class="kanban-card-meta">
@@ -665,7 +665,7 @@ function renderCards(casesOverride){
     const fArr = v => { if(!v) return '—'; if(Array.isArray(v)) return v.join(', '); try{return JSON.parse(v).join(', ');}catch{return String(v);} };
 
     return `
-    <div class="caso-card" onclick="pickCaseById('${c.id}')">
+    <div class="caso-card" onclick="pickCaseById('${typeof esc==='function'?esc(c.id):c.id}')">
       <div class="caso-card-header">
         <div>
           <div class="caso-card-name">${esc(c.name||'Sin nombre')}</div>

@@ -139,7 +139,7 @@ function pendRenderLista(filtered) {
       ${ovdCnt>0?`<span class="pt-ovd-chip">⚠ ${ovdCnt} vencida${ovdCnt>1?'s':''}</span>`:''}
       ${urgCnt>0?`<span class="pt-urg-chip">${urgCnt} urgente${urgCnt>1?'s':''}</span>`:''}
       <span class="pt-tot-chip">${items.length} acción${items.length!==1?'es':''}</span>
-      <button style="background:none;border:none;cursor:pointer;color:#9ca3af;padding:3px 5px;border-radius:4px;display:flex;align-items:center" title="Abrir caso" onclick="event.stopPropagation();typeof pickCaseById!=='undefined'&&pickCaseById('${cid}')"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9"/><path d="M13 1h2v2M9.5 6.5l5-5"/></svg></button>
+      <button style="background:none;border:none;cursor:pointer;color:#9ca3af;padding:3px 5px;border-radius:4px;display:flex;align-items:center" title="Abrir caso" onclick="event.stopPropagation();typeof pickCaseById!=='undefined'&&pickCaseById('${(typeof esc==='function'?esc(cid):cid)}')"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9"/><path d="M13 1h2v2M9.5 6.5l5-5"/></svg></button>
     </div>
   </div>
   <div id="ptb-${cid}" style="border-top:1px solid rgba(0,0,0,.06);${isOpen?'':'display:none'}">
@@ -214,7 +214,7 @@ function pendOpenDetail(id) {
     </div>
     <div style="display:flex;gap:8px">
       <button onclick="pendUpdateStatus('${a.id}','completado')" style="flex:1;padding:7px;background:#4f46e5;color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;font-size:12.5px;font-family:inherit">✓ Marcar completada</button>
-      <button onclick="typeof pickCaseById!=='undefined'&&pickCaseById('${a.case_id}');typeof closeMiniModal!=='undefined'&&closeMiniModal()" style="padding:7px 12px;background:#fafafa;border:1px solid rgba(0,0,0,.1);color:#374151;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit">Abrir caso</button>
+      <button onclick="typeof pickCaseById!=='undefined'&&pickCaseById('${typeof esc==='function'?esc(a.case_id):a.case_id}');typeof closeMiniModal!=='undefined'&&closeMiniModal()" style="padding:7px 12px;background:#fafafa;border:1px solid rgba(0,0,0,.1);color:#374151;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit">Abrir caso</button>
       <button onclick="pendDelete('${a.id}')" style="padding:7px 11px;background:#fef2f2;border:1px solid #fecaca;color:#ef4444;border-radius:7px;cursor:pointer;font-size:12px">🗑</button>
     </div>
   </div>`;

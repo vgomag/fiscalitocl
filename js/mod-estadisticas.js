@@ -136,14 +136,28 @@ async function loadStats(){
     }
 
     const uid=session.user.id;
+
+    /* Obtener IDs de casos compartidos conmigo para incluirlos en estadísticas */
+    let sharedCaseIds=[];
+    try{
+      const{data:shares}=await sb.from('case_shares').select('case_id').eq('user_id',uid);
+      if(shares?.length) sharedCaseIds=shares.map(s=>s.case_id);
+    }catch(e){ console.warn('[Stats] case_shares query warn:', e); }
+
+    /* Cargar solo MIS casos + los compartidos conmigo */
+    const allMyIds=[]; // se llenará después del query
     const[rCases,rDils,rParts]=await Promise.all([
-      sb.from('cases').select('id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento').is('deleted_at',null),
+      sb.from('cases').select('id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento').is('deleted_at',null).or(`user_id.eq.${uid}${sharedCaseIds.length?',id.in.('+sharedCaseIds.join(',')+')':''}`),
       sb.from('diligencias').select('case_id,diligencia_type,is_processed'),
       sb.from('case_participants').select('case_id,role,estamento'),
     ]);
 
-    const cases=rCases.data||[]; const dils=rDils.data||[]; const parts=rParts.data||[];
+    const cases=rCases.data||[];
     if(!cases.length){el.innerHTML=renderEmptyStats();return;}
+    /* Filtrar diligencias y participantes solo a MIS casos */
+    const myCaseIds=new Set(cases.map(c=>c.id));
+    const dils=(rDils.data||[]).filter(d=>myCaseIds.has(d.case_id));
+    const parts=(rParts.data||[]).filter(p=>myCaseIds.has(p.case_id));
 
     /* Classify — getCaseCat() usa etapasMap (cargado arriba) + c.estado_procedimiento como fallback */
     const catGroups={genero:[],no_genero:[],cargos:[],probatorio:[],finalizacion:[],terminado:[]};

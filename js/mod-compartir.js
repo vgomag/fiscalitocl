@@ -79,17 +79,14 @@ async function openShareCaseModal(caseId){
     .eq('case_id',cs)
     .order('created_at',{ascending:true});
 
-  /* Cargar emails de usuarios compartidos */
+  /* Cargar emails de usuarios compartidos (batch query en vez de N+1) */
   let userEmails={};
   if(shares?.length){
     const uids=[...new Set(shares.map(s=>s.user_id))];
-    for(const uid of uids){
-      try{
-        /* Buscar en auth.users no es posible desde client, usar perfil o caso */
-        const{data:prof}=await sb.from('profiles').select('email,full_name').eq('id',uid).maybeSingle();
-        if(prof)userEmails[uid]=prof;
-      }catch(e){}
-    }
+    try{
+      const{data:profiles}=await sb.from('profiles').select('id,email,full_name').in('id',uids);
+      if(profiles?.length) profiles.forEach(p=>{ userEmails[p.id]=p; });
+    }catch(e){ console.warn('[compartir] Error cargando perfiles:', e); }
   }
 
   const caseName=currentCase?.name||'Caso';
@@ -253,12 +250,11 @@ async function openShareLeyModal(){
 
   let userEmails={};
   if(shares?.length){
-    for(const s of shares){
-      try{
-        const{data:prof}=await sb.from('profiles').select('email,full_name').eq('id',s.user_id).maybeSingle();
-        if(prof)userEmails[s.user_id]=prof;
-      }catch(e){}
-    }
+    const uids=[...new Set(shares.map(s=>s.user_id))];
+    try{
+      const{data:profiles}=await sb.from('profiles').select('id,email,full_name').in('id',uids);
+      if(profiles?.length) profiles.forEach(p=>{ userEmails[p.id]=p; });
+    }catch(e){ console.warn('[compartir] Error cargando perfiles Ley:', e); }
   }
 
   const modal=document.createElement('div');
@@ -391,14 +387,18 @@ async function renderCaseCollaborators(caseId){
   let html='<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">';
   html+='<span style="font-size:10px;color:var(--text-muted);margin-right:2px">Compartido con:</span>';
 
+  /* Batch: cargar perfiles de colaboradores de una vez */
+  const collabUids=shares.slice(0,5).map(s=>s.user_id);
+  let collabProfiles={};
+  try{
+    const{data:profs}=await sb.from('profiles').select('id,email,full_name').in('id',collabUids);
+    if(profs?.length) profs.forEach(p=>{ collabProfiles[p.id]=p; });
+  }catch(e){}
+
   for(const s of shares.slice(0,5)){
     const r=SHARE_ROLES[s.role]||SHARE_ROLES.consultor;
-    let name='';
-    try{
-      const{data:prof}=await sb.from('profiles').select('email,full_name').eq('id',s.user_id).maybeSingle();
-      name=prof?.full_name||prof?.email?.split('@')[0]||'Usuario';
-    }catch(e){name='Usuario';}
-
+    const prof=collabProfiles[s.user_id];
+    const name=prof?.full_name||prof?.email?.split('@')[0]||'Usuario';
     html+=`<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:${r.color}15;color:${r.color};font-weight:500;display:inline-flex;align-items:center;gap:3px" title="${r.label}: ${name}">${r.icon} ${esc(name)}</span>`;
   }
   if(shares.length>5)html+=`<span style="font-size:10px;color:var(--text-muted)">+${shares.length-5} más</span>`;

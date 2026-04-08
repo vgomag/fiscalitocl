@@ -1672,7 +1672,7 @@ function renderCaseList(){
   casesListEl.innerHTML=filtered.slice(0,50).map(c=>{
     const statusColors={active:'var(--green)',terminado:'var(--text-muted)',archived:'#f59e0b'};
     const isActive=currentCase?.id===c.id;
-    return `<div class="case-item${isActive?' active':''}" onclick="pickCaseById('${c.id}')">
+    return `<div class="case-item${isActive?' active':''}" onclick="pickCaseById('${esc(c.id)}')">
       <div style="display:flex;align-items:center;gap:5px">
         <div class="case-status-dot" style="background:${statusColors[c.status]||'var(--border2)'}"></div>
         <span class="case-name">${esc(c.name||'Sin nombre')}</span>
@@ -2200,7 +2200,7 @@ function renderTabla(searchOverride){
       const tram=c.duracion_dias||calcTramitacion(c.fecha_recepcion_fiscalia,c.fecha_vista);
       const tramColor=tram===null?'var(--text-muted)':tram>60?'var(--red)':tram>30?'var(--gold)':'var(--green)';
       const hasInforme=!!c.informe_final;
-      return `<tr class="tr-clickable" data-caseid="${c.id}" onclick="pickCaseById('${c.id}')">
+      return `<tr class="tr-clickable" data-caseid="${esc(c.id)}" onclick="pickCaseById('${esc(c.id)}')">
         <td style="text-align:center;font-weight:700;color:var(--text-muted);font-size:12px">${c.numero_exp_interno||i+1}</td>
         <td><span style="font-size:11px;font-family:var(--font-mono);color:var(--gold)">${esc(c.nueva_resolucion||'—')}</span></td>
         <td><span class="proc-badge proc-${procClass}">${esc(c.tipo_procedimiento||'—')}</span></td>
@@ -2210,17 +2210,17 @@ function renderTabla(searchOverride){
         <td style="text-align:center"><span style="font-weight:600;font-size:12px;color:${tramColor}">${tram!==null?tram+' días':'—'}</span></td>
         <td><span style="font-size:10.5px;font-family:var(--font-mono)">${c.resolucion_termino?esc(c.resolucion_termino):'<span style="color:var(--text-muted)">—</span>'}</span></td>
         <td style="text-align:center">
-          <button class="btn-action" title="${hasInforme?'Ver/editar informe':'Agregar informe'}" onclick="event.stopPropagation();toggleInforme('${c.id}')" style="${hasInforme?'color:var(--green)':''}">
+          <button class="btn-action" title="${hasInforme?'Ver/editar informe':'Agregar informe'}" onclick="event.stopPropagation();toggleInforme('${esc(c.id)}')" style="${hasInforme?'color:var(--green)':''}">
             ${hasInforme?'📄':'📝'}
           </button>
         </td>
-        <td><select class="move-select" onchange="moveCase('${c.id}',this.value)" onclick="event.stopPropagation()">
+        <td><select class="move-select" onchange="moveCase('${esc(c.id)}',this.value)" onclick="event.stopPropagation()">
           <option value="">Mover a…</option>${catLink}
         </select></td>
         <td><div class="acciones-cell">
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
-          <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${c.id}');setTimeout(()=>openEditCase(),300)">✎</button>
-          <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${c.id}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
+          <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>
+          <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
         </div></td>
       </tr>`;
     }).join('');
@@ -2229,7 +2229,7 @@ function renderTabla(searchOverride){
     tbody.innerHTML=cases.map(c=>{
       const procClass=procMap[c.tipo_procedimiento]||'';
       const catLink=Object.entries(CAT_LABELS).map(([k,v])=>`<option value="${k}"${getCaseCat(c)===k?' selected':''}>${v}</option>`).join('');
-      return `<tr class="tr-clickable" data-caseid="${c.id}" onclick="pickCaseById('${c.id}')">
+      return `<tr class="tr-clickable" data-caseid="${esc(c.id)}" onclick="pickCaseById('${esc(c.id)}')">
         <td><div class="exp-cell"><span class="exp-num">${esc(c.name||'—')}</span>${c.nueva_resolucion?`<span class="exp-rol">${esc(c.nueva_resolucion)}</span>`:''}</div></td>
         <td><span class="proc-badge proc-${procClass}">${esc(c.tipo_procedimiento||'—')}</span></td>
         <td><span style="font-size:11px;color:var(--text-dim)">${esc(c.estado_procedimiento||'—')}</span></td>
@@ -2240,13 +2240,13 @@ function renderTabla(searchOverride){
         <td>${c.medida_cautelar?'<span class="mc-badge">Sí</span>':'<span class="no-badge">No</span>'}</td>
         <td>${(c.resultado||c.propuesta)?`<span class="proc-badge ${(c.resultado||c.propuesta)==='Sanción'?'proc-is':(c.resultado||c.propuesta)==='Sobreseimiento'?'proc-sa':'proc-pd'}">${esc(c.resultado||c.propuesta)}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
         <td><span class="fecha-cell">${c.fecha_vista||'—'}</span></td>
-        <td><select class="move-select" onchange="moveCase('${c.id}',this.value)" onclick="event.stopPropagation()">
+        <td><select class="move-select" onchange="moveCase('${esc(c.id)}',this.value)" onclick="event.stopPropagation()">
           <option value="">Mover a…</option>${catLink}
         </select></td>
         <td><div class="acciones-cell">
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
-          <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${c.id}');setTimeout(()=>openEditCase(),300)">✎</button>
-          <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${c.id}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
+          <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>
+          <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
         </div></td>
       </tr>`;
     }).join('');
@@ -2483,7 +2483,7 @@ function injectProtocol2022(){
             <th style="padding:4px 6px;text-align:left">Estado</th>
             <th style="padding:4px 6px;text-align:left">Resultado</th>
           </tr></thead>
-          <tbody>${cases2022.map(c=>`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="pickCaseById('${c.id}')">
+          <tbody>${cases2022.map(c=>`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="pickCaseById('${esc(c.id)}')">
             <td style="padding:4px 6px">${esc(c.name||'—')}</td>
             <td style="padding:4px 6px;color:var(--gold)">${esc(c.nueva_resolucion||'—')}</td>
             <td style="padding:4px 6px">${esc(c.materia||'—')}</td>

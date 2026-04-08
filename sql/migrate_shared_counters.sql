@@ -101,17 +101,30 @@ BEGIN
 END;
 $$;
 
--- 8. Actualizar RLS: todos los usuarios de la misma org pueden ver los contadores
---    (mantenemos user_id para saber quién creó el registro, pero el acceso es por org)
+-- 8. Actualizar RLS: acceso por organización (org_id) para contadores compartidos
+--    Los usuarios solo ven contadores de su propia organización.
 DROP POLICY IF EXISTS "Users manage own counters" ON document_counters;
+DROP POLICY IF EXISTS "Org members manage shared counters" ON document_counters;
 CREATE POLICY "Org members manage shared counters" ON document_counters
-  FOR ALL USING (true);  -- Todos los usuarios autenticados acceden
-  -- Nota: Si necesitas restringir por organización, puedes agregar:
+  FOR ALL USING (
+    org_id IN (SELECT DISTINCT org_id FROM document_counters WHERE user_id = auth.uid())
+  );
+  -- Nota: Esto permite acceso a contadores cuya org_id coincida con alguna
+  -- org_id que el usuario ya tenga registrada. Para un sistema multi-org más
+  -- robusto, usar una tabla user_orgs:
   -- USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()))
 
 DROP POLICY IF EXISTS "Users manage own documents" ON generated_documents;
-CREATE POLICY "Org members see shared documents" ON generated_documents
-  FOR SELECT USING (true);  -- Todos pueden VER el historial compartido
+DROP POLICY IF EXISTS "Org members see shared documents" ON generated_documents;
+DROP POLICY IF EXISTS "Users create own documents" ON generated_documents;
+DROP POLICY IF EXISTS "Users delete own documents" ON generated_documents;
+
+-- SELECT: ver documentos propios + documentos de casos compartidos conmigo
+CREATE POLICY "Users see own and shared documents" ON generated_documents
+  FOR SELECT USING (
+    auth.uid() = user_id
+    OR case_id IN (SELECT case_id FROM case_shares WHERE user_id = auth.uid())
+  );
 CREATE POLICY "Users create own documents" ON generated_documents
   FOR INSERT WITH CHECK (auth.uid() = user_id);  -- Solo insertar los propios
 CREATE POLICY "Users delete own documents" ON generated_documents
