@@ -633,7 +633,7 @@ ${_termList}${d.terminados.length>_maxCases?`\n... y ${d.terminados.length-_maxC
   try{
     _statsChatHistory.push({role:'user',content:text});
     const _ctrl=new AbortController();
-    const _tout=setTimeout(()=>_ctrl.abort(),30000);
+    const _tout=setTimeout(()=>_ctrl.abort(),55000);
     try{
       const r=await authFetch(CHAT_ENDPOINT,{
         method:'POST',
@@ -656,10 +656,20 @@ ${dataSummary}`,
       if(typing)typing.remove();
 
       if(!r.ok){
-        msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ Error: ${typeof esc==='function'?esc(String(r.status)):r.status}</div>`;
+        let errDetail=`HTTP ${r.status}`;
+        try{const eb=await r.json();errDetail=eb.error||eb.message||JSON.stringify(eb).substring(0,200);}catch(_){}
+        _statsChatHistory.pop(); /* remove failed user message from history */
+        msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ Error ${r.status}: ${typeof esc==='function'?esc(errDetail):errDetail}</div>`;
         return;
       }
       const data=await r.json();
+      /* Handle Anthropic error wrapped in 200 (shouldn't happen anymore but defensive) */
+      if(data.type==='error'||data.error){
+        const errMsg=data.error?.message||data.error||'Error desconocido del modelo';
+        _statsChatHistory.pop();
+        msgs.innerHTML+=`<div style="align-self:flex-start;color:var(--red);font-size:11px;padding:6px">⚠️ ${typeof esc==='function'?esc(String(errMsg)):errMsg}</div>`;
+        return;
+      }
       const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin respuesta.';
       _statsChatHistory.push({role:'assistant',content:reply});
 
