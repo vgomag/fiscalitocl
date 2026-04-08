@@ -147,6 +147,27 @@ async function _juriSearchRAG(query, folder = 'todos') {
 }
 
 /**
+ * Busca dictámenes en CGR vía /.netlify/functions/cgr-search.
+ * @param {string} query - Texto a buscar
+ * @param {string} source - Tipo de fuente (dictamenes, auditoria, etc.)
+ * @param {number} count - Número de resultados (max 20)
+ * @returns {Promise<{totalCount:number, count:number, results:Array}>}
+ */
+async function _juriSearchCGR(query, source = 'dictamenes', count = 10) {
+  const _fetchFn = typeof authFetch === 'function' ? authFetch : fetch;
+  const resp = await _fetchFn('/.netlify/functions/cgr-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, source, count })
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error('CGR HTTP ' + resp.status + ': ' + errText.substring(0, 200));
+  }
+  return resp.json();
+}
+
+/**
  * Busca sentencias en PJUD vía /.netlify/functions/pjud-search.
  * @param {string} query - Texto a buscar
  * @param {string} court - Tipo de corte (Corte_Suprema, Corte_de_Apelaciones, Laborales, etc.)
