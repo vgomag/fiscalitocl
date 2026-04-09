@@ -1375,6 +1375,10 @@
   window._ceToggleFocus = _toggleFocus;
   window._ceToggleBaseColl = _toggleBaseColl;
   window._ceTogglePrioColl = _togglePrioColl;
+  window._ceToggleSource = function (key) {
+    ce.searchSources[key] = !ce.searchSources[key];
+    _renderTab();
+  };
   window._ceToggleSection = _toggleSection;
   window._ceDocUpload = _handleDocUpload;
   window._ceRemoveDoc = _removeDoc;
