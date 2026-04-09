@@ -897,7 +897,7 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
             <input type="file" id="fnDocInput" accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.wma,.amr,.aiff,.aif,.caf,.webm,.weba,.3gp,.mp4,.m4v,.mov,.avi,.mkv,.wmv,.flv,audio/*,video/*" style="display:none" onchange="handleFnDocUpload(this)" multiple/>
             <textarea class="input-box" id="inputBox" placeholder="Solicitud concreta…" rows="1"
               onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-            <button class="send-btn" onclick="sendMessage()">
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
               <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
             </button>
           </div>
@@ -3000,8 +3000,11 @@ detectFormatInstruction = function(text) {
   return _detectFormatBase(text);
 };
 
+let _sendingMessage=false;
 async function sendMessage(){
-  if(document.getElementById('sendBtn')?.disabled) return;
+  /* ── FIX: Guard robusto contra envios concurrentes (el guard anterior
+     usaba getElementById('sendBtn') que devolvia null porque el boton no tenia id). */
+  if(_sendingMessage) return;
   const inputBox=document.getElementById('inputBox');
   const text=inputBox?.value.trim();
 
@@ -3031,6 +3034,7 @@ async function sendMessage(){
   document.getElementById('exportMdBtn').style.display='';
   appendMsg('user',text);
   const typingId=showTyping();
+  _sendingMessage=true;
   setLoading(true);
   try{
     // Build context — usar _caseSnapshot (#9) para evitar race condition
@@ -3736,7 +3740,19 @@ async function sendMessage(){
       sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
     }
   }catch(err){_activeReader=null;const _scb=document.getElementById('streamControlBtn');if(_scb)_scb.remove();removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
-  finally{clearTimeout(_streamTimeout);setLoading(false);_currentVFSection=null;}
+  finally{
+    clearTimeout(_streamTimeout);
+    setLoading(false);
+    _currentVFSection=null;
+    _sendingMessage=false;
+    /* ── FIX: rehabilitacion defensiva del input por si algo quedo colgado */
+    try{
+      const _inpEnd=document.getElementById('inputBox');
+      const _btnEnd=document.getElementById('sendBtn');
+      if(_inpEnd){_inpEnd.removeAttribute('disabled');_inpEnd.disabled=false;}
+      if(_btnEnd){_btnEnd.removeAttribute('disabled');_btnEnd.disabled=false;}
+    }catch(_e){}
+  }
 }
 
 function quickChat(text){showView('viewWelcome');pickFn('F0');document.getElementById('inputBox').value=text;sendMessage();}
