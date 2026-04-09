@@ -640,52 +640,23 @@
     });
 
     try {
-      var r = await _ceFetch(CE_NETLIFY_FN + '/analyze-external-case', {
-        action: 'generate_section',
-        section: sectionId,
-        sectionPrompt: prompts[sectionId] || '',
-        documentsContext: (ce.documentsContext || '').substring(0, 40000),
-        caseType: ce.caseType,
-        institution: ce.institution,
-        estamento: ce.estamento,
-        analysisMode: ce.analysisMode,
-        focusContext: focusCtx,
-        additionalContext: additionalCtx,
-        previousSections: prevSections
-      });
+      var system = SECTION_SYSTEM_PROMPTS[ce.analysisMode] || SECTION_SYSTEM_PROMPTS.disciplinario;
+      var userPrompt = (prompts[sectionId] || 'Genera la sección "' + sectionId + '" del análisis.');
+      if (ce.documentsContext) userPrompt += '\n\nDOCUMENTOS DEL EXPEDIENTE:\n' + ce.documentsContext.substring(0, 40000);
+      if (ce.caseType) userPrompt += '\n\nTIPO DE CASO: ' + ce.caseType;
+      if (ce.institution) userPrompt += '\nINSTITUCIÓN: ' + ce.institution;
+      if (ce.estamento) userPrompt += '\nESTAMENTO: ' + ce.estamento;
+      if (focusCtx) userPrompt += '\n\n' + focusCtx;
+      if (additionalCtx) userPrompt += '\n\n' + additionalCtx;
+      if (prevSections) userPrompt += '\n\nSECCIONES PREVIAS GENERADAS:\n' + prevSections.substring(0, 30000);
 
-      // SSE streaming
-      var reader = r.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = '';
-
-      while (true) {
-        var result = await reader.read();
-        if (result.done) break;
-        buffer += decoder.decode(result.value, { stream: true });
-        var lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i].trim();
-          if (line.startsWith('data: ')) {
-            var payload = line.substring(6);
-            if (payload === '[DONE]') break;
-            try {
-              var parsed = JSON.parse(payload);
-              if (parsed.text) {
-                ce.analysisSections[sectionId] = (ce.analysisSections[sectionId] || '') + parsed.text;
-                _renderSectionContent(sectionId);
-              }
-            } catch (e) {
-              // plain text fallback
-              if (payload && payload !== '[DONE]') {
-                ce.analysisSections[sectionId] = (ce.analysisSections[sectionId] || '') + payload;
-                _renderSectionContent(sectionId);
-              }
-            }
-          }
+      await _ceStreamClaude(system, userPrompt, {
+        maxTokens: 8192,
+        onChunk: function (text) {
+          ce.analysisSections[sectionId] = (ce.analysisSections[sectionId] || '') + text;
+          _renderSectionContent(sectionId);
         }
-      }
+      });
     } catch (e) {
       console.error('Generate section error:', e);
       showToast('✗ Error generando ' + section.title);
