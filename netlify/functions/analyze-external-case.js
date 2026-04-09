@@ -8,8 +8,8 @@
 import { corsHeaders as _corsHeaders } from './shared/cors-esm.js';
 
 /* ── Constants ── */
-const CLAUDE_TIMEOUT_MS = 90000;
-const SEARCH_TIMEOUT_MS = 15000;
+const CLAUDE_TIMEOUT_MS = 24000;   // Must fit within Netlify 26s function timeout
+const SEARCH_TIMEOUT_MS = 10000;   // 10s per search source
 const MAX_DOC_CHARS = 50000;
 
 /* ── Claude API call (non-streaming) ── */
@@ -48,7 +48,7 @@ async function callClaude(apiKey, model, system, userContent, maxTokens = 4096) 
 /* ── Claude API call (streaming) ── */
 async function callClaudeStream(apiKey, model, system, userContent, maxTokens = 8192) {
   const ac = new AbortController();
-  const to = setTimeout(() => ac.abort(), 120000);
+  const to = setTimeout(() => ac.abort(), 25000); // Fit within Netlify timeout
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
