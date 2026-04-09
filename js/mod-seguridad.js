@@ -280,11 +280,16 @@
    * @param {string} action - view|create|update|delete|login|logout|export|share
    * @param {object} opts - { table_name, record_id, case_id, accessed_fields, metadata }
    */
+  /* FIX 77A: circuit breaker — si la RPC falla 3 veces seguidas, desactivarla por la sesión
+     para no spammear la consola con 400 y no bloquear requests legítimos. */
+  let _auditFailCount = 0;
+  let _auditDisabled = false;
   window.logAuditEvent = async function (action, opts = {}) {
+    if (_auditDisabled) return;
     const _sb = typeof supabaseClient !== 'undefined' ? supabaseClient : (typeof sb !== 'undefined' ? sb : null);
     if (!_sb) return;
     try {
-      await _sb.rpc("log_audit_event", {
+      const { error } = await _sb.rpc("log_audit_event", {
         p_action: action,
         p_table_name: opts.table_name || null,
         p_record_id: opts.record_id || null,
@@ -292,8 +297,21 @@
         p_accessed_fields: opts.accessed_fields || null,
         p_metadata: opts.metadata || {},
       });
+      if (error) {
+        _auditFailCount++;
+        if (_auditFailCount >= 3) {
+          _auditDisabled = true;
+          console.warn("[Auditoría] RPC log_audit_event deshabilitada tras 3 fallos. Revisar definición SQL.");
+        }
+      } else {
+        _auditFailCount = 0;
+      }
     } catch (e) {
-      console.warn("[Auditoría] Error registrando evento:", e);
+      _auditFailCount++;
+      if (_auditFailCount >= 3) {
+        _auditDisabled = true;
+        console.warn("[Auditoría] RPC log_audit_event deshabilitada tras 3 excepciones:", e?.message);
+      }
     }
   };
 
