@@ -849,6 +849,7 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
         <div id="fnSelectorBar" style="display:flex;align-items:center;gap:0;padding:4px 10px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto;">
           <div id="fnBtnGroup" style="display:flex;gap:3px;align-items:center;flex-shrink:0;"></div>
           <div style="margin-left:auto;display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <button class="btn-export" id="unblockChatBtn" onclick="emergencyUnblockChat()" title="Desbloquear chat si quedó pegado" style="color:#b45309">🔓</button>
             <button class="btn-export" id="chatMsgCountBtn" style="display:none" onclick="clearChatFull()" title="Limpiar chat">↺</button>
             <button class="btn-export" id="exportTxtBtn" style="display:none" onclick="exportChat('txt')">↓ .txt</button>
             <button class="btn-export" id="exportMdBtn" style="display:none" onclick="exportChat('md')">↓ .md</button>
@@ -2583,6 +2584,14 @@ function pickFn(code){
       if(code!=='F11')_inp.placeholder='Solicitud concreta…';
     }
     if(_btn){_btn.removeAttribute('disabled');_btn.disabled=false;}
+    /* FIX 77A: resetear el flag global de envío si quedó pegado de un stream previo.
+       Solo lo reseteamos si no hay un reader activo (stream en curso). */
+    if(typeof _sendingMessage!=='undefined' && _sendingMessage &&
+       (typeof _activeReader==='undefined' || !_activeReader)){
+      console.warn('[Fiscalito] pickFn: reseteando _sendingMessage pegado');
+      _sendingMessage=false;
+      if(typeof _loadingStartedAt!=='undefined')_loadingStartedAt=0;
+    }
     /* Restaurar descBody oculto por F11 */
     const _descBody=document.getElementById('fnDescBody');
     if(_descBody && code!=='F11' && _descBody.style.display==='none'){
@@ -3934,7 +3943,45 @@ function showTyping(){
   c.appendChild(d);c.scrollTop=c.scrollHeight;return id;
 }
 function removeTyping(id){const e=document.getElementById(id);if(e)e.remove();}
-function setLoading(v){const btn=document.getElementById('sendBtn');const inp=document.getElementById('inputBox');if(v){btn?.setAttribute('disabled','true');inp?.setAttribute('disabled','true');}else{btn?.removeAttribute('disabled');inp?.removeAttribute('disabled');inp?.focus();}}
+let _loadingStartedAt=0;
+function setLoading(v){
+  const btn=document.getElementById('sendBtn');
+  const inp=document.getElementById('inputBox');
+  if(v){
+    _loadingStartedAt=Date.now();
+    btn?.setAttribute('disabled','true');
+    inp?.setAttribute('disabled','true');
+  }else{
+    _loadingStartedAt=0;
+    btn?.removeAttribute('disabled');inp?.removeAttribute('disabled');
+    if(btn)btn.disabled=false;
+    if(inp){inp.disabled=false;inp.readOnly=false;inp.style.pointerEvents='';inp.focus();}
+  }
+}
+/* FIX 77A: escape hatch visible — botón global para desbloquear manualmente.
+   También watchdog automático que desbloquea si lleva >90s pegado. */
+function emergencyUnblockChat(){
+  try{
+    _sendingMessage=false;
+    _loadingStartedAt=0;
+    setLoading(false);
+    /* Si hay un reader activo de un stream colgado, cancelarlo */
+    if(typeof _activeReader!=='undefined' && _activeReader){try{_activeReader.cancel();}catch(e){}_activeReader=null;}
+    const inp=document.getElementById('inputBox');
+    const btn=document.getElementById('sendBtn');
+    if(inp){inp.removeAttribute('disabled');inp.disabled=false;inp.readOnly=false;inp.style.pointerEvents='';inp.focus();}
+    if(btn){btn.removeAttribute('disabled');btn.disabled=false;}
+    if(typeof showToast==='function')showToast('🔓 Chat desbloqueado manualmente');
+  }catch(e){console.warn('emergencyUnblockChat:',e);}
+}
+/* Watchdog: cada 15s chequea si el input lleva >90s bloqueado sin actividad */
+setInterval(()=>{
+  if(_loadingStartedAt && (Date.now()-_loadingStartedAt) > 90000){
+    console.warn('[Fiscalito] Watchdog: input bloqueado >90s, desbloqueando');
+    emergencyUnblockChat();
+    if(typeof showToast==='function')showToast('⚠️ Chat desbloqueado automáticamente tras 90s sin respuesta');
+  }
+},15000);
 
 /* ── Fn doc upload — extracción real de contenido ── */
 let _attachedFiles=[];  // [{name, text, status:'ready'|'loading'|'error'}]
