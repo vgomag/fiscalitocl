@@ -318,6 +318,7 @@
         selected_base_collections: ce.selectedBaseCollections,
         collection_mode: ce.collectionMode,
         priority_collections: ce.priorityCollections,
+        search_sources: ce.searchSources,
         current_step: ce.activeTab,
         updated_at: new Date().toISOString()
       };
@@ -361,6 +362,7 @@
       ce.analysisSections = d.analysis_sections || {};
       ce.libraryResults = d.library_results || { jurisprudencia: '', doctrina: '', normativa: '', custom_collections: '' };
       ce.selectedBaseCollections = d.selected_base_collections || ['jurisprudencia', 'doctrina', 'normativa'];
+      ce.searchSources = d.search_sources || { qdrant: true, pjud: true, cgr: true, biblioteca: true };
       ce.collectionMode = d.collection_mode || 'priority';
       ce.priorityCollections = d.priority_collections || [];
       ce.activeTab = d.current_step || 'documentos';
