@@ -732,23 +732,38 @@
     _saveChatMessage('user', fullMsg);
 
     try {
-      var history = ce.chatMessages.slice(-15).map(function (m) {
+      var chatSystem = (SECTION_SYSTEM_PROMPTS[ce.analysisMode] || SECTION_SYSTEM_PROMPTS.disciplinario)
+        + '\n\nContexto del caso:\n'
+        + (ce.caseType ? 'Tipo: ' + ce.caseType + '\n' : '')
+        + (ce.institution ? 'Institución: ' + ce.institution + '\n' : '')
+        + (ce.documentsContext ? 'Documentos (resumen):\n' + ce.documentsContext.substring(0, 20000) + '\n' : '')
+        + (ce.extractedFacts.length ? 'Hechos extraídos:\n' + ce.extractedFacts.map(function (f, i) {
+            return (i + 1) + '. ' + (typeof f === 'string' ? f : (f.fact || ''));
+          }).join('\n') + '\n' : '');
+
+      // Build messages array for multi-turn chat
+      var messages = ce.chatMessages.slice(-15).map(function (m) {
         return { role: m.role, content: m.content.substring(0, 5000) };
       });
 
-      var r = await _ceFetch(CE_NETLIFY_FN + '/external-case-chat', {
-        analysisId: ce.analysisId,
-        message: fullMsg,
-        conversationHistory: history.slice(0, -1) // exclude the current message
-      });
-
-      // SSE streaming for chat
+      // Stream response via chat-stream edge function
       ce.chatMessages.push({ role: 'assistant', content: '' });
       var idx = ce.chatMessages.length - 1;
+      var token = _token();
+      var r = await fetch(CHAT_STREAM_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+        body: JSON.stringify({
+          system: chatSystem,
+          messages: messages,
+          max_tokens: 4096
+        })
+      });
+      if (!r.ok) throw new Error('Chat HTTP ' + r.status);
+
       var reader = r.body.getReader();
       var decoder = new TextDecoder();
       var buf = '';
-
       while (true) {
         var result = await reader.read();
         if (result.done) break;
@@ -757,17 +772,16 @@
         buf = lines.pop();
         for (var j = 0; j < lines.length; j++) {
           var line = lines[j].trim();
-          if (line.startsWith('data: ')) {
-            var payload = line.substring(6);
-            if (payload === '[DONE]') break;
-            try {
-              var parsed = JSON.parse(payload);
-              if (parsed.text) ce.chatMessages[idx].content += parsed.text;
-            } catch (e) {
-              if (payload && payload !== '[DONE]') ce.chatMessages[idx].content += payload;
+          if (!line.startsWith('data: ')) continue;
+          var payload = line.substring(6);
+          if (payload === '[DONE]') continue;
+          try {
+            var parsed = JSON.parse(payload);
+            if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+              ce.chatMessages[idx].content += parsed.delta.text;
             }
-            _renderChatMessages();
-          }
+          } catch (e) { /* skip */ }
+          _renderChatMessages();
         }
       }
 
@@ -811,37 +825,21 @@
     _renderWritings();
 
     try {
-      var r = await _ceFetch(CE_NETLIFY_FN + '/external-case-chat', {
-        analysisId: ce.analysisId,
-        message: prompt,
-        conversationHistory: []
-      });
+      var writingSystem = (SECTION_SYSTEM_PROMPTS[ce.analysisMode] || SECTION_SYSTEM_PROMPTS.disciplinario)
+        + '\nEres además un experto en redacción de escritos judiciales chilenos.'
+        + (ce.documentsContext ? '\n\nDocumentos del caso (resumen):\n' + ce.documentsContext.substring(0, 20000) : '')
+        + (ce.extractedFacts.length ? '\n\nHechos extraídos:\n' + ce.extractedFacts.map(function (f, i) {
+            return (i + 1) + '. ' + (typeof f === 'string' ? f : (f.fact || ''));
+          }).join('\n') : '');
 
-      var reader = r.body.getReader();
-      var decoder = new TextDecoder();
-      var buf = '';
-      while (true) {
-        var result = await reader.read();
-        if (result.done) break;
-        buf += decoder.decode(result.value, { stream: true });
-        var lines = buf.split('\n');
-        buf = lines.pop();
-        for (var j = 0; j < lines.length; j++) {
-          var line = lines[j].trim();
-          if (line.startsWith('data: ')) {
-            var payload = line.substring(6);
-            if (payload === '[DONE]') break;
-            try {
-              var parsed = JSON.parse(payload);
-              if (parsed.text) ce.writingResult += parsed.text;
-            } catch (e) {
-              if (payload && payload !== '[DONE]') ce.writingResult += payload;
-            }
-            var el = document.getElementById('ce-writing-result');
-            if (el) { el.innerHTML = _markdownToHtml(ce.writingResult); el.scrollTop = el.scrollHeight; }
-          }
+      await _ceStreamClaude(writingSystem, prompt, {
+        maxTokens: 8192,
+        onChunk: function (text) {
+          ce.writingResult += text;
+          var el = document.getElementById('ce-writing-result');
+          if (el) { el.innerHTML = _markdownToHtml(ce.writingResult); el.scrollTop = el.scrollHeight; }
         }
-      }
+      });
       showToast('✓ Escrito generado');
     } catch (e) {
       console.error('Writing generation error:', e);
