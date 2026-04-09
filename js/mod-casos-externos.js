@@ -401,6 +401,7 @@
     ce.selectedBaseCollections = ['jurisprudencia', 'doctrina', 'normativa'];
     ce.collectionMode = 'priority';
     ce.priorityCollections = [];
+    ce.searchSources = { qdrant: true, pjud: true, cgr: true, biblioteca: true };
     ce.extractedFacts = [];
     ce.chronology = [];
     ce.participants = [];
@@ -501,6 +502,7 @@
         priorityCollections: ce.priorityCollections,
         collectionMode: ce.collectionMode,
         selectedBaseCollections: ce.selectedBaseCollections,
+        sources: ce.searchSources,
         extractedFacts: ce.extractedFacts.slice(0, 5).map(function (f) { return typeof f === 'string' ? f : (f.fact || ''); }).join('. ')
       });
       ce.libraryResults = {
