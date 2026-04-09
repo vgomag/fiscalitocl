@@ -3052,6 +3052,11 @@ async function sendMessage(){
   const typingId=showTyping();
   _sendingMessage=true;
   setLoading(true);
+  /* FIX 77A CRÍTICO: declarar _streamTimeout FUERA del try para que el finally
+     pueda siempre llamar clearTimeout. Antes, si un error sucedía antes de la
+     declaración interna, el finally lanzaba ReferenceError y _sendingMessage
+     nunca se reseteaba → chat pegado para siempre. */
+  let _streamTimeout=null;
   try{
     // Build context — usar _caseSnapshot (#9) para evitar race condition
     // Auto-activate Ley Karin mode when case materia involves género/acoso
@@ -3665,7 +3670,7 @@ async function sendMessage(){
        Para F7/F8 dejamos 290s (margen de seguridad de 10s antes del corte de Netlify). */
     const _streamTimeoutMs=(activeFn==='F7')?290000:(activeFn==='F8')?290000:(activeFn==='F5'||activeFn==='F6')?180000:120000;
     const _streamAbort=new AbortController();
-    const _streamTimeout=setTimeout(()=>{_streamAbort.abort();},_streamTimeoutMs);
+    _streamTimeout=setTimeout(()=>{_streamAbort.abort();},_streamTimeoutMs);
     /* FIX 76A: medir tiempo hasta primer byte y hasta primer token para diagnosticar trabas */
     const _t0=Date.now();
     const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:_streamAbort.signal});
