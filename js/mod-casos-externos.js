@@ -205,6 +205,51 @@
     return r.json();
   }
 
+  // Stream helper: calls /api/chat-stream (edge function, no timeout limit)
+  // Returns full accumulated text. onChunk(text) called for each delta.
+  var CHAT_STREAM_URL = '/api/chat-stream';
+  async function _ceStreamClaude(system, userContent, opts) {
+    opts = opts || {};
+    var onChunk = opts.onChunk || function () {};
+    var maxTokens = opts.maxTokens || 4096;
+    var token = _token();
+    var r = await fetch(CHAT_STREAM_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+      body: JSON.stringify({
+        system: system,
+        messages: [{ role: 'user', content: userContent }],
+        max_tokens: maxTokens
+      })
+    });
+    if (!r.ok) throw new Error('Stream HTTP ' + r.status);
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buf = '';
+    var full = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buf += decoder.decode(chunk.value, { stream: true });
+      var lines = buf.split('\n');
+      buf = lines.pop();
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line.startsWith('data: ')) continue;
+        var payload = line.substring(6);
+        if (payload === '[DONE]') continue;
+        try {
+          var parsed = JSON.parse(payload);
+          if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+            full += parsed.delta.text;
+            onChunk(parsed.delta.text);
+          }
+        } catch (e) { /* skip */ }
+      }
+    }
+    return full;
+  }
+
   function _escHtml(s) {
     if (!s) return '';
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
