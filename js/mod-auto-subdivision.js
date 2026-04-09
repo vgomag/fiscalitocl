@@ -122,7 +122,6 @@ function getCaseCatEnhanced(c){
 }
 
 /* ── Reemplazar getCaseCat global ── */
-const _origGetCaseCat = typeof getCaseCat === 'function' ? getCaseCat : null;
 window.getCaseCat = getCaseCatEnhanced;
 
 /* ── Exponer helpers globalmente ── */
@@ -181,7 +180,6 @@ window.applyStageFilter = function(val){
 };
 
 /* ── Patchear updateCatCounts para incluir compartidos ── */
-const _origUpdateCatCounts = typeof updateCatCounts === 'function' ? updateCatCounts : null;
 window.updateCatCounts = function(){
   const userId = session?.user?.id;
   // Counts por categoría
@@ -275,7 +273,6 @@ window.renderTabla = function(searchOverride){
 };
 
 /* ── Patchear setCatTab para soportar 'compartidos' ── */
-const _origSetCatTab = typeof setCatTab === 'function' ? setCatTab : null;
 window.setCatTab = function(cat){
   activeCatTab = cat;
   if(typeof sortField !== 'undefined'){ window.sortField = null; window.sortDir = 'asc'; }
