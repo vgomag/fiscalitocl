@@ -59,10 +59,10 @@ export default async (req) => {
     /* Limitar max_tokens — subido a 32000 para permitir vistas fiscales completas (F7) */
     const maxTokens = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 32000);
 
-    /* AbortController con timeout adaptativo: hasta 10 min para vistas fiscales (F7/F8) */
+    /* AbortController con timeout adaptativo. Ojo: Netlify Edge corta a ~5 min, así que
+       el límite máximo realista es 295s (margen de 5s antes del corte de Netlify). */
     const _maxTokensReq = parseInt(body.max_tokens) || 2000;
-    const _timeoutMs = _maxTokensReq >= 24000 ? 600000  /* 10 min para F7 */
-                     : _maxTokensReq >= 12000 ? 480000  /* 8 min para F8 */
+    const _timeoutMs = _maxTokensReq >= 12000 ? 295000  /* ~5 min para F7/F8 */
                      : _maxTokensReq >= 6000  ? 240000  /* 4 min para F5/F6/F12 */
                      : 120000;                          /* 2 min para el resto */
     const controller = new AbortController();
@@ -88,14 +88,24 @@ export default async (req) => {
       });
     } catch (fetchErr) {
       clearTimeout(timeout);
-      const msg = fetchErr.name === 'AbortError' ? 'Stream timeout (120s)' : fetchErr.message;
+      const _secs = Math.round(_timeoutMs/1000);
+      const msg = fetchErr.name === 'AbortError'
+        ? `Anthropic no respondió en ${_secs}s (timeout edge)`
+        : `Error al contactar Anthropic: ${fetchErr.message}`;
       return new Response(JSON.stringify({ error: msg }), { status: 504, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
     if (!res.ok) {
       clearTimeout(timeout);
-      const errData = await res.text();
-      return new Response(errData, { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+      const errText = await res.text().catch(() => '');
+      let errMsg = `Anthropic ${res.status}`;
+      try { const j = JSON.parse(errText); if (j.error?.message) errMsg = j.error.message; } catch {}
+      /* Mensajes humanizados para errores comunes */
+      if (res.status === 529) errMsg = '⚠️ Anthropic está sobrecargado (529). Reintenta en unos segundos.';
+      else if (res.status === 429) errMsg = '⚠️ Rate limit de Anthropic (429). Espera un minuto.';
+      else if (res.status === 400 && errMsg.includes('max_tokens')) errMsg = '⚠️ max_tokens excede el límite del modelo. Reduce a ≤16000.';
+      else if (res.status === 400 && errMsg.includes('input length')) errMsg = '⚠️ Contexto demasiado largo para Claude. Reduce diligencias o párrafos.';
+      return new Response(JSON.stringify({ error: errMsg, status: res.status }), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
     /* Wrap stream to clean up timeout on completion */
