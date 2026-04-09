@@ -147,11 +147,16 @@ async function getWordSectionProps(docxLib) {
 }
 
 /* Exportar funciones para uso desde otros módulos */
+window._waitDocx = _waitDocx;
 window.getWordDocLogo = getWordDocLogo;
 window.makeWordDocHeader = makeWordDocHeader;
 window.makeWordDocFooter = makeWordDocFooter;
 window.getWordSectionProps = getWordSectionProps;
 window.WORD_FORMAT = WORD_FORMAT;
+window.parseTextToRuns = parseTextToRuns;
+window.makePara = makePara;
+window.makeHeading = makeHeading;
+window.makeSignatureLine = makeSignatureLine;
 
 /* ══════════════════════════════════════════
    HELPERS

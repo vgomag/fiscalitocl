@@ -100,16 +100,16 @@
   };
 
   const LABOR_PROMPTS = {
-    antecedentes_laborales: '## I. ANTECEDENTES DEL CASO\n1. Relación Laboral (partes, contrato, cargo, remuneración)\n2. Hechos Relevantes (cronología, documentación, contexto)\n3. Conflicto Laboral (descripción, derechos afectados, actuaciones previas)\n4. Término de la Relación (forma, causal, formalidades)',
-    marco_normativo_laboral: '## II. MARCO NORMATIVO LABORAL\nA. Código del Trabajo (artículos aplicables, tutela arts. 485-495)\nB. Legislación Complementaria (Ley 16.744, 20.607, 20.005, 20.348, Ley Karin, Ley Bustos)\nC. Normativa Reglamentaria (D.S. 594, reglamento interno, convenios colectivos)\nD. Jurisprudencia Laboral (JLT, Cortes, CS, DT)',
-    analisis_laboral: '## III. ANÁLISIS JURÍDICO LABORAL\nA. Calificación Jurídica (subsunción, tipificación, pretensiones)\nB. Prueba Indiciaria art. 493 CT (indicios, carga probatoria, proporcionalidad)\nC. Análisis de Causales (procedencia, gravedad, inmediatez, formalidades art. 162)\nD. Daño y Perjuicio (indemnizaciones legales, lucro cesante, daño moral, recargos art. 168)\nE. Fortalezas y Debilidades (prueba disponible, riesgos, jurisprudencia)',
-    estrategia_laboral: '## IV. ESTRATEGIA Y PRETENSIONES\nA. Acción Procesal Recomendada (tipo, competencia, plazos, acumulación)\nB. Pretensiones Específicas (nulidad, indemnizaciones, tutela 6-11 rem, daño moral, cotizaciones)\nC. Prueba a Rendir (documental, testimonial, confesional, pericial)\nD. Medidas Cautelares (protección, reincorporación, innovativas)',
-    conclusion_laboral: '## V. CONCLUSIONES Y RECOMENDACIONES\nA. Síntesis del Análisis (hechos probados, marco normativo, procedencia)\nB. Viabilidad del Caso (probabilidades, factores, riesgos)\nC. Recomendaciones (acción sugerida, diligencias previas, estimación montos, plazo)\nD. Consideraciones Adicionales (Ley Karin, género, precedentes clave)'
+    antecedentes_laborales: '## I. ANTECEDENTES DEL CASO\n1. Relación Laboral Detallada:\n   - Partes (empleador, trabajador, representantes)\n   - Tipo de contrato (definido, indefinido, honorarios, suplencia)\n   - Duración de la relación laboral y períodos relevantes\n   - Remuneración (bruta, líquida, comisiones, bonificaciones)\n   - Jornada de trabajo (art. 22 CT: ordinaria, extraordinaria, distribución)\n   - Fueros especiales (sindical art. 235-244 CT, maternal art. 194 CT, enfermedad art. 6 LSP)\n   - Subordinación y dependencia (elementos contrato trabajo art. 7 CT)\n   - Cotizaciones al día (previsión, seguro, impuestos)\n   - Ius variandi abusivo (cambios funciones, remuneración, horario)\n2. Hechos Relevantes (cronología, documentación, contexto)\n3. Conflicto Laboral (descripción, derechos fundamentales afectados, actuaciones previas)\n4. Término de la Relación (forma, causal, formalidades, indemnizaciones pagadas)',
+    marco_normativo_laboral: '## II. MARCO NORMATIVO LABORAL\nA. Código del Trabajo (DFL 1/2003):\n   - Tutela laboral arts. 485-495 CT (procedimiento, plazos 60 días art. 510, indicios art. 493)\n   - Art. 162 CT (formalidades despido, aviso previo)\n   - Art. 168 CT (indemnizaciones: años de servicio con recargo 80%, desahucio)\n   - Art. 171 CT (autodespido: renuncia por incumplimientos graves)\n   - Art. 184 CT (deber de protección empleador: integridad física y psíquica)\n   - Art. 2° CT (prohibiciones: acoso, discriminación, trato discriminatorio)\n   - Art. 10 DFL 1/2003 (cotizaciones obligatorias)\nB. Ley 21.643 (Ley Karin - Acoso y violencia laboral):\n   - Art. 1 (definiciones: acoso laboral, sexual, violencia en trabajo)\n   - Art. 2 (protocolo prevención y respuesta)\n   - Arts. 211-A a 211-E CT (procedimiento investigación acoso)\nC. Jurisprudencia Clave:\n   - "Indicios suficientes" Corte Suprema en tutela: prueba indiciaria del art. 493 CT\n   - Doctrina: Sergio Gamonal, José Luis Ugarte, Irene Rojas\nD. Legislación Complementaria (Ley 16.744, 20.607, 20.005, 20.348, Ley Bustos)\nE. Normativa Reglamentaria (D.S. 594, reglamento interno, convenios colectivos)',
+    analisis_laboral: '## III. ANÁLISIS JURÍDICO LABORAL\nA. Calificación Jurídica:\n   - Subsunción normativa de hechos en tipos laborales\n   - Tipificación de causal de término (art. 161 CT y siguientes)\n   - Pretensiones procedentes\nB. Derechos Fundamentales Vulnerados (art. 19 CPR):\n   - N°1: Integridad física y psíquica\n   - N°4: Vida privada, honra, inviolabilidad comunicaciones\n   - N°6: Libertad de conciencia\n   - N°12: Libertad de expresión\n   - N°16: Libertad de trabajo, no discriminación\nC. Análisis de Indicios (art. 493 CT - nunca exigir prueba directa):\n   - Indicios disponibles: correos, mensajes, testigos, informes médicos\n   - Licencias médicas (frecuencia, diagnóstico, causalidad con hechos)\n   - Cambios funcionales discriminatorios\n   - Evaluaciones de desempeño injustas\n   - Cambios remuneracionales sin causa\n   - Constancia de comportamientos discriminatorios\nD. Test de Proporcionalidad:\n   - Medida es idónea para fin perseguido\n   - Necesaria (no hay alternativa menos restrictiva)\n   - Proporcional stricto sensu (beneficio vs. vulneración)\nE. Causalidad:\n   - Nexo causal entre hechos y términación\n   - Pretexto vs. causa verdadera\nF. Garantía de Indemnidad (art. 485 inc. 3° CT):\n   - Prohibición represalias post-tutela\n   - Prohibición cambios condiciones laborales\nG. Fortalezas y Debilidades (prueba disponible, riesgos jurisprudenciales)',
+    estrategia_laboral: '## IV. ESTRATEGIA Y PRETENSIONES\nA. Acción Procesal Recomendada:\n   - Tutela laboral (art. 485-495 CT): 60 días hábiles desde separación (art. 510)\n   - Demanda laboral acumulada (art. 480 CT): despido injustificado\n   - Competencia territorial (domicilio demandado o donde se ejecutó trabajo)\nB. Pretensiones Específicas:\n   - Nulidad del despido (art. 489 inc. 2° CT)\n   - Indemnización tutela: 6-11 remuneraciones (art. 489 inc. 3° CT)\n   - Indemnización sustitutiva aviso previo (art. 162 CT)\n   - Años de servicio con recargo 80% (art. 168 letra c CT)\n   - Indemnización perjuicio moral (art. 1556 CC, cuantificación razonable)\n   - Lucro cesante (remuneraciones dejadas de percibir hasta juicio)\n   - Cotizaciones previsionales y de seguro (Ley Bustos art. 162 inc. 5°-7° CT)\n   - Reincorporación al trabajo (art. 489 inc. 2° CT)\nC. Acumulación de Acciones:\n   - Tutela laboral como principal\n   - Despido injustificado como acumulativa\nD. Prueba a Rendir:\n   - Documental: contrato, correos, resoluciones, licencias médicas\n   - Testimonial: compañeros, jefes directos, testigos presenciales\n   - Confesional: declaración demandado\n   - Pericial: médico (daño psicológico), contable (lucro cesante)\nE. Medidas Cautelares:\n   - Prohibición represalias\n   - Protección de pruebas\n   - Innovativa: reincorporación provisional',
+    conclusion_laboral: '## V. CONCLUSIONES Y RECOMENDACIONES\nA. Síntesis del Análisis:\n   - Hechos probados o con indicios suficientes\n   - Marco normativo aplicable y vulneraciones configuradas\n   - Procedencia de la tutela laboral\nB. Viabilidad del Caso:\n   - Probabilidad de éxito basada en indicios (art. 493 CT)\n   - Análisis jurisprudencia: tendencia Cortes hacia protección derechos fundamentales\n   - Riesgos procesales (carga probatoria, plazos, prescripción)\nC. Estimación de Montos:\n   - Cálculo tutela: 6-11 remuneraciones (base remuneración promedio últimos 3 meses)\n   - Cálculo años servicio: valor remuneración mensual x años x 1.80\n   - Estimación daño moral (doctrina: 1-3 meses remuneración como base)\n   - Lucro cesante: desde separación hasta sentencia (estimado)\n   - Total indemnización estimada\nD. Plazos Críticos:\n   - Prescripción tutela: 60 días hábiles desde separación (art. 510 CT)\n   - Prescripción despido injustificado: 2 años (art. 510 CT)\nE. Recomendaciones:\n   - Acción sugerida (tutela y/o demanda)\n   - Diligencias previas (notificación, copia documental)\n   - Estrategia de prueba prioritaria\n   - Medidas cautelares a solicitar\nF. Consideraciones Adicionales:\n   - Aplicación Ley 21.643 (Ley Karin) si hay acoso/violencia\n   - Perspectiva de género si hay discriminación basada en sexo\n   - Precedentes jurisprudenciales clave Corte Suprema\n   - Doctrina laboralista aplicable (Gamonal, Ugarte, Rojas)'
   };
 
   const SECTION_SYSTEM_PROMPTS = {
     disciplinario: 'Eres un asistente jurídico-administrativo experto en procedimientos disciplinarios y sancionatorios de la Administración Pública chilena.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en la normativa aplicable\n- Considerar la jurisprudencia de la Contraloría General de la República\n- Respetar el debido proceso y las garantías fundamentales\n- Aplicar perspectiva de género cuando sea pertinente\n- Ser proporcional y objetivo en las conclusiones\n- PROTECCIÓN DE DATOS: No revelar nombres, RUT, correos, teléfonos. Usar roles genéricos.',
-    laboral: 'Eres un abogado laboralista experto en derecho del trabajo chileno.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en el Código del Trabajo y legislación laboral\n- Citar artículos específicos del CT y leyes complementarias\n- Considerar jurisprudencia de JLT, Cortes de Apelaciones y Corte Suprema\n- Aplicar la prueba indiciaria del art. 493 CT cuando corresponda\n- Considerar Ley Karin (Ley 21.643) cuando sea pertinente\n- Aplicar perspectiva de género y derechos fundamentales\n- Ser estratégico y orientado a la acción procesal\n- Fundamentar con doctrina laboralista y libros de referencia disponibles'
+    laboral: 'Eres un abogado laboralista experto en derecho del trabajo chileno con enfoque en tutela laboral.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en el Código del Trabajo (DFL 1/2003) y legislación laboral específica\n- Citar artículos en formato: art. X del Código del Trabajo / art. X de la Ley N° XXXX\n- Citar jurisprudencia con formato: Corte Suprema, Rol N° XXXX-XXXX, fecha, considerando X\n- Para tutela laboral: SIEMPRE aplicar análisis de indicios del art. 493 CT. NUNCA exigir prueba directa al trabajador\n- Considerar Ley 21.643 (Ley Karin) para casos de acoso laboral, sexual o violencia en el trabajo\n- Aplicar derechos fundamentales art. 19 CPR (integridad, vida privada, libertad de expresión, no discriminación)\n- Aplicar test de proporcionalidad para verificar vulneraciones\n- Fundamentar con doctrina de autores: Sergio Gamonal, José Luis Ugarte, Irene Rojas, Javier Lizama\n- Ser estratégico y orientado a la acción procesal: indicar pretensiones específicas, plazos, montos estimados\n- Aplicar perspectiva de género cuando corresponda\n- En prescripción: recordar 60 días hábiles tutela desde separación (art. 510 CT), 2 años despido injustificado'
   };
 
   const WRITING_TEMPLATES = [
@@ -527,6 +527,10 @@
         + '- Para participantes, usa roles genéricos en vez de nombres reales\n'
         + '- Incluye TODAS las normas mencionadas o aplicables';
 
+      if (ce.driveLink) {
+        userPrompt += '\n\nNOTA: El usuario tiene normativa específica vinculada en: ' + ce.driveLink + '. Considérala al identificar normas aplicables.';
+      }
+
       var text = await _ceStreamClaude(system, userPrompt, { maxTokens: 4096 });
 
       // Parse JSON from response
@@ -573,7 +577,8 @@
         collectionMode: ce.collectionMode,
         selectedBaseCollections: ce.selectedBaseCollections,
         sources: ce.searchSources,
-        extractedFacts: ce.extractedFacts.slice(0, 5).map(function (f) { return typeof f === 'string' ? f : (f.fact || ''); }).join('. ')
+        extractedFacts: ce.extractedFacts.slice(0, 5).map(function (f) { return typeof f === 'string' ? f : (f.fact || ''); }).join('. '),
+        driveLink: ce.driveLink
       });
       ce.libraryResults = {
         jurisprudencia: data.jurisprudencia || '',
@@ -630,6 +635,7 @@
         if (t) focusCtx += '\n' + t.template;
       });
     }
+    if (ce.driveLink) focusCtx += '\nNORMATIVA ESPECÍFICA (Drive): ' + ce.driveLink;
 
     // Previously generated sections as context
     var prevSections = '';
@@ -851,30 +857,142 @@
 
   // ─── EXPORT TO WORD ──────────────────────────────────────────────
 
-  function _exportAnalysisToWord() {
+  async function _exportAnalysisToWord() {
     var sections = _getSections();
-    var content = '# Análisis Jurídico: ' + (ce.caseName || 'Sin nombre') + '\n\n';
-    content += '**Modo:** ' + ce.analysisMode + ' | **Tipo:** ' + ce.caseType + ' | **Institución:** ' + ce.institution + '\n';
-    content += '**Fecha:** ' + new Date().toLocaleDateString('es-CL') + '\n\n---\n\n';
 
-    sections.forEach(function (s) {
-      if (ce.analysisSections[s.id]) {
-        content += '## ' + s.title + '\n\n' + ce.analysisSections[s.id] + '\n\n---\n\n';
+    // Validate there's content to export
+    var hasContent = sections.some(function (s) { return ce.analysisSections[s.id]; });
+    if (!hasContent && !ce.extractedFacts.length) {
+      showToast('⚠ No hay secciones generadas para exportar');
+      return;
+    }
+
+    showToast('📄 Generando análisis en Word…');
+    try {
+      // Get docx library
+      var d = await _waitDocx();
+      var sectionProps = await getWordSectionProps(d);
+
+      var children = [];
+
+      // Title
+      children.push(makeHeading('ANÁLISIS JURÍDICO', d, 1));
+
+      // Case metadata line
+      var metadataStr = (ce.caseName || 'Sin nombre');
+      if (ce.analysisMode) metadataStr += ' — Modo: ' + ce.analysisMode;
+      if (ce.caseType) metadataStr += ' | Tipo: ' + ce.caseType;
+      if (ce.institution) metadataStr += ' | Institución: ' + ce.institution;
+      children.push(makePara(metadataStr, d, { center: true, after: 60 }));
+
+      var fechaStr = new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
+      children.push(makePara('Fecha: ' + fechaStr, d, { center: true, after: 240 }));
+
+      // Extracted facts section (if available)
+      if (ce.extractedFacts && ce.extractedFacts.length) {
+        children.push(makeHeading('HECHOS EXTRAÍDOS', d, 2));
+        ce.extractedFacts.forEach(function (fact, idx) {
+          var factText = typeof fact === 'string' ? fact : (fact.fact || fact.description || fact);
+          children.push(makePara((idx + 1) + '. ' + factText, d, { indent: true, before: 60, after: 60 }));
+        });
+        children.push(makePara('', d)); // spacing
       }
-    });
 
-    var filename = 'analisis_' + (ce.caseName || 'caso').replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.docx';
-    if (typeof exportToWord === 'function') {
-      exportToWord(content, filename);
-    } else if (typeof exportChatResponseToWord === 'function') {
-      exportChatResponseToWord(content, filename);
-    } else {
-      // Fallback: download as .txt
-      var blob = new Blob([content], { type: 'text/plain' });
+      // Analysis sections
+      sections.forEach(function (s) {
+        if (ce.analysisSections[s.id]) {
+          children.push(makeHeading(s.title, d, 2));
+
+          var content = ce.analysisSections[s.id];
+          // Parse content into paragraphs, handling markdown
+          var paragraphs = content.split('\n').filter(function (p) { return p.trim(); });
+
+          paragraphs.forEach(function (para) {
+            var trimmed = para.trim();
+
+            // Skip markdown section headers (### ...) - they're already in section title
+            if (/^#{1,3}\s+/.test(trimmed)) {
+              var cleanText = trimmed.replace(/^#+\s*/, '');
+              var level = trimmed.match(/^#+/)[0].length;
+              if (level >= 3) {
+                children.push(makeHeading(cleanText, d, 3));
+              }
+              return;
+            }
+
+            // Numbered items (1. 2. A. B. etc.)
+            if (/^\d+[\.\)]\s|^[A-Z][\.\)]\s|^-\s/.test(trimmed)) {
+              children.push(makePara(trimmed, d, { indent: true, before: 60, after: 60 }));
+            }
+            // Regular paragraph with bold and formatting
+            else if (trimmed.length > 0) {
+              children.push(makePara(trimmed, d, { indent: true, before: 0, after: 120 }));
+            }
+          });
+
+          children.push(makePara('', d)); // spacing between sections
+        }
+      });
+
+      // Library results section (if available)
+      var hasLibraryResults = ce.libraryResults && (ce.libraryResults.jurisprudencia || ce.libraryResults.doctrina || ce.libraryResults.normativa || ce.libraryResults.custom_collections);
+      if (hasLibraryResults) {
+        children.push(makeHeading('FUENTES CONSULTADAS', d, 2));
+
+        if (ce.libraryResults.normativa) {
+          children.push(makeHeading('Normativa', d, 3));
+          children.push(makePara(ce.libraryResults.normativa.substring(0, 2000), d, { indent: true }));
+          children.push(makePara('', d));
+        }
+
+        if (ce.libraryResults.jurisprudencia) {
+          children.push(makeHeading('Jurisprudencia', d, 3));
+          children.push(makePara(ce.libraryResults.jurisprudencia.substring(0, 2000), d, { indent: true }));
+          children.push(makePara('', d));
+        }
+
+        if (ce.libraryResults.doctrina) {
+          children.push(makeHeading('Doctrina', d, 3));
+          children.push(makePara(ce.libraryResults.doctrina.substring(0, 2000), d, { indent: true }));
+          children.push(makePara('', d));
+        }
+
+        if (ce.libraryResults.custom_collections) {
+          children.push(makeHeading('Colecciones Personalizadas', d, 3));
+          children.push(makePara(ce.libraryResults.custom_collections.substring(0, 2000), d, { indent: true }));
+          children.push(makePara('', d));
+        }
+      }
+
+      // Create document
+      var doc = new d.Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: WORD_FORMAT.font, size: WORD_FORMAT.fontSize, color: WORD_FORMAT.fontColor },
+            },
+          },
+        },
+        sections: [{
+          ...sectionProps,
+          children: children,
+        }],
+      });
+
+      // Generate and download
+      var buffer = await d.Packer.toBlob(doc);
+      var filename = 'analisis_' + (ce.caseName || 'caso').replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.docx';
       var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename.replace('.docx', '.txt');
+      a.href = URL.createObjectURL(buffer);
+      a.download = filename;
       a.click();
+      URL.revokeObjectURL(a.href);
+
+      showToast('✅ ' + filename + ' descargado');
+
+    } catch (err) {
+      console.error('exportAnalysisToWord:', err);
+      showToast('⚠ Error al generar Word: ' + err.message);
     }
   }
 
@@ -1447,12 +1565,93 @@
   window._ceNewCase = _newCase;
   window._ceLoadCase = _loadAnalysis;
   window._ceDeleteCase = _deleteAnalysis;
-  window._ceExportWritingWord = function () {
-    if (!ce.writingResult) return;
-    var tpl = WRITING_TEMPLATES.find(function (t) { return t.id === ce.writingTemplate; });
-    var fname = 'escrito_' + (tpl ? tpl.id : 'judicial') + '_' + new Date().toISOString().slice(0, 10) + '.docx';
-    if (typeof exportToWord === 'function') exportToWord(ce.writingResult, fname);
-    else if (typeof exportChatResponseToWord === 'function') exportChatResponseToWord(ce.writingResult, fname);
+  window._ceExportWritingWord = async function () {
+    if (!ce.writingResult) {
+      showToast('⚠ No hay escrito para exportar');
+      return;
+    }
+
+    showToast('📄 Generando escrito en Word…');
+    try {
+      // Get docx library
+      var d = await _waitDocx();
+      var sectionProps = await getWordSectionProps(d);
+
+      var tpl = WRITING_TEMPLATES.find(function (t) { return t.id === ce.writingTemplate; });
+      var docTitle = (tpl ? tpl.label : 'Escrito Judicial').toUpperCase();
+
+      var children = [];
+
+      // Title
+      children.push(makeHeading(docTitle, d, 1));
+
+      // Metadata if available
+      if (ce.caseName) {
+        children.push(makePara('Caso: ' + ce.caseName, d, { center: true, after: 120 }));
+      }
+      children.push(makePara('Fecha: ' + new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' }), d, { center: true, after: 240 }));
+
+      // Parse writing result content into paragraphs, handling markdown and structure
+      var content = ce.writingResult;
+      var paragraphs = content.split('\n').filter(function (p) { return p.trim(); });
+
+      paragraphs.forEach(function (para) {
+        var trimmed = para.trim();
+
+        // Markdown headings (# ## ###)
+        if (/^#+\s+/.test(trimmed)) {
+          var level = trimmed.match(/^#+/)[0].length;
+          var cleanText = trimmed.replace(/^#+\s*/, '');
+          children.push(makeHeading(cleanText, d, Math.min(level, 3)));
+        }
+        // Section markers (VISTOS, CONSIDERANDO, POR TANTO, etc.)
+        else if (/^(VISTOS|CONSIDERANDO|POR TANTO|RESUELVO|SE PROPONE|PARTE DISPOSITIVA)[\s:]?/i.test(trimmed)) {
+          children.push(makeHeading(trimmed, d, 2));
+        }
+        // Numbered items or "Que," paragraphs
+        else if (/^\d+[\.\)°]|^Que,|^[A-Z][\.\)]/i.test(trimmed)) {
+          children.push(makePara(trimmed, d, { indent: true, before: 60, after: 60 }));
+        }
+        // Regular paragraphs
+        else if (trimmed.length > 0) {
+          children.push(makePara(trimmed, d, { indent: true, before: 0, after: 120 }));
+        }
+      });
+
+      // Signature section
+      children.push(makePara('', d)); // spacing
+      children.push(...makeSignatureLine('[ABOGADO/A]', 'Letrado/a Patrocinante', d));
+
+      // Create document
+      var doc = new d.Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: WORD_FORMAT.font, size: WORD_FORMAT.fontSize, color: WORD_FORMAT.fontColor },
+            },
+          },
+        },
+        sections: [{
+          ...sectionProps,
+          children: children,
+        }],
+      });
+
+      // Generate and download
+      var buffer = await d.Packer.toBlob(doc);
+      var fname = 'escrito_' + (tpl ? tpl.id : 'judicial') + '_' + new Date().toISOString().slice(0, 10) + '.docx';
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(buffer);
+      a.download = fname;
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      showToast('✅ ' + fname + ' descargado');
+
+    } catch (err) {
+      console.error('ceExportWritingWord:', err);
+      showToast('⚠ Error al generar Word: ' + err.message);
+    }
   };
 
   // Main entry point

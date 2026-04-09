@@ -80,6 +80,50 @@ async function callClaudeStream(apiKey, model, system, userContent, maxTokens = 
 
 /* ── Internal search helpers ── */
 
+// Extract file/folder ID from Google Drive URL
+function extractDriveId(driveUrl) {
+  if (!driveUrl || typeof driveUrl !== 'string') return null;
+
+  // Pattern 1: /file/d/{ID}/view or /file/d/{ID}
+  let match = driveUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+
+  // Pattern 2: /folders/{ID}
+  match = driveUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+
+  // Pattern 3: id={ID}
+  match = driveUrl.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+
+  return null;
+}
+
+// Call drive-extract function to extract text from a Drive file
+async function extractDriveContent(baseUrl, token, fileId) {
+  const ac = new AbortController();
+  const to = setTimeout(() => ac.abort(), SEARCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${baseUrl}/.netlify/functions/drive-extract`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token,
+      },
+      body: JSON.stringify({ fileId }),
+      signal: ac.signal,
+    });
+    clearTimeout(to);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    clearTimeout(to);
+    console.warn('[analyze-external-case] Drive extraction error:', e.message);
+    return null;
+  }
+}
+
 // Search Qdrant via the existing rag function
 async function searchQdrant(baseUrl, token, query, collections) {
   const ac = new AbortController();
@@ -245,7 +289,7 @@ REGLAS:
 
 /* ── Action: search_library ── */
 async function handleSearchLibrary(body, token, siteUrl) {
-  const { topic, caseType, institution, analysisMode, selectedBaseCollections, extractedFacts, sources } = body;
+  const { topic, caseType, institution, analysisMode, selectedBaseCollections, extractedFacts, sources, driveLink } = body;
   if (!topic || topic.length < 3) {
     return { error: 'topic requerido (mín 3 caracteres)' };
   }
@@ -261,6 +305,16 @@ async function handleSearchLibrary(body, token, siteUrl) {
 
   // Parallel searches
   const searches = [];
+  let driveContent = null;
+  if (driveLink) {
+    const driveId = extractDriveId(driveLink);
+    if (driveId) {
+      const driveData = await extractDriveContent(siteUrl, token, driveId);
+      if (driveData && driveData.text) {
+        driveContent = driveData;
+      }
+    }
+  }
 
   if (enabledSources.qdrant !== false) {
     const collections = selectedBaseCollections || ['jurisprudencia', 'doctrina', 'normativa'];
@@ -386,6 +440,14 @@ async function handleSearchLibrary(body, token, siteUrl) {
         ? doctrina + '\n\n═══ BIBLIOTECA INTERNA ═══\n\n' + bibText
         : '═══ BIBLIOTECA INTERNA ═══\n\n' + bibText;
     }
+  }
+
+  // Process Drive content if available
+  if (driveContent && driveContent.text) {
+    const driveText = `[NORMATIVA ESPECÍFICA - Drive] ${driveContent.fileName || 'Documento'}\n${driveContent.text.substring(0, 3000)}`;
+    normativa = normativa
+      ? driveText + '\n\n---\n\n' + normativa
+      : driveText;
   }
 
   return { jurisprudencia, doctrina, normativa, custom_collections };
