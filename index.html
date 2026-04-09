@@ -3183,8 +3183,12 @@ async function sendMessage(){
           const isCuestionario=activeFn==='F3'||activeFn==='F4';
           const isConsulta=activeFn==='F0'||activeFn==='F2';
           /* Presupuestos generosos: TODAS las funciones necesitan acceder al expediente completo */
-          const MAX_CHARS=isVistaOrInforme?200000:isIRAC?40000:isAnalisis?50000:isCuestionario?30000:isConsulta?25000:15000;
-          const MAX_PER_DIL=isVistaOrInforme?12000:isIRAC?2000:isAnalisis?3000:isCuestionario?2000:isConsulta?1500:800;
+          /* FIX 76A: para secciones individuales F7 (diligencias/hechos/vistos) los párrafos
+             modelo son la fuente principal — no necesitamos volcar 200k chars de diligencias raw. */
+          const _f7Light = activeFn==='F7' && _currentVFSection &&
+            ['diligencias','hechos','vistos'].includes(_currentVFSection);
+          const MAX_CHARS=_f7Light?40000:isVistaOrInforme?200000:isIRAC?40000:isAnalisis?50000:isCuestionario?30000:isConsulta?25000:15000;
+          const MAX_PER_DIL=_f7Light?2500:isVistaOrInforme?12000:isIRAC?2000:isAnalisis?3000:isCuestionario?2000:isConsulta?1500:800;
           const MAX_DILS=200;
           let usedChars=0;
 
@@ -3283,9 +3287,16 @@ async function sendMessage(){
     }
     if(ctxInput)caseContext+=`\n\n## CONTEXTO ADICIONAL\n${ctxInput}`;
 
+    /* ── FIX 76A: Para secciones individuales de F7 que se construyen 100% desde
+       párrafos modelo (diligencias, hechos, vistos), saltamos RAG/Qdrant/Library/
+       Jurisprudencia para que el system prompt no se sature y los párrafos modelo
+       sobrevivan a la truncación de 150k caracteres. */
+    const _f7LightSection = activeFn==='F7' && _currentVFSection &&
+      ['diligencias','hechos','vistos'].includes(_currentVFSection);
+
     /* ── RAG: Buscar documentos relevantes del expediente ── */
     /* Skip for F5 IRAC (analiza solo datos del expediente, no necesita búsqueda adicional) */
-    if(activeFn!=='F5'&&currentCase&&typeof getRAGContext==='function'){
+    if(!_f7LightSection&&activeFn!=='F5'&&currentCase&&typeof getRAGContext==='function'){
       try{
         /* Increase RAG budget for Vista Fiscal and Informe en Derecho */
         if(typeof RAG_CONFIG!=='undefined'&&(activeFn==='F7'||activeFn==='F8')){
@@ -3303,7 +3314,7 @@ async function sendMessage(){
     }
 
     /* ── QDRANT: Buscar en biblioteca de libros, normas y jurisprudencia ── */
-    try{
+    if(!_f7LightSection)try{
       const ragFolder=document.getElementById('ragFolder')?.value||'';
       /* Todas las funciones consultan la biblioteca (Qdrant + libros + normas) */
       const shouldSearchLibrary=true;
@@ -3405,7 +3416,7 @@ async function sendMessage(){
     }catch(libErr){console.warn('Qdrant library search error:',libErr);}
 
     /* ── BIBLIOTECA SUPABASE: Buscar en libros de referencia + normativa interna ── */
-    {
+    if(!_f7LightSection){
     try{
       /* Para F7 análisis: keywords del caso en vez del prompt genérico */
       let libKeywords=text.substring(0,200);
