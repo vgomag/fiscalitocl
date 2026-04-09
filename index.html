@@ -1594,8 +1594,11 @@ function runCleanups(){while(_cleanupFns.length){try{_cleanupFns.pop()();}catch(
 
 /* #22: Global handler for unhandled promise rejections */
 window.addEventListener('unhandledrejection', e => {
+  const _reasonMsg = e.reason?.message || String(e.reason||'');
   console.warn('[Fiscalito] Unhandled rejection:', e.reason);
-  if(typeof showToast === 'function') showToast('⚠ Error inesperado');
+  /* Silenciar los timeouts de _withTimeout que antes ensuciaban la UI */
+  if(_reasonMsg==='timeout'){ e.preventDefault(); return; }
+  if(typeof showToast === 'function') showToast('⚠ Error inesperado: '+_reasonMsg.substring(0,80));
   e.preventDefault();
 });
 let sortField=null,sortDir='asc';
@@ -3052,7 +3055,16 @@ async function sendMessage(){
     fnInstr=fnInstr+'\n\n'+SHARED_WRITING_DIRECTIVE;
     const ctxInput=document.getElementById('fnCtxInput')?.value.trim()||'';
     const _ctxTimeout=(activeFn==='F7'||activeFn==='F8')?20000:8000;
-    const _withTimeout=(p,ms=_ctxTimeout)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+    /* ── FIX: _withTimeout con clearTimeout para no dejar promesas flotantes
+       que disparaban el handler global de unhandled rejection ("Error inesperado"). */
+    const _withTimeout=(p,ms=_ctxTimeout)=>{
+      let _tid;
+      const timeoutP=new Promise((_,rej)=>{_tid=setTimeout(()=>rej(new Error('timeout')),ms);});
+      return Promise.race([
+        Promise.resolve(p).finally(()=>clearTimeout(_tid)),
+        timeoutP
+      ]);
+    };
     let caseContext='';
     if(_caseSnapshot){
       const fmtArrCtx=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};

@@ -56,8 +56,8 @@ export default async (req) => {
       return new Response(JSON.stringify({ error: 'messages requerido' }), { status: 400, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
-    /* Limitar max_tokens */
-    const maxTokens = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 16000);
+    /* Limitar max_tokens — subido a 32000 para permitir vistas fiscales completas (F7) */
+    const maxTokens = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 32000);
 
     /* AbortController con timeout de 120s para streams largos */
     const controller = new AbortController();
