@@ -3600,9 +3600,18 @@ async function sendMessage(){
       renderAttachedFiles();
     }
 
+    /* FIX: max_tokens adaptativo para F7. Si se esta generando una seccion individual
+       (no la vista completa), basta con 12000 tokens y cabe en el limite de 5 min de
+       Netlify Pro. La seccion "completa" si pide los 32000. */
+    const _isF7Section=activeFn==='F7' && _currentVFSection && _currentVFSection!=='completa';
     const body={
       model:CLAUDE_SONNET,
-      max_tokens:activeFn==='F7'?32000:activeFn==='F8'?16000:activeFn==='F12'?6000:activeFn==='F5'?4096:4000,
+      max_tokens: _isF7Section ? 12000
+                : activeFn==='F7' ? 32000
+                : activeFn==='F8' ? 16000
+                : activeFn==='F12' ? 6000
+                : activeFn==='F5' ? 4096
+                : 4000,
       system:SYSTEM_PROMPT+(currentCase?'\n\n'+CASE_PROMPT:'')+'\n\n'+fnInstr+caseContext+formatInstr,
       messages:[...historyMsgs,{role:'user',content:userContent}],
       stream:true
@@ -3615,9 +3624,12 @@ async function sendMessage(){
       body.system = body.system.substring(0, _maxSystemLen) + '\n\n[Contexto truncado por límite de tokens]';
     }
 
-    /* #10: Stream timeout — 120 seconds maximum */
+    /* #10: Stream timeout — adaptativo segun funcion.
+       FIX: F7/F8 generan vistas fiscales largas. Tope de Netlify Pro = 5 min (300s).
+       Para F7/F8 dejamos 290s (margen de seguridad de 10s antes del corte de Netlify). */
+    const _streamTimeoutMs=(activeFn==='F7')?290000:(activeFn==='F8')?290000:(activeFn==='F5'||activeFn==='F6')?180000:120000;
     const _streamAbort=new AbortController();
-    const _streamTimeout=setTimeout(()=>{_streamAbort.abort();},120000);
+    const _streamTimeout=setTimeout(()=>{_streamAbort.abort();},_streamTimeoutMs);
     const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:_streamAbort.signal});
     removeTyping(typingId);
     if(!r.ok){const e=await r.text().catch(()=>'');try{const ej=JSON.parse(e);appendMsg('assistant','⚠️ Error: '+(ej.error||r.status));}catch{appendMsg('assistant','⚠️ Error: '+r.status);}return;}
@@ -3710,8 +3722,9 @@ async function sendMessage(){
     }catch(streamErr){
       streamError=true;
       if(streamErr.name==='AbortError'){
-        console.warn('Stream timeout: 120s exceeded');
-        showToast('⚠️ Streaming timeout: respuesta interrumpida después de 120 segundos');
+        const _secs=Math.round(_streamTimeoutMs/1000);
+        console.warn('Stream timeout: '+_secs+'s exceeded');
+        showToast('⚠️ Streaming timeout: respuesta interrumpida después de '+_secs+' segundos');
       }else{
         console.warn('Stream read error:',streamErr);
       }

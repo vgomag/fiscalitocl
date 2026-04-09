@@ -59,9 +59,14 @@ export default async (req) => {
     /* Limitar max_tokens — subido a 32000 para permitir vistas fiscales completas (F7) */
     const maxTokens = Math.min(Math.max(parseInt(body.max_tokens) || 2000, 1), 32000);
 
-    /* AbortController con timeout de 120s para streams largos */
+    /* AbortController con timeout adaptativo: hasta 10 min para vistas fiscales (F7/F8) */
+    const _maxTokensReq = parseInt(body.max_tokens) || 2000;
+    const _timeoutMs = _maxTokensReq >= 24000 ? 600000  /* 10 min para F7 */
+                     : _maxTokensReq >= 12000 ? 480000  /* 8 min para F8 */
+                     : _maxTokensReq >= 6000  ? 240000  /* 4 min para F5/F6/F12 */
+                     : 120000;                          /* 2 min para el resto */
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000);
+    const timeout = setTimeout(() => controller.abort(), _timeoutMs);
 
     let res;
     try {
