@@ -2565,6 +2565,32 @@ function pickFn(code){
   activeFn=code;
   const fn=FNS.find(f=>f.code===code)||FNS[0];
   const p=FN_PANELS[code];
+  /* ── FIX: Asegurar que el input/botón quede habilitado al cambiar de función.
+     Corrige casos en que un stream anterior, F11 (transcripción) o F12 dejan el input
+     bloqueado o con placeholder residual, impidiendo escribir (p.ej. en F0 dentro de un caso). */
+  try{
+    const _inp=document.getElementById('inputBox');
+    const _btn=document.getElementById('sendBtn');
+    if(_inp){
+      _inp.removeAttribute('disabled');
+      _inp.disabled=false;
+      _inp.readOnly=false;
+      _inp.style.pointerEvents='';
+      /* Restaurar placeholder por defecto (F11 lo cambia a "Sube audio/video...") */
+      if(code!=='F11')_inp.placeholder='Solicitud concreta…';
+    }
+    if(_btn){_btn.removeAttribute('disabled');_btn.disabled=false;}
+    /* Restaurar descBody oculto por F11 */
+    const _descBody=document.getElementById('fnDescBody');
+    if(_descBody && code!=='F11' && _descBody.style.display==='none'){
+      /* lo dejamos colapsado (por defecto) pero sin forzar ocultarlo como bloque F11 */
+    }
+    /* Restaurar msgs container (F11 lo esconde con style.display='none') */
+    const _msgs=document.getElementById('msgs');
+    if(_msgs && code!=='F11' && _msgs.children.length>0 && _msgs.style.display==='none'){
+      _msgs.style.display='flex';
+    }
+  }catch(_e){}
   /* Update badge and title */
   const badgeEl=document.getElementById('chatFnBadge');
   const titleEl=document.getElementById('chatFnTitle');
