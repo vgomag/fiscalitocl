@@ -1084,6 +1084,23 @@
       + '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);"><input type="radio" name="ceCollMode" value="priority" ' + (ce.collectionMode === 'priority' ? 'checked' : '') + ' onchange="ce_state.collectionMode=\'priority\'"> Priorizar seleccionadas</label>'
       + '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);"><input type="radio" name="ceCollMode" value="exclusive" ' + (ce.collectionMode === 'exclusive' ? 'checked' : '') + ' onchange="ce_state.collectionMode=\'exclusive\'"> Solo seleccionadas</label>'
       + '</div></div>'
+      // Search sources
+      + '<div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Fuentes de Búsqueda</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+      + [
+          { key: 'qdrant', label: 'Qdrant (Base interna)', icon: '🗄️' },
+          { key: 'pjud', label: 'PJUD (Poder Judicial)', icon: '⚖️' },
+          { key: 'cgr', label: 'CGR (Contraloría)', icon: '🏛️' },
+          { key: 'biblioteca', label: 'Biblioteca Jurídica', icon: '📚' }
+        ].map(function (s) {
+          var checked = ce.searchSources[s.key] !== false;
+          return '<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid ' + (checked ? 'var(--gold)' : 'var(--border)') + ';border-radius:5px;cursor:pointer;background:' + (checked ? 'var(--gold-glow)' : 'var(--surface)') + ';transition:all 0.2s;font-size:12px;">'
+            + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="window._ceToggleSource(\'' + s.key + '\')">'
+            + '<span>' + s.icon + ' ' + s.label + '</span></label>';
+        }).join('')
+      + '</div>'
+      + '<div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Selecciona las fuentes a consultar al buscar en biblioteca</div>'
+      + '</div>'
       // Action buttons
       + '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
       + '<button onclick="window._ceExtractFacts()" style="padding:10px 20px;background:var(--gold);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;" ' + (ce.extracting ? 'disabled' : '') + '>' + (ce.extracting ? '⏳ Extrayendo…' : '🔍 Extraer Hechos') + '</button>'
