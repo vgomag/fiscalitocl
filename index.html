@@ -3026,7 +3026,10 @@ async function sendMessage(){
   if(!navigator.onLine){showToast('⚠ Sin conexión a internet');return;}
   /* #9: Snapshot del caso actual para evitar race condition */
   const _caseSnapshot=currentCase?{...currentCase}:null;
-  if(_caseSnapshot)await loadChatHistory(_caseSnapshot.id);
+  /* FIX 76A: en continuación NO recargamos historial (ya lo tenemos en memoria) */
+  const _isCont=_isContinuationCall; _isContinuationCall=false;
+  const _contLabel=_continuationVisibleLabel; _continuationVisibleLabel='';
+  if(_caseSnapshot && !_isCont) await loadChatHistory(_caseSnapshot.id);
   inputBox.value='';autoResize(inputBox);
   const msgs=document.getElementById('msgs');
   const panel=document.getElementById('fnPanel');
@@ -3035,7 +3038,8 @@ async function sendMessage(){
   document.getElementById('chatMsgCountBtn').style.display='';
   document.getElementById('exportTxtBtn').style.display='';
   document.getElementById('exportMdBtn').style.display='';
-  appendMsg('user',text);
+  /* FIX 76A: en continuación mostramos solo una etiqueta corta, no el prompt enorme */
+  appendMsg('user', _isCont ? (_contLabel||'▶ Continuar') : text);
   const typingId=showTyping();
   _sendingMessage=true;
   setLoading(true);
@@ -3820,6 +3824,9 @@ let _activeReader=null;
 let _lastPartialText='';
 let _lastStreamAborted=false;
 let _lastVFSectionForContinue=null;
+/* FIX 76A continuación: flag y label visible para evitar reconstruir contexto pesado */
+let _isContinuationCall=false;
+let _continuationVisibleLabel='';
 
 function abortAndContinue(){
   /* Cancelar el reader activo si existe */
@@ -3865,6 +3872,9 @@ REGLAS ESTRICTAS:
 5. Si estabas numerando considerandos (ej: ibas en el 15°), continúa desde el siguiente número (16°).
 6. Mantén el mismo estilo, formato y nivel de detalle que venías usando.`;
 
+  /* FIX 76A: marcar como continuación para que sendMessage salte el contexto pesado */
+  _isContinuationCall=true;
+  _continuationVisibleLabel='▶ Continuar'+(vfSec?' '+(VF_SECTIONS.find(s=>s.id===vfSec)?.label||vfSec):'');
   document.getElementById('inputBox').value=continuePrompt;
   sendMessage();
 }
