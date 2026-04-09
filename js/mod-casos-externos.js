@@ -9,7 +9,8 @@
 
   // ─── CONFIGURACIÓN Y CONSTANTES ─────────────────────────────────
 
-  const CE_SB_FN = (typeof SB_URL !== 'undefined' ? SB_URL : 'https://zgoxrzbkftzulsphmtfk.supabase.co') + '/functions/v1';
+  // Endpoint: Netlify function (replaces missing Supabase edge function)
+  const CE_NETLIFY_FN = '/.netlify/functions';
 
   const ANALYSIS_MODES = [
     { value: 'disciplinario', label: 'Procedimiento Disciplinario', description: 'Investigación sumaria o sumario administrativo' },
@@ -143,6 +144,8 @@
     collectionMode: 'priority',
     customCollections: [],
     priorityCollections: [],
+    // Search sources
+    searchSources: { qdrant: true, pjud: true, cgr: true, biblioteca: true },
     // Extraction
     extractedFacts: [],
     chronology: [],
@@ -457,7 +460,7 @@
     ce.extracting = true;
     _renderTab();
     try {
-      var data = await _ceFetchJSON(CE_SB_FN + '/analyze-external-case', {
+      var data = await _ceFetchJSON(CE_NETLIFY_FN + '/analyze-external-case', {
         action: 'extract_facts',
         documentsContext: ce.documentsContext.substring(0, 50000),
         caseType: ce.caseType,
@@ -489,7 +492,7 @@
     ce.searching = true;
     _renderTab();
     try {
-      var data = await _ceFetchJSON(CE_SB_FN + '/analyze-external-case', {
+      var data = await _ceFetchJSON(CE_NETLIFY_FN + '/analyze-external-case', {
         action: 'search_library',
         topic: topic,
         caseType: ce.caseType,
@@ -565,7 +568,7 @@
     });
 
     try {
-      var r = await _ceFetch(CE_SB_FN + '/analyze-external-case', {
+      var r = await _ceFetch(CE_NETLIFY_FN + '/analyze-external-case', {
         action: 'generate_section',
         section: sectionId,
         sectionPrompt: prompts[sectionId] || '',
@@ -690,7 +693,7 @@
         return { role: m.role, content: m.content.substring(0, 5000) };
       });
 
-      var r = await _ceFetch(CE_SB_FN + '/external-case-chat', {
+      var r = await _ceFetch(CE_NETLIFY_FN + '/external-case-chat', {
         analysisId: ce.analysisId,
         message: fullMsg,
         conversationHistory: history.slice(0, -1) // exclude the current message
@@ -765,7 +768,7 @@
     _renderWritings();
 
     try {
-      var r = await _ceFetch(CE_SB_FN + '/external-case-chat', {
+      var r = await _ceFetch(CE_NETLIFY_FN + '/external-case-chat', {
         analysisId: ce.analysisId,
         message: prompt,
         conversationHistory: []
