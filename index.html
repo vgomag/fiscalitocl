@@ -3613,13 +3613,14 @@ async function sendMessage(){
 
     /* FIX: max_tokens adaptativo para F7. Si se esta generando una seccion individual
        (no la vista completa), basta con 12000 tokens y cabe en el limite de 5 min de
-       Netlify Pro. La seccion "completa" si pide los 32000. */
+       Netlify Pro. FIX 76A: la seccion "completa" tambien baja a 16000, porque 32000
+       tokens toman ~3 min para generarse y el riesgo de corte por Netlify es muy alto. */
     const _isF7Section=activeFn==='F7' && _currentVFSection && _currentVFSection!=='completa';
     const body={
       model:CLAUDE_SONNET,
       max_tokens: _isF7Section ? 12000
-                : activeFn==='F7' ? 32000
-                : activeFn==='F8' ? 16000
+                : activeFn==='F7' ? 16000
+                : activeFn==='F8' ? 12000
                 : activeFn==='F12' ? 6000
                 : activeFn==='F5' ? 4096
                 : 4000,
@@ -3630,9 +3631,17 @@ async function sendMessage(){
 
     /* #28: Presupuesto máximo de tokens para system prompt (~150KB ≈ 40K tokens) */
     const _maxSystemLen = 150000;
+    const _origSysLen = body.system ? body.system.length : 0;
     if(body.system && body.system.length > _maxSystemLen){
       console.warn('[sendMessage] System prompt truncated from', body.system.length, 'to', _maxSystemLen);
       body.system = body.system.substring(0, _maxSystemLen) + '\n\n[Contexto truncado por límite de tokens]';
+    }
+    /* FIX 76A: log visible del tamaño del request para diagnosticar trabas */
+    const _sysKB = Math.round((body.system||'').length/1024);
+    const _msgsKB = Math.round(JSON.stringify(body.messages||[]).length/1024);
+    console.log('[Fiscalito] '+activeFn+(_currentVFSection?'/'+_currentVFSection:'')+' → system='+_sysKB+'KB ('+(_origSysLen>_maxSystemLen?'truncado de '+Math.round(_origSysLen/1024)+'KB':'sin truncar')+') · messages='+_msgsKB+'KB · max_tokens='+body.max_tokens);
+    if(activeFn==='F7'||activeFn==='F8'){
+      showToast('📤 Enviando '+(_sysKB+_msgsKB)+'KB · max '+body.max_tokens+' tokens · esto puede tardar 1-3 min');
     }
 
     /* #10: Stream timeout — adaptativo segun funcion.
@@ -3641,7 +3650,11 @@ async function sendMessage(){
     const _streamTimeoutMs=(activeFn==='F7')?290000:(activeFn==='F8')?290000:(activeFn==='F5'||activeFn==='F6')?180000:120000;
     const _streamAbort=new AbortController();
     const _streamTimeout=setTimeout(()=>{_streamAbort.abort();},_streamTimeoutMs);
+    /* FIX 76A: medir tiempo hasta primer byte y hasta primer token para diagnosticar trabas */
+    const _t0=Date.now();
     const r=await authFetch(CHAT_STREAM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:_streamAbort.signal});
+    const _ttfb=Date.now()-_t0;
+    console.log('[Fiscalito] '+activeFn+' → headers en '+_ttfb+'ms (status '+r.status+')');
     removeTyping(typingId);
     if(!r.ok){const e=await r.text().catch(()=>'');try{const ej=JSON.parse(e);appendMsg('assistant','⚠️ Error: '+(ej.error||r.status));}catch{appendMsg('assistant','⚠️ Error: '+r.status);}return;}
 
@@ -3688,6 +3701,10 @@ async function sendMessage(){
     const decoder=new TextDecoder();
     let sseBuffer='';
     let streamError=false;
+    /* FIX 76A: telemetria del stream */
+    let _firstTokenAt=0;
+    let _lastChunkAt=Date.now();
+    let _chunkCount=0;
 
     /* ── Throttled render: solo re-renderizar markdown cada 80ms ── */
     let _renderPending=false;
@@ -3709,6 +3726,8 @@ async function sendMessage(){
       while(true){
         const{done,value}=await reader.read();
         if(done)break;
+        _lastChunkAt=Date.now();
+        _chunkCount++;
         sseBuffer+=decoder.decode(value,{stream:true});
         const lines=sseBuffer.split('\n');
         sseBuffer=lines.pop()||'';
@@ -3719,6 +3738,7 @@ async function sendMessage(){
           try{
             const evt=JSON.parse(payload);
             if(evt.type==='content_block_delta'&&evt.delta?.type==='text_delta'){
+              if(!_firstTokenAt){_firstTokenAt=Date.now();console.log('[Fiscalito] '+activeFn+' → primer token en '+(_firstTokenAt-_t0)+'ms');}
               fullText+=evt.delta.text;
               _lastPartialText=fullText;
               scheduleRender();
@@ -3726,10 +3746,12 @@ async function sendMessage(){
             if(evt.type==='error'){
               streamError=true;
               console.warn('Stream error event:',evt);
+              if(evt.error?.message)showToast('⚠️ Anthropic: '+evt.error.message.substring(0,100));
             }
           }catch(parseErr){console.warn('SSE JSON parse error:',parseErr.message,payload?.substring(0,100));}
         }
       }
+      console.log('[Fiscalito] '+activeFn+' → stream OK · '+_chunkCount+' chunks · '+fullText.length+' chars · '+(Date.now()-_t0)+'ms total');
     }catch(streamErr){
       streamError=true;
       if(streamErr.name==='AbortError'){
