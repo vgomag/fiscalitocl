@@ -508,16 +508,39 @@
     ce.extracting = true;
     _renderTab();
     try {
-      var data = await _ceFetchJSON(CE_NETLIFY_FN + '/analyze-external-case', {
-        action: 'extract_facts',
-        documentsContext: ce.documentsContext.substring(0, 50000),
-        caseType: ce.caseType,
-        institution: ce.institution
-      });
-      ce.extractedFacts = data.facts || [];
-      ce.chronology = data.chronology || [];
-      ce.participants = data.participants || [];
-      ce.mentionedNorms = data.mentioned_norms || [];
+      var system = 'Eres un experto jurídico chileno especializado en análisis de expedientes administrativos y laborales.\n'
+        + 'Tu tarea es extraer información estructurada de documentos de un caso.\n'
+        + 'Responde SIEMPRE en formato JSON válido, sin markdown ni bloques de código.\n'
+        + 'PROTECCIÓN DE DATOS: No incluyas nombres reales, RUT, correos ni teléfonos. Usa roles genéricos.';
+      var userPrompt = 'Analiza los siguientes documentos de un caso'
+        + (ce.caseType ? ' de tipo "' + ce.caseType + '"' : '')
+        + (ce.institution ? ' en la institución "' + ce.institution + '"' : '') + '.\n\n'
+        + 'DOCUMENTOS:\n' + ce.documentsContext.substring(0, 50000)
+        + '\n\nExtrae la siguiente información en formato JSON con esta estructura exacta:\n'
+        + '{\n  "facts": [\n    {"fact": "descripción del hecho", "relevance": "alta|media|baja", "source": "fuente"}\n  ],\n'
+        + '  "chronology": [\n    {"date": "fecha o período", "event": "descripción del evento"}\n  ],\n'
+        + '  "participants": [\n    {"name": "rol genérico (NO nombre real)", "role": "rol procesal", "estamento": "estamento si aplica"}\n  ],\n'
+        + '  "mentioned_norms": ["Ley X art. Y", "DFL Z"]\n}\n\n'
+        + 'REGLAS:\n- Identifica TODOS los hechos relevantes, ordenados por importancia\n'
+        + '- La cronología debe estar en orden temporal\n'
+        + '- Clasifica relevancia como "alta", "media" o "baja"\n'
+        + '- Para participantes, usa roles genéricos en vez de nombres reales\n'
+        + '- Incluye TODAS las normas mencionadas o aplicables';
+
+      var text = await _ceStreamClaude(system, userPrompt, { maxTokens: 4096 });
+
+      // Parse JSON from response
+      var parsed = {};
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        var m = text.match(/\{[\s\S]*\}/);
+        if (m) { try { parsed = JSON.parse(m[0]); } catch (e2) { parsed = {}; } }
+      }
+      ce.extractedFacts = parsed.facts || [];
+      ce.chronology = parsed.chronology || [];
+      ce.participants = parsed.participants || [];
+      ce.mentionedNorms = parsed.mentioned_norms || [];
       ce.activeTab = 'extraccion';
       showToast('✓ Hechos extraídos: ' + ce.extractedFacts.length);
     } catch (e) {
