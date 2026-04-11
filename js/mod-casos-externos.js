@@ -136,6 +136,11 @@
     focusTemplates: [],
     focusFree: '',
     driveLink: '',
+    // Case folder (Drive)
+    caseFolderId: null,
+    caseFolderUrl: null,
+    caseFolderFiles: [],
+    caseFolderLoading: false,
     // Documents
     documents: [],
     documentsContext: '',
@@ -353,6 +358,8 @@
         focus_templates: ce.focusTemplates,
         focus_free: ce.focusFree,
         drive_link: ce.driveLink,
+        case_folder_id: ce.caseFolderId,
+        case_folder_url: ce.caseFolderUrl,
         documents_context: (ce.documentsContext || '').substring(0, 200000),
         extracted_facts: ce.extractedFacts,
         chronology: ce.chronology,
@@ -399,6 +406,9 @@
       ce.focusTemplates = d.focus_templates || [];
       ce.focusFree = d.focus_free || '';
       ce.driveLink = d.drive_link || '';
+      ce.caseFolderId = d.case_folder_id || null;
+      ce.caseFolderUrl = d.case_folder_url || null;
+      ce.caseFolderFiles = [];
       ce.documentsContext = d.documents_context || '';
       ce.extractedFacts = d.extracted_facts || [];
       ce.chronology = d.chronology || [];
@@ -417,6 +427,8 @@
       await _loadChatMessages();
       showToast('✓ Caso cargado');
       _renderAll();
+      // Auto-load Drive folder files if linked
+      if (ce.caseFolderId) { _ceRefreshFolder(); }
     } catch (e) { console.error('Load analysis error:', e); showToast('✗ Error al cargar'); }
   }
 
@@ -443,6 +455,10 @@
     ce.focusTemplates = [];
     ce.focusFree = '';
     ce.driveLink = '';
+    ce.caseFolderId = null;
+    ce.caseFolderUrl = null;
+    ce.caseFolderFiles = [];
+    ce.caseFolderLoading = false;
     ce.documents = [];
     ce.documentsContext = '';
     ce.selectedBaseCollections = ['jurisprudencia', 'doctrina', 'normativa'];
@@ -500,9 +516,23 @@
 
   // ─── EXTRACT FACTS ──────────────────────────────────────────────
 
+  function _getDriveFolderContext() {
+    if (!ce.caseFolderFiles || !ce.caseFolderFiles.length) return '';
+    var ctx = '\n\n=== ARCHIVOS EN CARPETA DRIVE DEL CASO ===\n';
+    ctx += 'La carpeta Drive del caso contiene los siguientes archivos como antecedentes:\n';
+    ce.caseFolderFiles.forEach(function (f) {
+      var sizeStr = f.size ? ' (' + (parseInt(f.size) / 1024).toFixed(0) + ' KB)' : '';
+      ctx += '- ' + (f._path || f.name) + sizeStr + '\n';
+    });
+    ctx += '=== FIN ARCHIVOS DRIVE ===\n';
+    return ctx;
+  }
+
   async function _extractFacts() {
-    if (!ce.documentsContext || ce.documentsContext.length < 50) {
-      showToast('⚠ Carga documentos primero');
+    var hasDocs = ce.documentsContext && ce.documentsContext.length >= 50;
+    var hasDriveFiles = ce.caseFolderFiles && ce.caseFolderFiles.length > 0;
+    if (!hasDocs && !hasDriveFiles) {
+      showToast('⚠ Carga documentos o vincula una carpeta de Drive primero');
       return;
     }
     ce.extracting = true;
@@ -515,7 +545,7 @@
       var userPrompt = 'Analiza los siguientes documentos de un caso'
         + (ce.caseType ? ' de tipo "' + ce.caseType + '"' : '')
         + (ce.institution ? ' en la institución "' + ce.institution + '"' : '') + '.\n\n'
-        + 'DOCUMENTOS:\n' + ce.documentsContext.substring(0, 50000)
+        + 'DOCUMENTOS:\n' + (ce.documentsContext || '').substring(0, 50000) + _getDriveFolderContext()
         + '\n\nExtrae la siguiente información en formato JSON con esta estructura exacta:\n'
         + '{\n  "facts": [\n    {"fact": "descripción del hecho", "relevance": "alta|media|baja", "source": "fuente"}\n  ],\n'
         + '  "chronology": [\n    {"date": "fecha o período", "event": "descripción del evento"}\n  ],\n'
@@ -649,6 +679,7 @@
       var system = SECTION_SYSTEM_PROMPTS[ce.analysisMode] || SECTION_SYSTEM_PROMPTS.disciplinario;
       var userPrompt = (prompts[sectionId] || 'Genera la sección "' + sectionId + '" del análisis.');
       if (ce.documentsContext) userPrompt += '\n\nDOCUMENTOS DEL EXPEDIENTE:\n' + ce.documentsContext.substring(0, 40000);
+      userPrompt += _getDriveFolderContext();
       if (ce.caseType) userPrompt += '\n\nTIPO DE CASO: ' + ce.caseType;
       if (ce.institution) userPrompt += '\nINSTITUCIÓN: ' + ce.institution;
       if (ce.estamento) userPrompt += '\nESTAMENTO: ' + ce.estamento;
@@ -743,6 +774,7 @@
         + (ce.caseType ? 'Tipo: ' + ce.caseType + '\n' : '')
         + (ce.institution ? 'Institución: ' + ce.institution + '\n' : '')
         + (ce.documentsContext ? 'Documentos (resumen):\n' + ce.documentsContext.substring(0, 20000) + '\n' : '')
+        + _getDriveFolderContext()
         + (ce.extractedFacts.length ? 'Hechos extraídos:\n' + ce.extractedFacts.map(function (f, i) {
             return (i + 1) + '. ' + (typeof f === 'string' ? f : (f.fact || ''));
           }).join('\n') + '\n' : '');
@@ -834,6 +866,7 @@
       var writingSystem = (SECTION_SYSTEM_PROMPTS[ce.analysisMode] || SECTION_SYSTEM_PROMPTS.disciplinario)
         + '\nEres además un experto en redacción de escritos judiciales chilenos.'
         + (ce.documentsContext ? '\n\nDocumentos del caso (resumen):\n' + ce.documentsContext.substring(0, 20000) : '')
+        + _getDriveFolderContext()
         + (ce.extractedFacts.length ? '\n\nHechos extraídos:\n' + ce.extractedFacts.map(function (f, i) {
             return (i + 1) + '. ' + (typeof f === 'string' ? f : (f.fact || ''));
           }).join('\n') : '');
@@ -1006,6 +1039,118 @@
     });
     if (!text) { showToast('⚠ No hay secciones generadas'); return; }
     navigator.clipboard.writeText(text).then(function () { showToast('✓ Copiado al portapapeles'); });
+  }
+
+  // ─── CASE FOLDER (DRIVE) ─────────────────────────────────────────
+
+  async function _ceLinkFolder() {
+    var url = (document.getElementById('ce-folder-url') || {}).value || '';
+    if (!url.trim()) { showToast('⚠ Ingresa un enlace de Google Drive'); return; }
+    var folderId = typeof extractFolderIdFromUrl === 'function' ? extractFolderIdFromUrl(url) : null;
+    if (!folderId) { showToast('⚠ No se pudo extraer el ID de la carpeta. Verifica el enlace.'); return; }
+    ce.caseFolderId = folderId;
+    ce.caseFolderUrl = url.trim();
+    showToast('✓ Carpeta vinculada');
+    _renderTab();
+    _ceRefreshFolder();
+  }
+
+  function _ceUnlinkFolder() {
+    if (!confirm('¿Desvincular la carpeta del caso?')) return;
+    ce.caseFolderId = null;
+    ce.caseFolderUrl = null;
+    ce.caseFolderFiles = [];
+    _renderTab();
+    showToast('✓ Carpeta desvinculada');
+  }
+
+  async function _ceCreateFolder() {
+    var name = prompt('Nombre de la carpeta:', ce.caseName || 'Caso Externo');
+    if (!name) return;
+    try {
+      showToast('Creando carpeta en Drive…');
+      var r = await callDrive({ action: 'createFolder', caseId: ce.analysisId || 'ce-temp', folderName: name });
+      ce.caseFolderId = r.folder.id;
+      ce.caseFolderUrl = 'https://drive.google.com/drive/folders/' + r.folder.id;
+      showToast('✓ Carpeta creada');
+      _renderTab();
+      _ceRefreshFolder();
+    } catch (e) {
+      showToast('✗ Error al crear carpeta: ' + e.message);
+    }
+  }
+
+  async function _ceRefreshFolder() {
+    if (!ce.caseFolderId) return;
+    ce.caseFolderLoading = true;
+    _renderCaseFolderFiles();
+    try {
+      var r = await callDrive({ action: 'list', folderId: ce.caseFolderId, recursive: true, maxDepth: 3 });
+      ce.caseFolderFiles = r.files || [];
+      showToast('✓ ' + ce.caseFolderFiles.length + ' archivo(s) encontrados');
+    } catch (e) {
+      console.warn('[CE] Drive folder error:', e.message);
+      ce.caseFolderFiles = [];
+    }
+    ce.caseFolderLoading = false;
+    _renderCaseFolderFiles();
+  }
+
+  function _renderCaseFolderFiles() {
+    var el = document.getElementById('ce-folder-files');
+    if (!el) return;
+    if (ce.caseFolderLoading) {
+      el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px;">⏳ Cargando archivos…</div>';
+      return;
+    }
+    if (!ce.caseFolderFiles.length) {
+      el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px;">📂 Carpeta vacía'
+        + (ce.caseFolderUrl ? '<br><a href="' + _escHtml(ce.caseFolderUrl) + '" target="_blank" style="color:var(--gold);font-size:11px;">Abrir en Drive ↗</a>' : '')
+        + '</div>';
+      return;
+    }
+    // Group files by path
+    var byPath = {};
+    ce.caseFolderFiles.forEach(function (f) {
+      var parts = (f._path || f.name).split('/');
+      var folder = parts.length > 1 ? parts.slice(0, -1).join('/') : 'Raíz';
+      if (!byPath[folder]) byPath[folder] = [];
+      byPath[folder].push(f);
+    });
+    var folderNames = Object.keys(byPath).sort(function (a, b) {
+      if (a === 'Raíz') return -1;
+      if (b === 'Raíz') return 1;
+      return a.localeCompare(b);
+    });
+    function _fileIcon(f) {
+      var m = f.mimeType || '';
+      if (m.includes('pdf')) return '📕';
+      if (m.includes('spreadsheet')) return '📊';
+      if (m.includes('document')) return '📝';
+      if (m.includes('presentation')) return '📙';
+      if (m.includes('image')) return '🖼';
+      return '📄';
+    }
+    var html = '<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px;font-weight:500;">' + ce.caseFolderFiles.length + ' archivo(s) en ' + folderNames.length + ' carpeta(s)</div>';
+    folderNames.forEach(function (folder) {
+      var flist = byPath[folder];
+      html += '<div style="margin-bottom:8px;">';
+      html += '<div style="font-size:10px;font-weight:600;color:var(--gold);padding:3px 0;border-bottom:1px solid var(--border);margin-bottom:3px;">📁 ' + _escHtml(folder) + '</div>';
+      flist.forEach(function (f) {
+        var link = f.webViewLink || '#';
+        var sizeStr = f.size ? (parseInt(f.size) / 1024).toFixed(0) + ' KB' : 'Doc';
+        html += '<a href="' + _escHtml(link) + '" target="_blank" style="display:flex;align-items:center;gap:6px;padding:4px 8px;text-decoration:none;color:var(--text);border-radius:4px;transition:background 0.1s;" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
+        html += '<span style="font-size:13px;">' + _fileIcon(f) + '</span>';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(f.name) + '</div>';
+        html += '<div style="font-size:9px;color:var(--text-muted);">' + sizeStr + '</div>';
+        html += '</div>';
+        html += '<span style="font-size:9px;color:var(--text-muted);">↗</span>';
+        html += '</a>';
+      });
+      html += '</div>';
+    });
+    el.innerHTML = html;
   }
 
   // ─── DOCUMENT UPLOAD HANDLER ─────────────────────────────────────
@@ -1224,6 +1369,31 @@
       // Drive link
       + '<div><label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Enlace Google Drive (normativa, opcional)</label>'
       + '<input type="text" value="' + _escHtml(ce.driveLink) + '" onchange="ce_state.driveLink=this.value" placeholder="https://drive.google.com/..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;"></div>'
+      // Case Folder (Drive)
+      + '<div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface);">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);">📁 Carpeta del Caso (Drive)</div>'
+      + (ce.caseFolderId ? '<div style="display:flex;gap:6px;">'
+        + '<button onclick="window._ceRefreshFolder()" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface);border-radius:4px;font-size:11px;cursor:pointer;color:var(--text);font-family:inherit;" title="Actualizar">🔄</button>'
+        + '<button onclick="window._ceUnlinkFolder()" style="padding:4px 10px;border:1px solid var(--red);background:none;border-radius:4px;font-size:11px;cursor:pointer;color:var(--red);font-family:inherit;" title="Desvincular">✕ Desvincular</button>'
+        + '</div>' : '')
+      + '</div>'
+      + (ce.caseFolderId
+        ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:var(--gold-glow);border:1px solid var(--gold);border-radius:5px;">'
+          + '<span style="font-size:14px;">✓</span>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:12px;font-weight:500;color:var(--gold);">Carpeta vinculada</div>'
+          + '<a href="' + _escHtml(ce.caseFolderUrl || '') + '" target="_blank" style="font-size:10px;color:var(--text-muted);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;">Abrir en Drive ↗</a>'
+          + '</div></div>'
+          + '<div id="ce-folder-files" style="max-height:250px;overflow-y:auto;"></div>'
+        : '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Vincula una carpeta de Google Drive para subir y gestionar los antecedentes del caso.</div>'
+          + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
+          + '<input type="text" id="ce-folder-url" placeholder="https://drive.google.com/drive/folders/..." style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;">'
+          + '<button onclick="window._ceLinkFolder()" style="padding:7px 14px;background:var(--gold);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Vincular</button>'
+          + '</div>'
+          + '<div style="text-align:center;margin-top:4px;"><button onclick="window._ceCreateFolder()" style="padding:6px 14px;background:none;color:var(--gold);border:1px solid var(--gold);border-radius:5px;font-size:11px;cursor:pointer;font-family:inherit;">+ Crear carpeta nueva</button></div>'
+      )
+      + '</div>'
       // Documents upload
       + '<div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Documentos del Expediente</div>'
       + '<div style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'var(--gold)\'" onmouseout="this.style.borderColor=\'var(--border)\'" onclick="document.getElementById(\'ce-doc-input\').click()">'
@@ -1539,6 +1709,10 @@
   window._ceToggleSection = _toggleSection;
   window._ceDocUpload = _handleDocUpload;
   window._ceRemoveDoc = _removeDoc;
+  window._ceLinkFolder = _ceLinkFolder;
+  window._ceUnlinkFolder = _ceUnlinkFolder;
+  window._ceCreateFolder = _ceCreateFolder;
+  window._ceRefreshFolder = _ceRefreshFolder;
   window._ceChatFileUpload = _handleChatFileUpload;
   window._ceExtractFacts = _extractFacts;
   window._ceSearchLibrary = _searchLibrary;
