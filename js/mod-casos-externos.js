@@ -495,22 +495,26 @@
         .order('created_at', { ascending: true })
         .limit(50);
       ce.chatMessages = (res.data || []).map(function (m) {
-        return { role: m.role, content: m.content };
+        return { id: m.id, role: m.role, content: m.content };
       });
     } catch (e) { console.warn('Load chat error:', e); }
   }
 
-  async function _saveChatMessage(role, content) {
+  async function _saveChatMessage(role, content, msgIdx) {
     if (!ce.analysisId) return;
     var db = _sb();
     if (!db) return;
     try {
-      await db.from('external_case_messages').insert({
+      var res = await db.from('external_case_messages').insert({
         analysis_id: ce.analysisId,
         user_id: _userId(),
         role: role,
         content: content
-      });
+      }).select('id').single();
+      // Store the DB id on the message object
+      if (res.data && res.data.id && typeof msgIdx === 'number' && ce.chatMessages[msgIdx]) {
+        ce.chatMessages[msgIdx].id = res.data.id;
+      }
     } catch (e) { console.warn('Save chat msg error:', e); }
   }
 
@@ -761,12 +765,13 @@
 
     var fullMsg = msg + fileCtx;
     ce.chatMessages.push({ role: 'user', content: fullMsg });
+    var userMsgIdx = ce.chatMessages.length - 1;
     ce.chatInput = '';
     ce.chatLoading = true;
     _renderChat();
 
     // Save user message
-    _saveChatMessage('user', fullMsg);
+    _saveChatMessage('user', fullMsg, userMsgIdx);
 
     try {
       var chatSystem = (SECTION_SYSTEM_PROMPTS[ce.analysisMode] || SECTION_SYSTEM_PROMPTS.disciplinario)
@@ -824,7 +829,7 @@
       }
 
       // Save assistant response
-      _saveChatMessage('assistant', ce.chatMessages[idx].content);
+      _saveChatMessage('assistant', ce.chatMessages[idx].content, idx);
     } catch (e) {
       console.error('Chat error:', e);
       ce.chatMessages.push({ role: 'assistant', content: '✗ Error al procesar la consulta. Intenta de nuevo.' });
@@ -1603,7 +1608,10 @@
       return '<div style="display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start') + ';">'
         + '<div style="max-width:80%;padding:10px 14px;border-radius:' + (isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px') + ';background:' + (isUser ? 'var(--gold)' : 'var(--surface2)') + ';color:' + (isUser ? '#fff' : 'var(--text)') + ';font-size:13px;line-height:1.6;border:' + (isUser ? 'none' : '1px solid var(--border)') + ';">'
         + (isUser ? _escHtml(m.content) : _markdownToHtml(m.content))
-        + (!isUser && m.content ? '<div style="margin-top:6px;display:flex;gap:6px;"><button onclick="window._ceCopyMsg(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📋 Copiar</button><button onclick="window._ceExportChatMsgWord(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📄 Word</button></div>' : '')
+        + '<div style="margin-top:6px;display:flex;gap:6px;">'
+        + (!isUser && m.content ? '<button onclick="window._ceCopyMsg(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📋 Copiar</button><button onclick="window._ceExportChatMsgWord(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📄 Word</button>' : '')
+        + '<button onclick="window._ceDeleteMsg(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;" title="Eliminar mensaje">🗑️ Eliminar</button>'
+        + '</div>'
         + '</div></div>';
     }).join('');
 
