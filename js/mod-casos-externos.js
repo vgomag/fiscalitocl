@@ -1750,6 +1750,24 @@
       navigator.clipboard.writeText(msg.content).then(function () { showToast('✓ Copiado'); });
     }
   };
+  window._ceDeleteMsg = async function (idx) {
+    var msg = ce.chatMessages[idx];
+    if (!msg) return;
+    if (!confirm('¿Eliminar este mensaje?')) return;
+    // Delete from Supabase if it has an id
+    if (msg.id) {
+      var db = _sb();
+      if (db) {
+        try {
+          await db.from('external_case_messages').delete().eq('id', msg.id);
+        } catch (e) { console.warn('Delete chat msg error:', e); }
+      }
+    }
+    // Remove from local array
+    ce.chatMessages.splice(idx, 1);
+    _renderChatMessages();
+    showToast('✓ Mensaje eliminado');
+  };
   window._ceExportChatMsgWord = async function (idx) {
     var msg = ce.chatMessages[idx];
     if (!msg || !msg.content) { showToast('⚠ Sin contenido para exportar'); return; }
