@@ -904,7 +904,19 @@
     try {
       // Get docx library
       var d = await _waitDocx();
-      var sectionProps = await getWordSectionProps(d);
+      // Section props SIN logo para casos externos
+      var sectionProps = {
+        properties: {
+          page: {
+            size: { width: WORD_FORMAT.pageWidth, height: WORD_FORMAT.pageHeight },
+            margin: {
+              top: WORD_FORMAT.marginTop, bottom: WORD_FORMAT.marginBottom,
+              left: WORD_FORMAT.marginLeft, right: WORD_FORMAT.marginRight,
+            },
+          },
+        },
+        footers: { default: makeWordDocFooter(d) },
+      };
 
       var children = [];
 
@@ -1591,7 +1603,7 @@
       return '<div style="display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start') + ';">'
         + '<div style="max-width:80%;padding:10px 14px;border-radius:' + (isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px') + ';background:' + (isUser ? 'var(--gold)' : 'var(--surface2)') + ';color:' + (isUser ? '#fff' : 'var(--text)') + ';font-size:13px;line-height:1.6;border:' + (isUser ? 'none' : '1px solid var(--border)') + ';">'
         + (isUser ? _escHtml(m.content) : _markdownToHtml(m.content))
-        + (!isUser && m.content ? '<div style="margin-top:6px;display:flex;gap:6px;"><button onclick="window._ceCopyMsg(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📋 Copiar</button></div>' : '')
+        + (!isUser && m.content ? '<div style="margin-top:6px;display:flex;gap:6px;"><button onclick="window._ceCopyMsg(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📋 Copiar</button><button onclick="window._ceExportChatMsgWord(' + idx + ')" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;">📄 Word</button></div>' : '')
         + '</div></div>';
     }).join('');
 
@@ -1730,6 +1742,89 @@
       navigator.clipboard.writeText(msg.content).then(function () { showToast('✓ Copiado'); });
     }
   };
+  window._ceExportChatMsgWord = async function (idx) {
+    var msg = ce.chatMessages[idx];
+    if (!msg || !msg.content) { showToast('⚠ Sin contenido para exportar'); return; }
+
+    showToast('📄 Generando Word…');
+    try {
+      var d = await _waitDocx();
+
+      // Section props SIN logo — solo márgenes y footer con paginación
+      var sectionPropsNoLogo = {
+        properties: {
+          page: {
+            size: { width: WORD_FORMAT.pageWidth, height: WORD_FORMAT.pageHeight },
+            margin: {
+              top: WORD_FORMAT.marginTop, bottom: WORD_FORMAT.marginBottom,
+              left: WORD_FORMAT.marginLeft, right: WORD_FORMAT.marginRight,
+            },
+          },
+        },
+        footers: { default: makeWordDocFooter(d) },
+      };
+
+      var children = [];
+
+      // Title
+      children.push(makeHeading('CONSULTA — CASO EXTERNO', d, 1));
+
+      // Case metadata
+      if (ce.caseName) {
+        children.push(makePara('Caso: ' + ce.caseName, d, { center: true, after: 60 }));
+      }
+      children.push(makePara('Fecha: ' + new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' }), d, { center: true, after: 240 }));
+
+      // Parse message content
+      var content = msg.content;
+      var paragraphs = content.split('\n').filter(function (p) { return p.trim(); });
+
+      paragraphs.forEach(function (para) {
+        var trimmed = para.trim();
+
+        if (/^#{1,3}\s+/.test(trimmed)) {
+          var cleanText = trimmed.replace(/^#+\s*/, '');
+          var level = trimmed.match(/^#+/)[0].length;
+          children.push(makeHeading(cleanText, d, Math.min(level, 3)));
+        } else if (/^#{4,6}\s+/.test(trimmed)) {
+          children.push(makeHeading(trimmed.replace(/^#+\s*/, ''), d, 3));
+        } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
+          children.push(makeHeading(trimmed.replace(/\*\*/g, ''), d, 2));
+        } else if (/^\d+[\.\)]\s|^[A-Z][\.\)]\s|^[-•]\s/.test(trimmed)) {
+          children.push(makePara(trimmed, d, { indent: true, before: 60, after: 60 }));
+        } else if (trimmed.length > 0) {
+          children.push(makePara(trimmed, d, { indent: true, before: 0, after: 120 }));
+        }
+      });
+
+      var doc = new d.Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: WORD_FORMAT.font, size: WORD_FORMAT.fontSize, color: WORD_FORMAT.fontColor },
+            },
+          },
+        },
+        sections: [{
+          ...sectionPropsNoLogo,
+          children: children,
+        }],
+      });
+
+      var buffer = await d.Packer.toBlob(doc);
+      var filename = 'chat_' + (ce.caseName || 'caso').replace(/\s+/g, '_') + '_msg' + (idx + 1) + '_' + new Date().toISOString().slice(0, 10) + '.docx';
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(buffer);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      showToast('✅ ' + filename + ' descargado');
+    } catch (err) {
+      console.error('exportChatMsgWord:', err);
+      showToast('⚠ Error al generar Word: ' + err.message);
+    }
+  };
   window._ceToggleWritings = function () { ce.showWritingsPanel = !ce.showWritingsPanel; _renderChat(); };
   window._ceRenderWritings = _renderWritings;
   window._ceGenerateWriting = _generateWriting;
@@ -1749,7 +1844,19 @@
     try {
       // Get docx library
       var d = await _waitDocx();
-      var sectionProps = await getWordSectionProps(d);
+      // Section props SIN logo para casos externos
+      var sectionProps = {
+        properties: {
+          page: {
+            size: { width: WORD_FORMAT.pageWidth, height: WORD_FORMAT.pageHeight },
+            margin: {
+              top: WORD_FORMAT.marginTop, bottom: WORD_FORMAT.marginBottom,
+              left: WORD_FORMAT.marginLeft, right: WORD_FORMAT.marginRight,
+            },
+          },
+        },
+        footers: { default: makeWordDocFooter(d) },
+      };
 
       var tpl = WRITING_TEMPLATES.find(function (t) { return t.id === ce.writingTemplate; });
       var docTitle = (tpl ? tpl.label : 'Escrito Judicial').toUpperCase();
