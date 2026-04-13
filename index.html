@@ -3785,7 +3785,11 @@ async function sendMessage(){
     }
     _activeReader=null;
     const _scBtn=document.getElementById('streamControlBtn');if(_scBtn)_scBtn.remove();
-    if(!fullText)fullText='Sin respuesta.';
+    if(!fullText){
+      fullText=streamError
+        ? '⚠ Error del servidor: '+(typeof streamError==='string'?streamError:'respuesta interrumpida')+'. Puedes reintentar tu consulta.'
+        : '⚠ No se recibió respuesta del modelo. Esto puede ocurrir por sobrecarga del servidor o un contexto demasiado largo. Intenta de nuevo.';
+    }
     _lastPartialText=fullText;
     bubEl.innerHTML=md(fullText);
     const wasInterrupted=streamError||_lastStreamAborted;
