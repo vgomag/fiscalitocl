@@ -173,6 +173,9 @@ async function _checkRL(token, endpoint) {
  * @param {string} body.query - Consulta de búsqueda (texto natural)
  * @param {string} [body.folder] - Carpeta/colección a buscar (default: 'todos')
  *   Opciones: 'normativa', 'dictamenes', 'jurisprudencia', 'doctrina', 'libros', 'tematicas'
+ * @param {string[]} [body.collections] - Array de colecciones específicas para buscar.
+ *   Acepta aliases ('jurisprudencia') o nombres reales ('relevant_jurisprudence').
+ *   Si se proporciona, tiene prioridad sobre folder.
  * @returns {Object}
  *   {
  *     context: string,
@@ -207,7 +210,7 @@ export default async (req) => {
       return new Response(JSON.stringify({ error: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.', limit: _rl.limit, remaining: 0 }), { status: 429, headers: { ...headers, 'Retry-After': '60' } });
     }
 
-    const { query, folder = 'todos' } = body;
+    const { query, folder = 'todos', collections } = body;
     if (!query) return new Response(JSON.stringify({ error: 'query required' }), { status: 400, headers });
 
     const qdrantUrl = (Netlify.env.get('QDRANT_URL') || '').replace(/\/+$/, '');
@@ -224,9 +227,20 @@ export default async (req) => {
     const vector = await getEmbedding(query, accessToken);
     if (!vector) return new Response(JSON.stringify({ context: '', sources: [], error: 'Embedding failed' }), { headers });
 
-    /* Determine which collections to search */
-    const targetCollection = FOLDER_ALIASES[folder];
-    const collectionsToSearch = targetCollection ? [targetCollection] : FISCALITO_COLLECTIONS;
+    /* Determine which collections to search:
+       1. If `collections` array is provided, resolve each alias to real name and filter valid ones
+       2. Else if `folder` is a known alias, search that single collection
+       3. Else search all collections */
+    let collectionsToSearch;
+    if (Array.isArray(collections) && collections.length > 0) {
+      collectionsToSearch = collections
+        .map(c => FOLDER_ALIASES[c] || c)  // resolve aliases
+        .filter(c => FISCALITO_COLLECTIONS.includes(c));  // only valid collections
+      if (!collectionsToSearch.length) collectionsToSearch = FISCALITO_COLLECTIONS;
+    } else {
+      const targetCollection = FOLDER_ALIASES[folder];
+      collectionsToSearch = targetCollection ? [targetCollection] : FISCALITO_COLLECTIONS;
+    }
 
     /* Search all collections in parallel (reuse same vector) */
     const results = await Promise.all(
