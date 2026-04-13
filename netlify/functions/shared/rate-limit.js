@@ -22,14 +22,46 @@ const RATE_LIMITS = {
   'auto-advance': 30, 'analyze-prescription': 30, 'default': 60,
 };
 
-function extractUserIdFromToken(token) {
+/**
+ * SEC-01 FIX: Extrae user ID del token JWT y verifica contra Supabase auth cuando es posible.
+ * Verifica expiración local. Intenta validar firma via Supabase auth.getUser().
+ * Retorna userId o null.
+ */
+async function extractUserIdFromToken(token) {
   if (!token) return null;
+  let uid = null;
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-    return payload.sub || null;
+    uid = payload.sub || null;
+    if (!uid) return null;
+    // Verificar expiración
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
   } catch (e) { return null; }
+
+  // Intentar verificar firma contra Supabase
+  const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (sbUrl && sbKey) {
+    try {
+      const _ac = new AbortController();
+      const _to = setTimeout(() => _ac.abort(), 5000);
+      const authRes = await fetch(`${sbUrl}/auth/v1/user`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'apikey': sbKey },
+        signal: _ac.signal
+      });
+      clearTimeout(_to);
+      if (authRes.ok) {
+        const user = await authRes.json();
+        return (user && user.id) ? user.id : null;
+      } else if (authRes.status === 401) {
+        return null; // Token inválido
+      }
+      // Otros errores: fallback
+    } catch (e) { /* fallback a uid local */ }
+  }
+  return uid;
 }
 
 async function checkRateLimit(userId, endpoint) {

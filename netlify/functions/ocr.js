@@ -174,7 +174,7 @@ exports.handler = async (event) => {
     }
 
     const authToken = event.headers['x-auth-token'] || '';
-    const userId = extractUserIdFromToken(authToken);
+    const userId = await extractUserIdFromToken(authToken);
     const rl = await checkRateLimit(userId, 'ocr');
     if (!rl.allowed) return rateLimitResponse(rl, H);
 

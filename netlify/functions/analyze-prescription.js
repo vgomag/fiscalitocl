@@ -349,7 +349,7 @@ exports.handler = async (event) => {
   if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
   try {
-    const userId = extractUserIdFromToken(authToken);
+    const userId = await extractUserIdFromToken(authToken);
     const rl = await checkRateLimit(userId, 'analyze-prescription');
     if (!rl.allowed) return rateLimitResponse(rl, CORS);
 

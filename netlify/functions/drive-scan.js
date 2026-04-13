@@ -207,7 +207,7 @@ exports.handler = async (event) => {
       }
     }
 
-    const userId = extractUserIdFromToken(authToken);
+    const userId = await extractUserIdFromToken(authToken);
     const rl = await checkRateLimit(userId, 'drive-scan');
     if (!rl.allowed) return rateLimitResponse(rl, headers);
     const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;

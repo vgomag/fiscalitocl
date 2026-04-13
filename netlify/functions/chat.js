@@ -48,42 +48,79 @@ function _sanitizeLog(obj) {
 const _RL_LIMITS = { chat:60, structure:60, rag:60, 'qdrant-ingest':30, 'drive-extract':30 };
 
 /**
- * Validates JWT token format and extracts user ID.
- * LIMITATION: Does not verify JWT signature (would require Supabase auth endpoint).
- * As a practical safeguard: validates token format (3 parts) and that sub claim is
- * a valid UUID-like string. For full security, verify tokens via Supabase auth endpoint
- * before use in production rate-limiting critical operations.
+ * SEC-01 FIX: Verifica JWT contra Supabase auth.getUser() para validar firma.
+ * Fallback a validación de formato si el endpoint no está disponible.
+ * Retorna { uid, verified } donde verified indica si se validó criptográficamente.
  */
-function _validateTokenAndExtractUid(token) {
+async function _validateTokenAndExtractUid(token) {
   if (!token) return null;
+
+  // Paso 1: Validar formato básico y extraer uid del payload
+  let uid = null;
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-
     const payload = JSON.parse(atob(parts[1]));
-    const uid = payload.sub;
+    uid = payload.sub;
+    if (!uid || !/^[a-f0-9\-]{36}$/i.test(uid)) return null;
 
-    // Validate sub looks like a UUID (basic check)
-    if (!uid || !/^[a-f0-9\-]{36}$/i.test(uid)) {
+    // Verificar expiración del token
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      console.warn('[chat/auth] Token expirado');
       return null;
     }
-
-    return uid;
   } catch (e) {
     return null;
   }
+
+  // Paso 2: Verificar firma contra Supabase auth.getUser()
+  const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
+  const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
+  if (sbUrl && sbKey) {
+    try {
+      const _ac = new AbortController();
+      const _to = setTimeout(() => _ac.abort(), 5000);
+      const authRes = await fetch(`${sbUrl}/auth/v1/user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': sbKey
+        },
+        signal: _ac.signal
+      });
+      clearTimeout(_to);
+      if (authRes.ok) {
+        const user = await authRes.json();
+        if (user && user.id) return user.id; // Verificado criptográficamente
+        console.warn('[chat/auth] Supabase auth returned no user');
+        return null; // Token inválido según Supabase
+      } else if (authRes.status === 401) {
+        console.warn('[chat/auth] Token rechazado por Supabase (401)');
+        return null; // Token definitivamente inválido
+      }
+      // Otros errores (500, timeout): fallback al uid extraído localmente
+      console.warn('[chat/auth] Supabase auth error:', authRes.status, '— usando validación local');
+    } catch (e) {
+      console.warn('[chat/auth] Supabase auth unreachable:', e.message, '— usando validación local');
+    }
+  }
+
+  // Fallback: retornar uid extraído del payload (sin verificación de firma)
+  return uid;
 }
 
 async function _checkRL(token, endpoint) {
   if (!token) return { allowed: false };
+  const denied = { allowed: false, remaining: 0, limit: _RL_LIMITS[endpoint] || 60 };
   try {
-    const uid = _validateTokenAndExtractUid(token);
+    /* SEC-01: _validateTokenAndExtractUid es ahora async */
+    const uid = await _validateTokenAndExtractUid(token);
     if (!uid) return { allowed: false };
     const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
     const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
     if (!sbUrl || !sbKey) {
-      console.warn('[chat/_checkRL] Missing Supabase config — allowing request (fail-open)');
-      return { allowed: true };
+      /* SEC-02 FIX: Fail-closed en vez de fail-open */
+      console.warn('[chat/_checkRL] Missing Supabase config — denying request (fail-closed)');
+      return denied;
     }
     const _ac = new AbortController();
     const _to = setTimeout(() => _ac.abort(), 10000);
@@ -95,13 +132,15 @@ async function _checkRL(token, endpoint) {
     });
     clearTimeout(_to);
     if (!r.ok) {
-      console.warn('[chat/_checkRL] RPC error:', r.status, '— allowing request (fail-open)');
-      return { allowed: true };
+      /* SEC-02 FIX: Fail-closed */
+      console.warn('[chat/_checkRL] RPC error:', r.status, '— denying request (fail-closed)');
+      return denied;
     }
-    return (await r.json()) || { allowed: true };
+    return (await r.json()) || denied;
   } catch (e) {
-    console.warn('[chat/_checkRL] Exception:', e.message, '— allowing request (fail-open)');
-    return { allowed: true };
+    /* SEC-02 FIX: Fail-closed */
+    console.warn('[chat/_checkRL] Exception:', e.message, '— denying request (fail-closed)');
+    return denied;
   }
 }
 

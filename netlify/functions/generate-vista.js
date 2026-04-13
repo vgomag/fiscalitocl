@@ -634,7 +634,7 @@ exports.handler = async (event) => {
   if (!apiKey) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'API key no configurada' }) };
 
   try {
-    const userId = extractUserIdFromToken(authToken);
+    const userId = await extractUserIdFromToken(authToken);
     const rl = await checkRateLimit(userId, 'generate-vista');
     if (!rl.allowed) return rateLimitResponse(rl, CORS);
 

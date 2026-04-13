@@ -122,7 +122,7 @@ exports.handler = async (event) => {
   const authToken = event.headers['x-auth-token'] || '';
   if (!authToken) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No autorizado' }) };
 
-  const userId = extractUserIdFromToken(authToken);
+  const userId = await extractUserIdFromToken(authToken);
   const rl = await checkRateLimit(userId, 'ocr-batch');
   if (!rl.allowed) return rateLimitResponse(rl, CORS);
 

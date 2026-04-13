@@ -220,7 +220,7 @@ exports.handler = async (event) => {
       return { statusCode: 413, headers, body: JSON.stringify({ error: 'Payload too large' }) };
     }
 
-    const userId = extractUserIdFromToken(authToken);
+    const userId = await extractUserIdFromToken(authToken);
     const rl = await checkRateLimit(userId, 'drive');
     if (!rl.allowed) return rateLimitResponse(rl, headers);
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;

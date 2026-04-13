@@ -4266,7 +4266,7 @@ function renderResoluciones(data){
         ${r.authority?`<div class="res-fiscal">🏛 Autoridad: ${esc(r.authority)}</div>`:''}
         <div class="card-actions" style="margin-top:6px">
           <button class="btn-del" onclick="deleteResolucion('${r.id}')">Eliminar</button>
-          <button class="btn-edit" onclick="editResolucion(${JSON.stringify(r).replace(/"/g,'&quot;')})">Editar</button>
+          <button class="btn-edit" data-res="${esc(JSON.stringify(r))}" onclick="editResolucion(JSON.parse(this.dataset.res))">Editar</button>
         </div>
       </div>`).join('')}
     </div>`;
