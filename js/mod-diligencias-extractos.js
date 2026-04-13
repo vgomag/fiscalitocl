@@ -65,11 +65,16 @@ async function loadDiligenciasTab(){
   if(error){el.innerHTML=`<div class="empty-state">⚠️ Error: ${esc(error.message)}</div>`;return;}
 
   /* Auto-reset diligencias stuck en 'processing' */
+  /* HIGH#8 FIX: Auto-reset con error handling — si update falla, estado local no se modifica */
   const stuck=(data||[]).filter(d=>d.processing_status==='processing');
   if(stuck.length>0){
     for(const s of stuck){
-      await sb.from('diligencias').update({processing_status:s.is_processed?'completed':'pending'}).eq('id',s.id);
-      s.processing_status=s.is_processed?'completed':'pending';
+      const newStatus=s.is_processed?'completed':'pending';
+      try{
+        const{error:updErr}=await sb.from('diligencias').update({processing_status:newStatus}).eq('id',s.id);
+        if(!updErr){s.processing_status=newStatus;}
+        else{console.warn('Auto-reset diligencia '+s.id+' failed:',updErr.message);}
+      }catch(e){console.warn('Auto-reset diligencia '+s.id+' error:',e.message);}
     }
   }
 

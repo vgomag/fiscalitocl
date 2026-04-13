@@ -355,7 +355,8 @@ function renderActivosTab(){
 
     /* Trend */
     const months=Object.keys(d.dist.monthly).sort().slice(-12);
-    const mLabels=months.map(m=>{const[y,mon]=m.split('-');return['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(mon)-1]+' '+y.slice(2);});
+    /* HIGH#7 FIX: parseInt puede dar NaN si mon es corrupto → proteger con fallback */
+    const mLabels=months.map(m=>{const[y,mon]=m.split('-');const mi=parseInt(mon,10);return(isNaN(mi)?'???':['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mi-1]||'???')+' '+(y||'??').slice(-2);});
     if(months.length)makeLine('chartActTrend',mLabels,months.map(m=>d.dist.monthly[m]||0));
   },100);
 }

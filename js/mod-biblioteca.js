@@ -1306,8 +1306,9 @@ ${[normasCtx, normativaInternaCtx, booksCtx].filter(Boolean).join('\n\n---\n\n')
 
         if(!resp.ok){const errTxt=await resp.text().catch(()=>'');throw new Error('HTTP '+resp.status+(errTxt?' — '+errTxt.substring(0,200):''));}
         const data = await resp.json();
-      const content = Array.isArray(data?.content) ? data.content : [];
-      const reply = content.filter(b => b?.type === 'text').map(b => b.text).join('') || data?.reply || 'Sin respuesta.';
+      /* HIGH#6 FIX: Null safety — data.content puede no ser array, b.text puede ser undefined */
+      const content = Array.isArray(data?.content) ? data.content : (typeof data?.content === 'string' ? [{ type: 'text', text: data.content }] : []);
+      const reply = content.filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('') || (typeof data?.reply === 'string' ? data.reply : '') || 'Sin respuesta.';
       biblioteca.chatMessages.push({ role: 'assistant', content: reply });
 
       const typing = document.getElementById('bibChatTyping');

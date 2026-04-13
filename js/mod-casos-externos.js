@@ -361,6 +361,8 @@
         case_folder_id: ce.caseFolderId,
         case_folder_url: ce.caseFolderUrl,
         documents_context: (ce.documentsContext || '').substring(0, 200000),
+        /* HIGH#4 FIX: Guardar metadata de documentos (nombre y tamaño, sin texto completo para no exceder límite) */
+        documents_metadata: (ce.documents || []).map(function(d) { return { name: d.name, size: d.size }; }),
         extracted_facts: ce.extractedFacts,
         chronology: ce.chronology,
         participants: ce.participants,
@@ -374,8 +376,15 @@
         current_step: ce.activeTab,
         updated_at: new Date().toISOString()
       };
+      /* HIGH#5 FIX: Si update afecta 0 rows (registro eliminado), fallback a insert */
       if (ce.analysisId) {
-        await db.from('external_case_analyses').update(payload).eq('id', ce.analysisId);
+        var upRes = await db.from('external_case_analyses').update(payload).eq('id', ce.analysisId).select('id');
+        if (!upRes.data || upRes.data.length === 0) {
+          console.warn('[CE] Update afectó 0 filas, analysisId=' + ce.analysisId + '. Insertando nuevo registro.');
+          ce.analysisId = null;
+          var insRes = await db.from('external_case_analyses').insert(payload).select('id').single();
+          if (insRes.data) ce.analysisId = insRes.data.id;
+        }
       } else {
         var res = await db.from('external_case_analyses').insert(payload).select('id').single();
         if (res.data) ce.analysisId = res.data.id;
@@ -421,7 +430,11 @@
       ce.collectionMode = d.collection_mode || 'priority';
       ce.priorityCollections = d.priority_collections || [];
       ce.activeTab = d.current_step || 'documentos';
-      ce.documents = [];
+      /* HIGH#4 FIX: Restaurar metadata de documentos si existe. El texto completo se perdió,
+         pero al menos el usuario ve los nombres de archivos que subió. */
+      ce.documents = Array.isArray(d.documents_metadata) ? d.documents_metadata.map(function(m) {
+        return { name: m.name || 'Sin nombre', size: m.size || 0, text: '' };
+      }) : [];
       ce.chatMessages = [];
       // Load chat messages
       await _loadChatMessages();
@@ -567,18 +580,35 @@
 
       var text = await _ceStreamClaude(system, userPrompt, { maxTokens: 4096 });
 
-      // Parse JSON from response
+      // HIGH#2 FIX: Parse JSON con múltiples estrategias de fallback
       var parsed = {};
       try {
         parsed = JSON.parse(text);
       } catch (e) {
-        var m = text.match(/\{[\s\S]*\}/);
-        if (m) { try { parsed = JSON.parse(m[0]); } catch (e2) { parsed = {}; } }
+        // Estrategia 1: buscar bloque JSON delimitado por ```json
+        var jsonBlock = text.match(/```json\s*([\s\S]*?)```/);
+        if (jsonBlock) { try { parsed = JSON.parse(jsonBlock[1].trim()); } catch (e1) { /* next */ } }
+        // Estrategia 2: buscar primer { ... } balanceado
+        if (!parsed.facts) {
+          var depth = 0, start = -1, end = -1;
+          for (var ci = 0; ci < text.length; ci++) {
+            if (text[ci] === '{') { if (depth === 0) start = ci; depth++; }
+            else if (text[ci] === '}') { depth--; if (depth === 0 && start >= 0) { end = ci; break; } }
+          }
+          if (start >= 0 && end > start) {
+            try { parsed = JSON.parse(text.substring(start, end + 1)); } catch (e2) { /* next */ }
+          }
+        }
+        // Estrategia 3: si nada funcionó, notificar al usuario
+        if (!parsed.facts && !parsed.chronology) {
+          console.warn('[CE] No se pudo parsear JSON de extracción. Respuesta:', text.substring(0, 500));
+          showToast('⚠ La IA no devolvió formato JSON válido. Reintenta.');
+        }
       }
-      ce.extractedFacts = parsed.facts || [];
-      ce.chronology = parsed.chronology || [];
-      ce.participants = parsed.participants || [];
-      ce.mentionedNorms = parsed.mentioned_norms || [];
+      ce.extractedFacts = Array.isArray(parsed.facts) ? parsed.facts : [];
+      ce.chronology = Array.isArray(parsed.chronology) ? parsed.chronology : [];
+      ce.participants = Array.isArray(parsed.participants) ? parsed.participants : [];
+      ce.mentionedNorms = Array.isArray(parsed.mentioned_norms) ? parsed.mentioned_norms : [];
       ce.activeTab = 'extraccion';
       showToast('✓ Hechos extraídos: ' + ce.extractedFacts.length);
     } catch (e) {
@@ -752,14 +782,18 @@
     var db = _sb();
     if (!db) return '';
     try {
-      var res = await db.rpc('search_library', {
-        search_query: (query || '').substring(0, 200),
-        max_results: 3,
-        max_chars_per_result: 1200
-      });
-      if (res.error || !res.data || !res.data.length) return '';
+      /* HIGH#3 FIX: Timeout de 8s para evitar que Promise.all se bloquee indefinidamente */
+      var result = await Promise.race([
+        db.rpc('search_library', {
+          search_query: (query || '').substring(0, 200),
+          max_results: 3,
+          max_chars_per_result: 1200
+        }),
+        new Promise(function (_, reject) { setTimeout(function () { reject(new Error('Library RPC timeout (8s)')); }, 8000); })
+      ]);
+      if (result.error || !result.data || !result.data.length) return '';
       var ctx = '\n## BIBLIOTECA DE REFERENCIA (Libros y Normativa Interna)\n';
-      res.data.forEach(function (r) {
+      result.data.forEach(function (r) {
         ctx += '\n### [' + (r.source_table === 'reference_books' ? 'Libro' : 'Normativa') + '] ' + r.doc_name + '\n' + (r.snippet || '').substring(0, 1200);
       });
       return ctx + '\n--- FIN BIBLIOTECA ---\n';
@@ -809,7 +843,11 @@
     var db = _sb();
     if (!db) return '';
     try {
-      var res = await db.from('normas_custom').select('label,url_bcn,descripcion,arts').order('label');
+      /* HIGH#3 FIX: Timeout de 8s para evitar bloqueo en Promise.all */
+      var res = await Promise.race([
+        db.from('normas_custom').select('label,url_bcn,descripcion,arts').order('label'),
+        new Promise(function (_, reject) { setTimeout(function () { reject(new Error('BCN query timeout (8s)')); }, 8000); })
+      ]);
       if (!res.data || !res.data.length) return '';
       var ctx = '\n## NORMAS CON ENLACES LEY CHILE (BCN)\nSIEMPRE incluye el enlace BCN al citar estas normas. Usa los artículos listados como referencia.\n';
       res.data.forEach(function (n) {
@@ -819,7 +857,7 @@
         if (n.arts && n.arts.length) ctx += '\n  Artículos clave: ' + (Array.isArray(n.arts) ? n.arts.join('; ') : n.arts);
       });
       return ctx + '\n';
-    } catch (e) { return ''; }
+    } catch (e) { console.warn('[CE-chat] BCN query error:', e.message); return ''; }
   }
 
   // ─── CHAT ────────────────────────────────────────────────────────

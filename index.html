@@ -3039,6 +3039,8 @@ async function sendMessage(){
   const _isCont=_isContinuationCall; _isContinuationCall=false;
   const _contLabel=_continuationVisibleLabel; _continuationVisibleLabel='';
   if(_caseSnapshot && !_isCont) await loadChatHistory(_caseSnapshot.id);
+  /* HIGH#1 FIX: Si el usuario cambió de caso mientras loadChatHistory cargaba, abortar */
+  if(_caseSnapshot && currentCase?.id!==_caseSnapshot.id){console.warn('sendMessage aborted: case changed during load');return;}
   inputBox.value='';autoResize(inputBox);
   const msgs=document.getElementById('msgs');
   const panel=document.getElementById('fnPanel');
