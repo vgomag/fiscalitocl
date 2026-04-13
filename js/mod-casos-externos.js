@@ -769,11 +769,23 @@
   async function _ceSearchQdrantForChat(query, caseType) {
     try {
       var ctrl = new AbortController();
-      var timer = setTimeout(function () { ctrl.abort(); }, 6000);
+      var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+      // Usar colecciones seleccionadas por el usuario si las hay
+      var selectedColls = ce.selectedBaseCollections.length ? ce.selectedBaseCollections : null;
+      // Agregar colecciones personalizadas priorizadas
+      if (ce.priorityCollections.length) {
+        selectedColls = (selectedColls || []).concat(ce.priorityCollections);
+      }
+      var ragBody = { query: query, caseContext: caseType || '' };
+      if (selectedColls && selectedColls.length) {
+        ragBody.collections = selectedColls;
+      } else {
+        ragBody.folder = 'todos';
+      }
       var r = await fetch('/.netlify/functions/rag', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, folder: 'todos', caseContext: caseType || '' }),
+        body: JSON.stringify(ragBody),
         signal: ctrl.signal
       });
       clearTimeout(timer);
@@ -781,12 +793,13 @@
       var d = await r.json();
       var text = d.context || d.text || '';
       if (text.length < 50) return '';
-      var ctx = '\n## BIBLIOTECA JURIDICA (Libros de Derecho, Dictámenes CGR, Jurisprudencia)\n';
+      var collLabel = selectedColls ? selectedColls.join(', ') : 'todas';
+      var ctx = '\n## BIBLIOTECA JURIDICA [Colecciones: ' + collLabel + ']\n';
       ctx += text.substring(0, 8000);
       if (d.sources && d.sources.length) ctx += '\n\nFuentes: ' + d.sources.join(', ');
       return ctx + '\n--- FIN QDRANT ---\n';
     } catch (e) {
-      if (e.name === 'AbortError') console.warn('[CE-chat] Qdrant timeout (6s)');
+      if (e.name === 'AbortError') console.warn('[CE-chat] Qdrant timeout (8s)');
       else console.warn('[CE-chat] Qdrant error:', e.message);
       return '';
     }
