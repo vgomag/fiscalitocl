@@ -2172,12 +2172,12 @@ function renderTabla(searchOverride){
       /* Ordenar por conteo de diligencias (numérico) */
       cases=[...cases].sort((a,b)=>{
         const av=_dilCountMap[a.id]||0, bv=_dilCountMap[b.id]||0;
-        return sortDir==='asc'?bv-av:av-bv;
+        return sortDir==='asc'?av-bv:bv-av;
       });
     } else {
       cases=[...cases].sort((a,b)=>{
         const av=a[sortField]||'',bv=b[sortField]||'';
-        return sortDir==='asc'?av.localeCompare(bv,-1)*-1:bv.localeCompare(av,-1)*-1;
+        return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
       });
     }
   } else if(isTerminado){
