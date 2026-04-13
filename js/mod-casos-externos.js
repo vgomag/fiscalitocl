@@ -809,10 +809,15 @@
     var db = _sb();
     if (!db) return '';
     try {
-      var res = await db.from('normas_custom').select('label,url_bcn').order('label');
+      var res = await db.from('normas_custom').select('label,url_bcn,descripcion,arts').order('label');
       if (!res.data || !res.data.length) return '';
-      var ctx = '\n## NORMAS CON ENLACES LEY CHILE (BCN)\nSIEMPRE incluye el enlace BCN al citar estas normas.\n';
-      res.data.forEach(function (n) { ctx += '\n- ' + n.label + (n.url_bcn ? ' -> ' + n.url_bcn : ''); });
+      var ctx = '\n## NORMAS CON ENLACES LEY CHILE (BCN)\nSIEMPRE incluye el enlace BCN al citar estas normas. Usa los artículos listados como referencia.\n';
+      res.data.forEach(function (n) {
+        ctx += '\n- **' + n.label + '**';
+        if (n.url_bcn) ctx += ' -> ' + n.url_bcn;
+        if (n.descripcion) ctx += '\n  ' + n.descripcion;
+        if (n.arts && n.arts.length) ctx += '\n  Artículos clave: ' + (Array.isArray(n.arts) ? n.arts.join('; ') : n.arts);
+      });
       return ctx + '\n';
     } catch (e) { return ''; }
   }
