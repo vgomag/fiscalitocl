@@ -1442,23 +1442,47 @@
         + '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">' + _truncate(t.template, 100) + '</div></div></label>';
     }).join('');
 
-    // Collections
-    var baseColls = [
-      { value: 'jurisprudencia', label: 'Jurisprudencia' },
-      { value: 'doctrina', label: 'Doctrina' },
-      { value: 'normativa', label: 'Normativa' }
+    // Collections — todas las colecciones Qdrant disponibles, agrupadas
+    var _allQdrantColls = [
+      { group: 'Principales', items: [
+        { value: 'jurisprudencia', label: '⚖️ Jurisprudencia', real: 'relevant_jurisprudence' },
+        { value: 'doctrina', label: '📖 Doctrina', real: 'administrative_discipline' },
+        { value: 'normativa', label: '📜 Normativa vigente', real: 'current_regulations' },
+        { value: 'dictamenes', label: '🏛️ Dictámenes CGR', real: 'rulings' },
+        { value: 'libros', label: '📚 Libros de referencia', real: 'reference_books' }
+      ]},
+      { group: 'Especialidad', items: [
+        { value: 'comercial', label: '💼 Comercial', real: 'comercial' },
+        { value: 'civil', label: '🏠 Civil', real: 'civil' },
+        { value: 'propiedad_intelectual', label: '💡 Propiedad Intelectual', real: 'propiedad_intelectual' },
+        { value: 'practica_forense', label: '🔨 Práctica Forense', real: 'practica_forense' }
+      ]},
+      { group: 'Otros', items: [
+        { value: 'tematicas', label: '📋 Temáticas específicas', real: 'specific_topics' },
+        { value: 'material', label: '📦 Material general', real: 'material' },
+        { value: 'case_studys', label: '🔍 Casos de estudio', real: 'case_studys' },
+        { value: 'models', label: '📝 Modelos', real: 'models' }
+      ]}
     ];
-    var collHtml = baseColls.map(function (c) {
-      var checked = ce.selectedBaseCollections.indexOf(c.value) >= 0;
-      return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="window._ceToggleBaseColl(\'' + c.value + '\')">' + c.label + '</label>';
-    }).join('');
+    var collHtml = '';
+    _allQdrantColls.forEach(function (group) {
+      collHtml += '<div style="margin-bottom:8px;">'
+        + '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">' + group.group + '</div>'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+      group.items.forEach(function (c) {
+        var checked = ce.selectedBaseCollections.indexOf(c.value) >= 0;
+        collHtml += '<label style="display:flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid ' + (checked ? 'var(--gold)' : 'var(--border)') + ';border-radius:5px;cursor:pointer;background:' + (checked ? 'var(--gold-glow)' : 'var(--surface)') + ';font-size:11px;color:var(--text);transition:all 0.15s;white-space:nowrap;"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="window._ceToggleBaseColl(\'' + c.value + '\')" style="margin:0;">' + c.label + '</label>';
+      });
+      collHtml += '</div></div>';
+    });
 
     if (ce.customCollections.length) {
-      collHtml += '<div style="margin-top:8px;font-size:11px;font-weight:600;color:var(--text-muted);">Personalizadas:</div>';
+      collHtml += '<div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Personalizadas</div><div style="display:flex;gap:6px;flex-wrap:wrap;">';
       ce.customCollections.forEach(function (c) {
         var checked = ce.priorityCollections.indexOf(c.value) >= 0;
-        collHtml += '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="window._ceTogglePrioColl(\'' + c.value + '\')">' + _escHtml(c.label) + '</label>';
+        collHtml += '<label style="display:flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid ' + (checked ? 'var(--gold)' : 'var(--border)') + ';border-radius:5px;cursor:pointer;background:' + (checked ? 'var(--gold-glow)' : 'var(--surface)') + ';font-size:11px;color:var(--text);transition:all 0.15s;white-space:nowrap;"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="window._ceTogglePrioColl(\'' + c.value + '\')">' + _escHtml(c.label) + '</label>';
       });
+      collHtml += '</div></div>';
     }
 
     // Documents list
