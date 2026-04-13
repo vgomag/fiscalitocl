@@ -132,6 +132,13 @@ const FOLDER_ALIASES = {
   tematicas: 'specific_topics',
   material: 'material',
   comercial: 'comercial',
+  /* Aliases añadidos para colecciones sin alias previo — el frontend puede enviar
+     tanto el nombre real como el alias, y ambos deben resolverse correctamente */
+  civil: 'civil',
+  propiedad_intelectual: 'propiedad_intelectual',
+  practica_forense: 'practica_forense',
+  case_studys: 'case_studys',
+  models: 'models',
 };
 
 /* ── Rate Limiting ── */
@@ -232,10 +239,11 @@ export default async (req) => {
        2. Else if `folder` is a known alias, search that single collection
        3. Else search all collections */
     let collectionsToSearch;
+    const SAFE_COLL_NAME = /^[a-zA-Z0-9_-]{2,80}$/;
     if (Array.isArray(collections) && collections.length > 0) {
       collectionsToSearch = collections
         .map(c => FOLDER_ALIASES[c] || c)  // resolve aliases
-        .filter(c => FISCALITO_COLLECTIONS.includes(c));  // only valid collections
+        .filter(c => FISCALITO_COLLECTIONS.includes(c) || SAFE_COLL_NAME.test(c));  // known + custom con nombre válido
       if (!collectionsToSearch.length) collectionsToSearch = FISCALITO_COLLECTIONS;
     } else {
       const targetCollection = FOLDER_ALIASES[folder];

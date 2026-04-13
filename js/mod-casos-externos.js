@@ -149,6 +149,8 @@
     collectionMode: 'priority',
     customCollections: [],
     priorityCollections: [],
+    qdrantCollections: [], // Colecciones reales cargadas dinámicamente de Qdrant
+    qdrantCollectionsLoaded: false,
     // Search sources
     searchSources: { qdrant: true, pjud: true, cgr: true, biblioteca: true },
     // Extraction
@@ -320,6 +322,55 @@
         return { value: c.collection_name, label: c.display_name || c.collection_name, id: c.id };
       });
     } catch (e) { console.warn('Custom collections error:', e); }
+  }
+
+  // ─── QDRANT COLLECTIONS LOADER (dinámico) ───────────────────────
+
+  /* Mapa de nombres internos de Qdrant → labels amigables y grupo */
+  var QDRANT_LABEL_MAP = {
+    'relevant_jurisprudence':   { label: '⚖️ Jurisprudencia', alias: 'jurisprudencia', group: 'Principales' },
+    'administrative_discipline':{ label: '📖 Doctrina', alias: 'doctrina', group: 'Principales' },
+    'current_regulations':      { label: '📜 Normativa vigente', alias: 'normativa', group: 'Principales' },
+    'rulings':                  { label: '🏛️ Dictámenes CGR', alias: 'dictamenes', group: 'Principales' },
+    'reference_books':          { label: '📚 Libros de referencia', alias: 'libros', group: 'Principales' },
+    'comercial':                { label: '💼 Comercial', alias: 'comercial', group: 'Especialidad' },
+    'civil':                    { label: '🏠 Civil', alias: 'civil', group: 'Especialidad' },
+    'propiedad_intelectual':    { label: '💡 Propiedad Intelectual', alias: 'propiedad_intelectual', group: 'Especialidad' },
+    'practica_forense':         { label: '🔨 Práctica Forense', alias: 'practica_forense', group: 'Especialidad' },
+    'specific_topics':          { label: '📋 Temáticas específicas', alias: 'tematicas', group: 'Otros' },
+    'material':                 { label: '📦 Material general', alias: 'material', group: 'Otros' },
+    'case_studys':              { label: '🔍 Casos de estudio', alias: 'case_studys', group: 'Otros' },
+    'models':                   { label: '📝 Modelos', alias: 'models', group: 'Otros' }
+  };
+
+  /**
+   * Carga las colecciones reales disponibles en Qdrant via el endpoint list-collections.
+   * Las que no estén en QDRANT_LABEL_MAP aparecerán como "Descubiertas" automáticamente.
+   */
+  async function _loadQdrantCollections() {
+    if (ce.qdrantCollectionsLoaded) return;
+    try {
+      var token = typeof session !== 'undefined' && session ? session.access_token : '';
+      var r = await fetch('/.netlify/functions/qdrant-ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+        body: JSON.stringify({ action: 'list-collections' })
+      });
+      if (!r.ok) { console.warn('[CE] Qdrant list-collections error:', r.status); return; }
+      var data = await r.json();
+      var collections = (data && data.result && data.result.collections) ? data.result.collections : [];
+      ce.qdrantCollections = collections.map(function (c) {
+        var name = c.name || c;
+        var info = QDRANT_LABEL_MAP[name];
+        return {
+          realName: name,
+          value: info ? info.alias : name,
+          label: info ? info.label : ('🗂️ ' + name),
+          group: info ? info.group : 'Descubiertas'
+        };
+      });
+      ce.qdrantCollectionsLoaded = true;
+    } catch (e) { console.warn('[CE] Error loading Qdrant collections:', e.message); }
   }
 
   // ─── PERSISTENCE (Supabase) ──────────────────────────────────────
@@ -1522,34 +1573,38 @@
         + '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">' + _truncate(t.template, 100) + '</div></div></label>';
     }).join('');
 
-    // Collections — todas las colecciones Qdrant disponibles, agrupadas
-    var _allQdrantColls = [
-      { group: 'Principales', items: [
-        { value: 'jurisprudencia', label: '⚖️ Jurisprudencia', real: 'relevant_jurisprudence' },
-        { value: 'doctrina', label: '📖 Doctrina', real: 'administrative_discipline' },
-        { value: 'normativa', label: '📜 Normativa vigente', real: 'current_regulations' },
-        { value: 'dictamenes', label: '🏛️ Dictámenes CGR', real: 'rulings' },
-        { value: 'libros', label: '📚 Libros de referencia', real: 'reference_books' }
-      ]},
-      { group: 'Especialidad', items: [
-        { value: 'comercial', label: '💼 Comercial', real: 'comercial' },
-        { value: 'civil', label: '🏠 Civil', real: 'civil' },
-        { value: 'propiedad_intelectual', label: '💡 Propiedad Intelectual', real: 'propiedad_intelectual' },
-        { value: 'practica_forense', label: '🔨 Práctica Forense', real: 'practica_forense' }
-      ]},
-      { group: 'Otros', items: [
-        { value: 'tematicas', label: '📋 Temáticas específicas', real: 'specific_topics' },
-        { value: 'material', label: '📦 Material general', real: 'material' },
-        { value: 'case_studys', label: '🔍 Casos de estudio', real: 'case_studys' },
-        { value: 'models', label: '📝 Modelos', real: 'models' }
-      ]}
+    // Collections — colecciones Qdrant cargadas dinámicamente + fallback estático
+    var _dynamicColls = ce.qdrantCollections.length ? ce.qdrantCollections : [
+      { value: 'jurisprudencia', label: '⚖️ Jurisprudencia', group: 'Principales' },
+      { value: 'doctrina', label: '📖 Doctrina', group: 'Principales' },
+      { value: 'normativa', label: '📜 Normativa vigente', group: 'Principales' },
+      { value: 'dictamenes', label: '🏛️ Dictámenes CGR', group: 'Principales' },
+      { value: 'libros', label: '📚 Libros de referencia', group: 'Principales' },
+      { value: 'comercial', label: '💼 Comercial', group: 'Especialidad' },
+      { value: 'civil', label: '🏠 Civil', group: 'Especialidad' },
+      { value: 'propiedad_intelectual', label: '💡 Propiedad Intelectual', group: 'Especialidad' },
+      { value: 'practica_forense', label: '🔨 Práctica Forense', group: 'Especialidad' },
+      { value: 'tematicas', label: '📋 Temáticas específicas', group: 'Otros' },
+      { value: 'material', label: '📦 Material general', group: 'Otros' },
+      { value: 'case_studys', label: '🔍 Casos de estudio', group: 'Otros' },
+      { value: 'models', label: '📝 Modelos', group: 'Otros' }
     ];
+    // Agrupar por grupo
+    var _groupedColls = {};
+    var _groupOrder = [];
+    _dynamicColls.forEach(function (c) {
+      if (!_groupedColls[c.group]) { _groupedColls[c.group] = []; _groupOrder.push(c.group); }
+      _groupedColls[c.group].push(c);
+    });
     var collHtml = '';
-    _allQdrantColls.forEach(function (group) {
+    if (ce.qdrantCollectionsLoaded) {
+      collHtml += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;">' + _dynamicColls.length + ' colecciones detectadas en Qdrant <button class="btn-sm" style="font-size:9px;padding:1px 6px;margin-left:6px" onclick="window._ceReloadQdrantColls()">↻ Recargar</button></div>';
+    }
+    _groupOrder.forEach(function (groupName) {
       collHtml += '<div style="margin-bottom:8px;">'
-        + '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">' + group.group + '</div>'
+        + '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">' + groupName + '</div>'
         + '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-      group.items.forEach(function (c) {
+      _groupedColls[groupName].forEach(function (c) {
         var checked = ce.selectedBaseCollections.indexOf(c.value) >= 0;
         collHtml += '<label style="display:flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid ' + (checked ? 'var(--gold)' : 'var(--border)') + ';border-radius:5px;cursor:pointer;background:' + (checked ? 'var(--gold-glow)' : 'var(--surface)') + ';font-size:11px;color:var(--text);transition:all 0.15s;white-space:nowrap;"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="window._ceToggleBaseColl(\'' + c.value + '\')" style="margin:0;">' + c.label + '</label>';
       });
@@ -1938,6 +1993,11 @@
   window._ceToggleFocus = _toggleFocus;
   window._ceToggleBaseColl = _toggleBaseColl;
   window._ceTogglePrioColl = _togglePrioColl;
+  window._ceReloadQdrantColls = function () {
+    ce.qdrantCollectionsLoaded = false;
+    ce.qdrantCollections = [];
+    _loadQdrantCollections().then(function () { _renderTab(); });
+  };
   window._ceToggleSource = function (key) {
     ce.searchSources[key] = !ce.searchSources[key];
     _renderTab();
@@ -2187,6 +2247,7 @@
     _createView();
     showView('viewCasosExternos');
     _loadCustomCollections();
+    _loadQdrantCollections(); // Cargar colecciones reales de Qdrant
     _loadSavedCases();
     _renderAll();
   };
