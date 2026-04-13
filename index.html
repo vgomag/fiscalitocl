@@ -2963,10 +2963,30 @@ function exportChat(format){
   const msgs=document.getElementById('msgs');if(!msgs)return;
   const items=[...msgs.querySelectorAll('.msg')].map(m=>{
     const role=m.classList.contains('user')?'Usuario':'Fiscalito';
-    const text=m.querySelector('.msg-bub')?.innerText||'';
-    return format==='md'?`**${role}:** ${text}`:role+': '+text;
+    /* MEDIUM#1 FIX: Para formato md, extraer texto preservando markdown del innerHTML
+       en vez de usar innerText que pierde todo el formato */
+    let text='';
+    const bub=m.querySelector('.msg-bub');
+    if(bub){
+      if(format==='md'&&role==='Fiscalito'){
+        // Convertir HTML de vuelta a markdown básico
+        text=bub.innerHTML
+          .replace(/<strong>(.*?)<\/strong>/gi,'**$1**')
+          .replace(/<em>(.*?)<\/em>/gi,'*$1*')
+          .replace(/<code>(.*?)<\/code>/gi,'`$1`')
+          .replace(/<br\s*\/?>/gi,'\n')
+          .replace(/<li>(.*?)<\/li>/gi,'- $1\n')
+          .replace(/<\/?(ul|ol|p|div|h[1-6]|pre|blockquote)[^>]*>/gi,'\n')
+          .replace(/<[^>]+>/g,'')
+          .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+          .replace(/\n{3,}/g,'\n\n').trim();
+      }else{
+        text=bub.innerText||'';
+      }
+    }
+    return format==='md'?`**${role}:**\n${text}`:role+': '+text;
   });
-  const content=items.join('\n\n');
+  const content=items.join('\n\n---\n\n');
   if(format==='copy'){navigator.clipboard.writeText(content);showToast('✓ Copiado');return;}
   const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);

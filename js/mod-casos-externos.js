@@ -622,7 +622,13 @@
   // ─── SEARCH LIBRARY ─────────────────────────────────────────────
 
   async function _searchLibrary() {
-    var topic = (ce.focusFree || ce.focusTemplates.map(function (t) { return t; }).join(', ')).substring(0, 500);
+    /* MEDIUM#2 FIX: Mapear IDs de templates a su texto/label en vez de enviar los valores crudos */
+    var tmplLabels = ce.focusTemplates.map(function (tv) {
+      var tmps = FOCUS_TEMPLATES[ce.analysisMode] || [];
+      var found = tmps.find(function (x) { return x.value === tv; });
+      return found ? found.label : tv;
+    });
+    var topic = (ce.focusFree || tmplLabels.join(', ')).substring(0, 500);
     if (!topic && ce.extractedFacts.length) {
       topic = ce.extractedFacts.slice(0, 3).map(function (f) { return typeof f === 'string' ? f : (f.fact || f.description || ''); }).join('. ');
     }
@@ -731,11 +737,16 @@
     } catch (e) {
       console.error('Generate section error:', e);
       showToast('✗ Error generando ' + section.title);
+      /* MEDIUM#4 FIX: Marcar sección como fallida pero NO detener la cadena */
+      if (!ce.analysisSections[sectionId]) {
+        ce.analysisSections[sectionId] = '⚠ Error al generar esta sección: ' + (e.message || 'Error desconocido') + '. Puedes regenerarla individualmente.';
+        _renderSectionContent(sectionId);
+      }
     }
 
     ce.generatingSection = null;
     if (ce.generatingAll) {
-      // Generate next section
+      // Generate next section — MEDIUM#4: continúa incluso si la actual falló
       var allSections = _getSections();
       var idx = allSections.findIndex(function (s) { return s.id === sectionId; });
       if (idx < allSections.length - 1) {
@@ -868,13 +879,22 @@
     if (!ce.analysisId) { showToast('⚠ Guarda el análisis antes de usar el chat'); return; }
 
     // Append file content
+    /* MEDIUM#3 FIX: Omitir archivos sin texto extraído y notificar al usuario */
     var fileCtx = '';
+    var skippedFiles = [];
     if (ce.chatFiles.length) {
       for (var i = 0; i < ce.chatFiles.length; i++) {
         var txt = await _extractTextFromFile(ce.chatFiles[i]);
-        if (txt) fileCtx += '\n\n[Documento adjunto: ' + ce.chatFiles[i].name + ']\n' + txt.substring(0, 30000);
+        if (txt && txt.trim().length > 10) {
+          fileCtx += '\n\n[Documento adjunto: ' + ce.chatFiles[i].name + ']\n' + txt.substring(0, 30000);
+        } else {
+          skippedFiles.push(ce.chatFiles[i].name);
+        }
       }
       ce.chatFiles = [];
+      if (skippedFiles.length) {
+        showToast('⚠ No se pudo extraer texto de: ' + skippedFiles.join(', '));
+      }
     }
 
     var fullMsg = msg + fileCtx;
@@ -1250,6 +1270,8 @@
   }
 
   async function _ceCreateFolder() {
+    /* MEDIUM#5 FIX: Verificar que callDrive exista antes de usar */
+    if (typeof callDrive !== 'function') { showToast('⚠ Google Drive no está disponible. Configura la integración primero.'); return; }
     var name = prompt('Nombre de la carpeta:', ce.caseName || 'Caso Externo');
     if (!name) return;
     try {
@@ -1267,6 +1289,8 @@
 
   async function _ceRefreshFolder() {
     if (!ce.caseFolderId) return;
+    /* MEDIUM#5 FIX: Verificar existencia de callDrive */
+    if (typeof callDrive !== 'function') { showToast('⚠ Google Drive no está disponible'); return; }
     ce.caseFolderLoading = true;
     _renderCaseFolderFiles();
     try {

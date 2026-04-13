@@ -98,8 +98,11 @@ async function generateAlerts(){
         });
       }
 
-      // Alerta de urgencia crítica (combinación)
+      /* MEDIUM#7 FIX: Alerta de urgencia crítica consolida las alertas individuales
+         de inactividad y tareas pendientes, en vez de duplicarlas */
       if(daysInactive >= 14 && pendingTasks >= 3){
+        /* Remover las alertas individuales de este caso que ya se consolidaron */
+        newAlerts = newAlerts.filter(a => a.caseId !== c.id || (a.type !== 'no_activity' && a.type !== 'pending_tasks'));
         newAlerts.push({
           id: c.id + '-critical_urgency',
           caseId: c.id,
@@ -107,7 +110,7 @@ async function generateAlerts(){
           caseRol: c.rol,
           type: 'critical_urgency',
           severity: 'critical',
-          message: `Caso crítico: ${daysInactive}d inactivo, ${pendingTasks} tareas`
+          message: `Caso crítico: ${daysInactive}d inactivo, ${pendingTasks} tareas pendientes`
         });
       }
     });

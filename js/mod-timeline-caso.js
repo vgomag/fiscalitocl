@@ -21,7 +21,15 @@
     if(!s) return null;
     // Intenta DD/MM/YYYY y DD-MM-YYYY primero
     const m = String(s).match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-    if(m) return new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+    if(m){
+      /* MEDIUM#6 FIX: Validar rangos de día (1-31) y mes (1-12) */
+      const day=parseInt(m[1],10), mon=parseInt(m[2],10), yr=parseInt(m[3],10);
+      if(mon<1||mon>12||day<1||day>31) return null;
+      const dt=new Date(yr, mon-1, day);
+      /* Verificar que la fecha sea real (ej. 31/02 se convierte en marzo) */
+      if(dt.getDate()!==day||dt.getMonth()!==mon-1) return null;
+      return dt;
+    }
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   }
