@@ -107,9 +107,22 @@
     conclusion_laboral: '## V. CONCLUSIONES Y RECOMENDACIONES\nA. Síntesis del Análisis:\n   - Hechos probados o con indicios suficientes\n   - Marco normativo aplicable y vulneraciones configuradas\n   - Procedencia de la tutela laboral\nB. Viabilidad del Caso:\n   - Probabilidad de éxito basada en indicios (art. 493 CT)\n   - Análisis jurisprudencia: tendencia Cortes hacia protección derechos fundamentales\n   - Riesgos procesales (carga probatoria, plazos, prescripción)\nC. Estimación de Montos:\n   - Cálculo tutela: 6-11 remuneraciones (base remuneración promedio últimos 3 meses)\n   - Cálculo años servicio: valor remuneración mensual x años x 1.80\n   - Estimación daño moral (doctrina: 1-3 meses remuneración como base)\n   - Lucro cesante: desde separación hasta sentencia (estimado)\n   - Total indemnización estimada\nD. Plazos Críticos:\n   - Prescripción tutela: 60 días hábiles desde separación (art. 510 CT)\n   - Prescripción despido injustificado: 2 años (art. 510 CT)\nE. Recomendaciones:\n   - Acción sugerida (tutela y/o demanda)\n   - Diligencias previas (notificación, copia documental)\n   - Estrategia de prueba prioritaria\n   - Medidas cautelares a solicitar\nF. Consideraciones Adicionales:\n   - Aplicación Ley 21.643 (Ley Karin) si hay acoso/violencia\n   - Perspectiva de género si hay discriminación basada en sexo\n   - Precedentes jurisprudenciales clave Corte Suprema\n   - Doctrina laboralista aplicable (Gamonal, Ugarte, Rojas)'
   };
 
+  const _CE_ANTI_HALLUCINATION = '\n\n## DIRECTIVA ANTI-ALUCINACIÓN — TOLERANCIA CERO\n'
+    + '⚠ REGLA CARDINAL: JAMAS inventes, supongas ni reconstruyas de memoria un artículo de ley, número de dictamen, rol de causa, fecha de sentencia o cita jurisprudencial.\n'
+    + '1. SOLO puedes citar artículos, leyes, dictámenes y sentencias que:\n'
+    + '   a) Aparezcan TEXTUALMENTE en las secciones BIBLIOTECA, JURISPRUDENCIA, NORMAS BCN o COLECCIONES del contexto inyectado.\n'
+    + '   b) Estén citados en los DOCUMENTOS DEL EXPEDIENTE proporcionados por el usuario.\n'
+    + '   c) Sean artículos del marco normativo base que conoces con CERTEZA ABSOLUTA (no aproximada).\n'
+    + '2. Para dictámenes CGR: SOLO cítalos si aparecen en el contexto con número y fecha. NUNCA reconstruyas un número de memoria.\n'
+    + '3. Para jurisprudencia judicial: SOLO cita Roles que aparezcan en el contexto. NUNCA inventes un Rol ni una fecha.\n'
+    + '4. Si NO tienes la referencia exacta, usa: "Existe jurisprudencia/doctrina en el sentido de que... [VERIFICAR: localizar fuente específica]".\n'
+    + '5. Marca confianza: [CERTEZA ALTA] = aparece en contexto. [VERIFICAR] = probable pero no confirmado. [NO ENCONTRADA] = no disponible.\n'
+    + '6. Ante CUALQUIER duda sobre un número de artículo, dictamen o rol: NO lo cites. Usa fórmula genérica + [VERIFICAR].\n'
+    + '7. PROTECCIÓN DE DATOS: No revelar nombres, RUT, correos, teléfonos. Usar roles genéricos.';
+
   const SECTION_SYSTEM_PROMPTS = {
-    disciplinario: 'Eres un asistente jurídico-administrativo experto en procedimientos disciplinarios y sancionatorios de la Administración Pública chilena.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en la normativa aplicable\n- Considerar la jurisprudencia de la Contraloría General de la República\n- Respetar el debido proceso y las garantías fundamentales\n- Aplicar perspectiva de género cuando sea pertinente\n- Ser proporcional y objetivo en las conclusiones\n- PROTECCIÓN DE DATOS: No revelar nombres, RUT, correos, teléfonos. Usar roles genéricos.',
-    laboral: 'Eres un abogado laboralista experto en derecho del trabajo chileno con enfoque en tutela laboral.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en el Código del Trabajo (DFL 1/2003) y legislación laboral específica\n- Citar artículos en formato: art. X del Código del Trabajo / art. X de la Ley N° XXXX\n- Citar jurisprudencia con formato: Corte Suprema, Rol N° XXXX-XXXX, fecha, considerando X\n- Para tutela laboral: SIEMPRE aplicar análisis de indicios del art. 493 CT. NUNCA exigir prueba directa al trabajador\n- Considerar Ley 21.643 (Ley Karin) para casos de acoso laboral, sexual o violencia en el trabajo\n- Aplicar derechos fundamentales art. 19 CPR (integridad, vida privada, libertad de expresión, no discriminación)\n- Aplicar test de proporcionalidad para verificar vulneraciones\n- Fundamentar con doctrina de autores: Sergio Gamonal, José Luis Ugarte, Irene Rojas, Javier Lizama\n- Ser estratégico y orientado a la acción procesal: indicar pretensiones específicas, plazos, montos estimados\n- Aplicar perspectiva de género cuando corresponda\n- En prescripción: recordar 60 días hábiles tutela desde separación (art. 510 CT), 2 años despido injustificado'
+    disciplinario: 'Eres un asistente jurídico-administrativo experto en procedimientos disciplinarios y sancionatorios de la Administración Pública chilena.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en la normativa aplicable\n- Considerar la jurisprudencia de la Contraloría General de la República\n- Respetar el debido proceso y las garantías fundamentales\n- Aplicar perspectiva de género cuando sea pertinente\n- Ser proporcional y objetivo en las conclusiones' + _CE_ANTI_HALLUCINATION,
+    laboral: 'Eres un abogado laboralista experto en derecho del trabajo chileno con enfoque en tutela laboral.\nTu análisis debe:\n- Ser técnico, preciso y fundamentado en el Código del Trabajo (DFL 1/2003) y legislación laboral específica\n- Citar artículos en formato: art. X del Código del Trabajo / art. X de la Ley N° XXXX\n- Citar jurisprudencia con formato: Corte Suprema, Rol N° XXXX-XXXX, fecha, considerando X — SOLO si el Rol aparece en el contexto RAG/biblioteca proporcionado\n- Para tutela laboral: SIEMPRE aplicar análisis de indicios del art. 493 CT. NUNCA exigir prueba directa al trabajador\n- Considerar Ley 21.643 (Ley Karin) para casos de acoso laboral, sexual o violencia en el trabajo\n- Aplicar derechos fundamentales art. 19 CPR (integridad, vida privada, libertad de expresión, no discriminación)\n- Aplicar test de proporcionalidad para verificar vulneraciones\n- Fundamentar con doctrina de autores: Sergio Gamonal, José Luis Ugarte, Irene Rojas, Javier Lizama — SOLO si la referencia es de conocimiento cierto\n- Ser estratégico y orientado a la acción procesal: indicar pretensiones específicas, plazos, montos estimados\n- Aplicar perspectiva de género cuando corresponda\n- En prescripción: recordar 60 días hábiles tutela desde separación (art. 510 CT), 2 años despido injustificado' + _CE_ANTI_HALLUCINATION
   };
 
   const WRITING_TEMPLATES = [
@@ -784,6 +797,9 @@
       if (additionalCtx) userPrompt += '\n\n' + additionalCtx;
       if (prevSections) userPrompt += '\n\nSECCIONES PREVIAS GENERADAS:\n' + prevSections.substring(0, 30000);
 
+      // Recordatorio anti-alucinación al final del prompt (near recency bias)
+      userPrompt += '\n\n⚠ RECORDATORIO FINAL: SOLO cita artículos, dictámenes y jurisprudencia que aparezcan en las fuentes proporcionadas arriba (BIBLIOTECA, JURISPRUDENCIA, NORMAS BCN, DOCUMENTOS). Si necesitas una referencia que no está en el contexto, usa [VERIFICAR] o una fórmula genérica. NUNCA inventes números de artículo, dictamen o rol de causa.';
+
       await _ceStreamClaude(system, userPrompt, {
         maxTokens: 8192,
         onChunk: function (text) {
@@ -860,7 +876,7 @@
         new Promise(function (_, reject) { setTimeout(function () { reject(new Error('Library RPC timeout (8s)')); }, 8000); })
       ]);
       if (result.error || !result.data || !result.data.length) return '';
-      var ctx = '\n## BIBLIOTECA DE REFERENCIA (Libros y Normativa Interna)\n';
+      var ctx = '\n## BIBLIOTECA DE REFERENCIA (Libros y Normativa Interna) — FUENTES VERIFICADAS\n⚠ Cita artículos y normas de estos fragmentos con [CERTEZA ALTA]. NO inventes referencias que no aparezcan aquí.\n';
       result.data.forEach(function (r) {
         ctx += '\n### [' + (r.source_table === 'reference_books' ? 'Libro' : 'Normativa') + '] ' + r.doc_name + '\n' + (r.snippet || '').substring(0, 1200);
       });
@@ -896,7 +912,7 @@
       var text = d.context || d.text || '';
       if (text.length < 50) return '';
       var collLabel = selectedColls ? selectedColls.join(', ') : 'todas';
-      var ctx = '\n## BIBLIOTECA JURIDICA [Colecciones: ' + collLabel + ']\n';
+      var ctx = '\n## BIBLIOTECA JURIDICA [Colecciones: ' + collLabel + '] — FUENTES VERIFICADAS\n⚠ SOLO cita dictámenes, artículos y jurisprudencia que aparezcan textualmente aquí. NO inventes referencias.\n';
       ctx += text.substring(0, 8000);
       if (d.sources && d.sources.length) ctx += '\n\nFuentes: ' + d.sources.join(', ');
       return ctx + '\n--- FIN QDRANT ---\n';
@@ -917,7 +933,7 @@
         new Promise(function (_, reject) { setTimeout(function () { reject(new Error('BCN query timeout (8s)')); }, 8000); })
       ]);
       if (!res.data || !res.data.length) return '';
-      var ctx = '\n## NORMAS CON ENLACES LEY CHILE (BCN)\nSIEMPRE incluye el enlace BCN al citar estas normas. Usa los artículos listados como referencia.\n';
+      var ctx = '\n## NORMAS CON ENLACES LEY CHILE (BCN) — FUENTES VERIFICADAS\nSIEMPRE incluye el enlace BCN al citar estas normas. SOLO cita artículos específicos si estás 100% seguro del número exacto.\n';
       res.data.forEach(function (n) {
         ctx += '\n- **' + n.label + '**';
         if (n.url_bcn) ctx += ' -> ' + n.url_bcn;
@@ -991,15 +1007,17 @@
         }
       } catch (_ragErr) { console.warn('[CE-chat] RAG injection error:', _ragErr.message); }
 
-      // Directiva de precisión jurídica
-      chatSystem += '\n\nDIRECTIVA DE PRECISIÓN JURÍDICA:\n'
-        + '1. FUNDAMENTA cada afirmación con la norma específica (artículo, inciso, letra).\n'
+      // Directiva de precisión jurídica — reforzada anti-alucinación
+      chatSystem += '\n\nDIRECTIVA DE PRECISIÓN JURÍDICA — TOLERANCIA CERO A CITAS INVENTADAS:\n'
+        + '1. FUNDAMENTA cada afirmación con la norma específica (artículo, inciso, letra) — SOLO si estás 100% seguro del número exacto.\n'
         + '2. DISTINGUE entre fuentes: ley vigente, jurisprudencia, dictámenes CGR y doctrina.\n'
-        + '3. Si las fuentes RAG proporcionan dictámenes o jurisprudencia, CÍTALOS con su número y fecha.\n'
-        + '4. NO inventes citas, números de dictamen ni roles de causa. Si no tienes la fuente exacta, indícalo.\n'
-        + '5. Cuando cites normas de Ley Chile, INCLUYE el enlace BCN si está disponible en las fuentes.\n'
+        + '3. Si las secciones BIBLIOTECA, JURISPRUDENCIA o NORMAS BCN de arriba proporcionan dictámenes o jurisprudencia, CÍTALOS con su número y fecha EXACTOS tal como aparecen.\n'
+        + '4. JAMAS inventes números de artículo, dictamen, rol de causa ni fechas. Si no tienes la fuente exacta en el contexto de arriba, escribe: [VERIFICAR: localizar fuente específica].\n'
+        + '5. Cuando cites normas de Ley Chile, INCLUYE el enlace BCN si está disponible en las fuentes de arriba.\n'
         + '6. Sé PRECISO en plazos, requisitos y procedimientos — un error puede afectar una causa real.\n'
-        + '7. Si no estás seguro de algo, dilo explícitamente en vez de responder con información genérica.';
+        + '7. Si no estás seguro del número exacto de un artículo, usa: "conforme a la normativa aplicable [VERIFICAR]" en vez de inventar un número.\n'
+        + '8. AUTODIAGNÓSTICO: Antes de escribir "art. X" o "dictamen N°", pregúntate: ¿aparece este número en el contexto que me dieron? Si NO → no lo cites.\n'
+        + '9. Prefiere decir "no cuento con esa referencia específica, le sugiero buscar en LeyChile.cl o CGR" a dar una cita dudosa.';
 
       // Build messages array for multi-turn chat
       var messages = ce.chatMessages.slice(-15).map(function (m) {
