@@ -1,42 +1,9 @@
+# SEC-15: Configuración mínima necesaria — detalles de implementación en env vars
 [functions]
   directory = "netlify/functions"
 
-# Netlify Pro: 26 seconds timeout for all functions
-[functions."chat"]
+[functions."*"]
   external_node_modules = ["@anthropic-ai/sdk"]
-  timeout = 26
-
-[functions."ocr"]
-  external_node_modules = ["@anthropic-ai/sdk"]
-  timeout = 26
-
-[functions."structure"]
-  timeout = 26
-
-[functions."drive"]
-  timeout = 26
-
-[functions."rag"]
-  timeout = 26
-
-[functions."qdrant-ingest"]
-  timeout = 26
-
-[functions."drive-extract"]
-  timeout = 26
-
-[functions."drive-scan"]
-  timeout = 26
-  # Descomentar la siguiente línea para activar escaneo automático cada 15 min:
-  # schedule = "*/15 * * * *"
-
-[functions."analyze-external-case"]
-  timeout = 26
-
-[functions."pjud-search"]
-  timeout = 26
-
-[functions."cgr-search"]
   timeout = 26
 
 [[edge_functions]]
