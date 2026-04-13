@@ -12,10 +12,14 @@
 const ALLOWED_ORIGINS_ENV = process.env.ALLOWED_ORIGINS || '';
 
 function getCorsOrigin(requestOrigin) {
-  if (!ALLOWED_ORIGINS_ENV) return '*'; // dev fallback
+  /* SEC-07 FIX: En producción sin ALLOWED_ORIGINS, fallback seguro en vez de '*' */
+  if (!ALLOWED_ORIGINS_ENV) {
+    if (requestOrigin && (requestOrigin.includes('localhost') || requestOrigin.includes('127.0.0.1'))) return requestOrigin;
+    return 'https://fiscalito.netlify.app';
+  }
   const allowed = ALLOWED_ORIGINS_ENV.split(',').map(s => s.trim()).filter(Boolean);
   if (allowed.includes(requestOrigin)) return requestOrigin;
-  return allowed[0] || '*'; // default to first allowed origin
+  return allowed[0] || 'https://fiscalito.netlify.app';
 }
 
 function corsHeaders(event) {

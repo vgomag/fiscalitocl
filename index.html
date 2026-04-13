@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- SEC-04 FIX: Eliminado unsafe-eval. unsafe-inline permanece por onclick handlers inline. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self' https://*.supabase.co https://*.netlify.app https://api.anthropic.com https://*.googleapis.com wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"/>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -1124,10 +1125,14 @@ async function authFetch(url, options = {}) {
   if(res.status === 401 && session){
     try{
       const{data}=await sb.auth.refreshSession();
-      if(data?.session){
+      /* SEC-12 FIX: Validar que el token renovado tenga access_token y user_id válidos */
+      if(data?.session?.access_token && data?.session?.user?.id){
         session=data.session;
         const h2={...(options.headers||{}),'x-auth-token':session.access_token};
         return fetch(url,{...options,headers:h2});
+      } else {
+        console.warn('[authFetch] Token refresh returned invalid session — logging out');
+        doLogout();
       }
     }catch(e){console.warn('[authFetch] Token refresh failed:',e);}
   }
@@ -1138,9 +1143,10 @@ async function authFetch(url, options = {}) {
 async function doLogout(){
   try{await sb.auth.signOut();}catch(e){console.warn('[logout]',e);}
   session=null;currentCase=null;allCases=[];
-  document.getElementById('appScreen').style.display='none';
-  document.getElementById('authScreen').style.display='flex';
+  /* SEC-10 FIX: Limpiar localStorage de datos de app y forzar reload para limpiar estado IIFE */
+  try{Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k.startsWith('fiscalito'))localStorage.removeItem(k);});}catch(e){}
   showToast('Sesión cerrada');
+  setTimeout(function(){location.reload();},500);
 }
 const sb=supabase.createClient(SB_URL,SB_KEY);
 // Also expose as supabaseClient for modules
@@ -1672,7 +1678,8 @@ async function loadCases(){
   _loadCasesInProgress = true;
   try{
     if(!session)return;
-    const{data,error}=await sb.from('cases').select('*').is('deleted_at',null).order('updated_at',{ascending:false});
+    /* SEC-05 FIX: Filtro user_id como defensa en profundidad (complementa RLS) */
+    const{data,error}=await sb.from('cases').select('*').eq('user_id',session.user.id).is('deleted_at',null).order('updated_at',{ascending:false});
     if(error){console.error(error);return;}
     allCases=data||[];
     renderCaseList();
@@ -4039,7 +4046,8 @@ function renderAttachedFiles(){
     const icon=f.name.match(/\.pdf$/i)?'📕':f.name.match(/\.docx?$/i)?'📘':f.name.match(/\.xlsx?$/i)?'📗':f.name.match(/\.csv$/i)?'📗':'📄';
     const cls=f.status==='loading'?'attached-file-chip af-loading':'attached-file-chip';
     const statusIcon=f.status==='loading'?'⏳':f.status==='error'?'⚠️':'✓';
-    return `<div class="${cls}" title="${f.status==='error'?'Error al leer':'Contenido extraído: '+((f.text||'').length)+' chars'}">${icon} <span class="af-name">${f.name}</span> <span style="font-size:9px;opacity:.7">${statusIcon}</span> <span class="af-remove" onclick="removeAttachedFile(${i})">✕</span></div>`;
+    /* SEC-08 FIX: Escapar nombre de archivo para prevenir XSS via filenames maliciosos */
+    return `<div class="${cls}" title="${esc(f.status==='error'?'Error al leer':'Contenido extraído: '+((f.text||'').length)+' chars')}">${icon} <span class="af-name">${esc(f.name)}</span> <span style="font-size:9px;opacity:.7">${statusIcon}</span> <span class="af-remove" onclick="removeAttachedFile(${i})">✕</span></div>`;
   }).join('');
 }
 

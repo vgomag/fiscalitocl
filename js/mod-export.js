@@ -386,7 +386,10 @@ function exportPrintPDF(text, filename, options={}){
   const titulo=options.title||getTitleFromFilename(filename,"pdf");
   const w=window.open("","_blank","width=800,height=600");
   if(!w){showToast("⚠ Permite ventanas emergentes para exportar PDF");return;}
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titulo}</title>
+  /* SEC-06 FIX: Escapar título y contenido completamente para prevenir XSS */
+  const _escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const safeTitulo=_escHtml(titulo);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitulo}</title>
 <style>@page{margin:2cm 2.5cm}body{font-family:Calibri,sans-serif;font-size:11pt;line-height:1.6}
 h1{text-align:center;font-size:16pt}h2{font-size:12pt;margin-top:14pt}
 p{text-align:justify}
@@ -396,14 +399,15 @@ p{text-align:justify}
 <div class="no-print" style="text-align:center;padding:10px;background:#f0f0f0;margin-bottom:20px">
 <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
 <div class="header"><strong>Universidad de Magallanes</strong></div>
-<h1>${titulo}</h1>`);
+<h1>${safeTitulo}</h1>`);
 
   text.split("\n").forEach(line=>{
     const t=line.trim();
     if(!t){w.document.write("<br>");return;}
+    const safeT=_escHtml(t);
     if(t.match(/^(VISTOS|CONSIDERANDO|POR TANTO|RESUELVO|RESOLUCIÓN|ACTA DE|INFORME|VISTA FISCAL|DECLARACIÓN|CARGO)/i))
-      w.document.write("<h2>"+t.replace(/</g,"&lt;")+"</h2>");
-    else w.document.write("<p>"+t.replace(/</g,"&lt;")+"</p>");
+      w.document.write("<h2>"+safeT+"</h2>");
+    else w.document.write("<p>"+safeT+"</p>");
   });
 
   w.document.write('<div class="footer">Documento generado por Fiscalito</div></body></html>');
