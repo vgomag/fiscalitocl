@@ -746,6 +746,64 @@
     return html;
   }
 
+  // ─── CHAT: RAG helpers (Biblioteca + Qdrant + BCN) ───────────────
+
+  async function _ceSearchLibraryForChat(query) {
+    var db = _sb();
+    if (!db) return '';
+    try {
+      var res = await db.rpc('search_library', {
+        search_query: (query || '').substring(0, 200),
+        max_results: 3,
+        max_chars_per_result: 1200
+      });
+      if (res.error || !res.data || !res.data.length) return '';
+      var ctx = '\n## BIBLIOTECA DE REFERENCIA (Libros y Normativa Interna)\n';
+      res.data.forEach(function (r) {
+        ctx += '\n### [' + (r.source_table === 'reference_books' ? 'Libro' : 'Normativa') + '] ' + r.doc_name + '\n' + (r.snippet || '').substring(0, 1200);
+      });
+      return ctx + '\n--- FIN BIBLIOTECA ---\n';
+    } catch (e) { console.warn('[CE-chat] library error:', e.message); return ''; }
+  }
+
+  async function _ceSearchQdrantForChat(query, caseType) {
+    try {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 6000);
+      var r = await fetch('/.netlify/functions/rag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query, folder: 'todos', caseContext: caseType || '' }),
+        signal: ctrl.signal
+      });
+      clearTimeout(timer);
+      if (!r.ok) return '';
+      var d = await r.json();
+      var text = d.context || d.text || '';
+      if (text.length < 50) return '';
+      var ctx = '\n## BIBLIOTECA JURIDICA (Libros de Derecho, Dictámenes CGR, Jurisprudencia)\n';
+      ctx += text.substring(0, 8000);
+      if (d.sources && d.sources.length) ctx += '\n\nFuentes: ' + d.sources.join(', ');
+      return ctx + '\n--- FIN QDRANT ---\n';
+    } catch (e) {
+      if (e.name === 'AbortError') console.warn('[CE-chat] Qdrant timeout (6s)');
+      else console.warn('[CE-chat] Qdrant error:', e.message);
+      return '';
+    }
+  }
+
+  async function _ceGetNormasBCNForChat() {
+    var db = _sb();
+    if (!db) return '';
+    try {
+      var res = await db.from('normas_custom').select('label,url_bcn').order('label');
+      if (!res.data || !res.data.length) return '';
+      var ctx = '\n## NORMAS CON ENLACES LEY CHILE (BCN)\nSIEMPRE incluye el enlace BCN al citar estas normas.\n';
+      res.data.forEach(function (n) { ctx += '\n- ' + n.label + (n.url_bcn ? ' -> ' + n.url_bcn : ''); });
+      return ctx + '\n';
+    } catch (e) { return ''; }
+  }
+
   // ─── CHAT ────────────────────────────────────────────────────────
 
   async function _sendChatMessage() {
@@ -784,6 +842,32 @@
             return (i + 1) + '. ' + (typeof f === 'string' ? f : (f.fact || ''));
           }).join('\n') + '\n' : '');
 
+      // ── RAG: Inyectar fuentes de Biblioteca + Qdrant + BCN ──
+      try {
+        var _ragQuery = msg.substring(0, 300);
+        var _ragCaseType = (ce.caseType || '') + ' ' + (ce.analysisMode || '');
+        var _ragResults = await Promise.all([
+          _ceSearchLibraryForChat(_ragQuery),
+          _ceSearchQdrantForChat(_ragQuery, _ragCaseType),
+          _ceGetNormasBCNForChat()
+        ]);
+        var _ragCtx = (_ragResults[0] || '') + (_ragResults[1] || '') + (_ragResults[2] || '');
+        if (_ragCtx.length > 50) {
+          chatSystem += '\n\n' + _ragCtx;
+          console.log('[CE-chat] +' + _ragCtx.length + ' chars RAG inyectados');
+        }
+      } catch (_ragErr) { console.warn('[CE-chat] RAG injection error:', _ragErr.message); }
+
+      // Directiva de precisión jurídica
+      chatSystem += '\n\nDIRECTIVA DE PRECISIÓN JURÍDICA:\n'
+        + '1. FUNDAMENTA cada afirmación con la norma específica (artículo, inciso, letra).\n'
+        + '2. DISTINGUE entre fuentes: ley vigente, jurisprudencia, dictámenes CGR y doctrina.\n'
+        + '3. Si las fuentes RAG proporcionan dictámenes o jurisprudencia, CÍTALOS con su número y fecha.\n'
+        + '4. NO inventes citas, números de dictamen ni roles de causa. Si no tienes la fuente exacta, indícalo.\n'
+        + '5. Cuando cites normas de Ley Chile, INCLUYE el enlace BCN si está disponible en las fuentes.\n'
+        + '6. Sé PRECISO en plazos, requisitos y procedimientos — un error puede afectar una causa real.\n'
+        + '7. Si no estás seguro de algo, dilo explícitamente en vez de responder con información genérica.';
+
       // Build messages array for multi-turn chat
       var messages = ce.chatMessages.slice(-15).map(function (m) {
         return { role: m.role, content: m.content.substring(0, 5000) };
@@ -802,11 +886,18 @@
           max_tokens: 4096
         })
       });
-      if (!r.ok) throw new Error('Chat HTTP ' + r.status);
+
+      // Manejar respuesta HTTP no-ok con mensaje útil
+      if (!r.ok) {
+        var _errBody = '';
+        try { _errBody = await r.text(); var _ej = JSON.parse(_errBody); _errBody = _ej.error || _errBody; } catch (_) {}
+        throw new Error(_errBody || ('Chat HTTP ' + r.status));
+      }
 
       var reader = r.body.getReader();
       var decoder = new TextDecoder();
       var buf = '';
+      var _streamError = '';
       while (true) {
         var result = await reader.read();
         if (result.done) break;
@@ -823,16 +914,37 @@
             if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
               ce.chatMessages[idx].content += parsed.delta.text;
             }
+            // Capturar errores embebidos en el stream
+            if (parsed.type === 'error' && parsed.error) {
+              _streamError = parsed.error.message || 'Error en el stream de respuesta';
+            }
           } catch (e) { /* skip */ }
           _renderChatMessages();
         }
+      }
+
+      // Verificar que se recibió contenido
+      if (!ce.chatMessages[idx].content.trim()) {
+        ce.chatMessages[idx].content = _streamError
+          ? '⚠ Error de Anthropic: ' + _streamError + '. Intenta de nuevo.'
+          : '⚠ No se recibió respuesta del modelo. Esto puede ocurrir por sobrecarga del servidor o un contexto demasiado largo. Intenta de nuevo o simplifica la consulta.';
       }
 
       // Save assistant response
       _saveChatMessage('assistant', ce.chatMessages[idx].content, idx);
     } catch (e) {
       console.error('Chat error:', e);
-      ce.chatMessages.push({ role: 'assistant', content: '✗ Error al procesar la consulta. Intenta de nuevo.' });
+      var _userErrMsg = e.message || 'Error desconocido';
+      if (_userErrMsg.indexOf('sobrecargado') !== -1 || _userErrMsg.indexOf('529') !== -1) {
+        _userErrMsg = '⚠ Anthropic está sobrecargado. Reintenta en unos segundos.';
+      } else if (_userErrMsg.indexOf('429') !== -1) {
+        _userErrMsg = '⚠ Límite de solicitudes alcanzado. Espera un minuto.';
+      } else if (_userErrMsg.indexOf('input length') !== -1 || _userErrMsg.indexOf('too long') !== -1) {
+        _userErrMsg = '⚠ El contexto es demasiado largo. Reduce los documentos adjuntos o simplifica la consulta.';
+      } else {
+        _userErrMsg = '✗ Error al procesar la consulta: ' + _userErrMsg;
+      }
+      ce.chatMessages.push({ role: 'assistant', content: _userErrMsg });
     }
     ce.chatLoading = false;
     _renderChat();
