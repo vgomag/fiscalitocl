@@ -250,13 +250,13 @@ function renderDashboard(){
 
     <!-- Tabs -->
     <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);padding-bottom:0">
-      <button class="btn-sm" style="border-radius:8px 8px 0 0;padding:8px 16px;font-weight:${isAct?700:400};background:${isAct?'var(--gold)':'var(--surface)'};color:${isAct?'#fff':'var(--text-dim)'}" onclick="_statsActiveTab='activos';renderDashboard()">
+      <button class="btn-sm" style="border-radius:8px 8px 0 0;padding:8px 16px;font-weight:${isAct?700:400};background:${isAct?'var(--gold)':'var(--surface)'};color:${isAct?'#fff':'var(--text-dim)'}" onclick="setStatsTab('activos')">
         📋 Casos Activos (${d.activos.length})
       </button>
-      <button class="btn-sm" style="border-radius:8px 8px 0 0;padding:8px 16px;font-weight:${isTerm?700:400};background:${isTerm?'var(--gold)':'var(--surface)'};color:${isTerm?'#fff':'var(--text-dim)'}" onclick="_statsActiveTab='terminados';renderDashboard()">
+      <button class="btn-sm" style="border-radius:8px 8px 0 0;padding:8px 16px;font-weight:${isTerm?700:400};background:${isTerm?'var(--gold)':'var(--surface)'};color:${isTerm?'#fff':'var(--text-dim)'}" onclick="setStatsTab('terminados')">
         ✅ Proc. Terminados (${d.terminados.length})
       </button>
-      <button class="btn-sm" style="border-radius:8px 8px 0 0;padding:8px 16px;font-weight:${isChat?700:400};background:${isChat?'var(--gold)':'var(--surface)'};color:${isChat?'#fff':'var(--text-dim)'}" onclick="_statsActiveTab='chat';renderDashboard()">
+      <button class="btn-sm" style="border-radius:8px 8px 0 0;padding:8px 16px;font-weight:${isChat?700:400};background:${isChat?'var(--gold)':'var(--surface)'};color:${isChat?'#fff':'var(--text-dim)'}" onclick="setStatsTab('chat')">
         💬 Chat IA
       </button>
     </div>
@@ -733,6 +733,8 @@ console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:
   window.statsChatSend = statsChatSend;
   window.exportStatsCSV = exportStatsCSV;
   window.calcPrescripcion = calcPrescripcion;
+  /* Setter para cambiar pestaña desde onclick inline (la variable es local al IIFE) */
+  window.setStatsTab = function(tab) { _statsActiveTab = tab; renderDashboard(); };
 
   console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:#4f46e5;font-weight:bold');
 })();
