@@ -570,12 +570,32 @@ async function loadNormasCustom() {
 }
 
 const LEY_NORMAS_BASE = [
+  // ── Derecho Administrativo ──
   { id:'ea',       label:'DFL N°29 / Ley 18.834 — Estatuto Administrativo',          desc:'Texto refundido del Estatuto Administrativo. Base normativa de los procedimientos disciplinarios.',               arts:['Art. 119-145 (Procedimientos disciplinarios)','Art. 121 (Sanciones)','Art. 157 (Prescripción)'],    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=236392', custom:false },
   { id:'ley19880', label:'Ley 19.880 — Bases de Procedimientos Administrativos',      desc:'Regula los actos y procedimientos de la Administración del Estado.',                                             arts:['Art. 17 (Derechos de los administrados)','Art. 18-22 (Plazos)','Art. 41-44 (Resolución)'],          url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=175203', custom:false },
   { id:'ley21369', label:'Ley 21.369 — Acoso Sexual y Violencia de Género en IES',    desc:'Prevención y sanción del acoso sexual, violencia y discriminación de género en instituciones de educación superior.', arts:['Art. 1-4 (Obligaciones institucionales)','Art. 5-10 (Procedimiento)','Art. 11-15 (Sanciones)'],   url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=1162612', custom:false },
   { id:'ley21643', label:'Ley 21.643 — Ley Karin',                                   desc:'Modifica el Código del Trabajo y el Estatuto Administrativo para prevenir el acoso laboral, sexual y violencia en el trabajo.', arts:['Art. 1 (Definiciones)','Art. 2 (Obligaciones del empleador)','Art. 3 (Procedimiento de investigación)'], url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=1196426', custom:false },
   { id:'ley18575', label:'Ley 18.575 — Ley Orgánica Constitucional de Bases',         desc:'Bases generales de la Administración del Estado. Principios de probidad y transparencia.',                    arts:['Art. 52-62 (Principio de probidad)','Art. 63-65 (Declaración de patrimonio e intereses)'],         url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=29967',  custom:false },
   { id:'ley20285', label:'Ley 20.285 — Transparencia y Acceso a la Información',      desc:'Acceso a la información pública y transparencia activa.',                                                        arts:['Art. 5-7 (Información activa)','Art. 10-15 (Solicitudes de información)'],                         url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=276363',  custom:false },
+  // ── Derecho Laboral ──
+  { id:'ct',       label:'DFL N°1/2003 — Código del Trabajo',                         desc:'Código del Trabajo de Chile. Regulación integral de las relaciones laborales, contratos, jornada, remuneraciones, término de contrato y procedimiento de tutela.',
+    arts:['Art. 2 (No discriminación)','Art. 7-12 (Contrato de trabajo)','Art. 22-40 (Jornada de trabajo)','Art. 41-54 (Remuneraciones)','Art. 159-163 (Terminación del contrato)','Art. 168 (Despido injustificado)','Art. 171 (Despido indirecto)','Art. 184 (Deber de protección)','Art. 211-A a 211-E (Acoso sexual)','Art. 292-294 (Prácticas antisindicales)','Art. 420-432 (Procedimiento de aplicación general)','Art. 446-462 (Juicio oral)','Art. 485-495 (Tutela laboral)','Art. 493 (Indicios)','Art. 510 (Prescripción)'],
+    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=207436', custom:false },
+  { id:'ley16744', label:'Ley 16.744 — Accidentes del Trabajo y Enfermedades Profesionales', desc:'Seguro social obligatorio contra riesgos de accidentes del trabajo y enfermedades profesionales.',
+    arts:['Art. 5 (Accidente del trabajo)','Art. 7 (Enfermedad profesional)','Art. 69 (Responsabilidad empleador)'],
+    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=28650', custom:false },
+  { id:'ley20348', label:'Ley 20.348 — Igualdad de Remuneraciones',                   desc:'Resguarda el derecho a la igualdad de remuneraciones entre hombres y mujeres.',
+    arts:['Art. 1 (Principio de igualdad)','Art. 2 (Reclamo)'],
+    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=1003601', custom:false },
+  { id:'ley20087', label:'Ley 20.087 — Reforma Procesal Laboral',                     desc:'Sustituye el procedimiento laboral estableciendo el juicio oral y el procedimiento de tutela de derechos fundamentales.',
+    arts:['Art. 1 (Nuevo procedimiento)','Tutela laboral art. 485-495 CT'],
+    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=244886', custom:false },
+  { id:'ley20940', label:'Ley 20.940 — Modernización de Relaciones Laborales',         desc:'Moderniza el sistema de relaciones laborales. Negociación colectiva, sindicatos, servicios mínimos.',
+    arts:['Art. 1 (Negociación colectiva)','Servicios mínimos y equipos de emergencia'],
+    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=1094436', custom:false },
+  { id:'ley21327', label:'Ley 21.327 — Modernización de la DT',                       desc:'Modernización de la Dirección del Trabajo. Tramitación electrónica y fiscalización.',
+    arts:['Art. 1 (Digitalización)','Art. 2 (Fiscalización electrónica)'],
+    url_bcn:'https://www.bcn.cl/leychile/navegar?idNorma=1158033', custom:false },
 ];
 
 function getAllNormas() {
