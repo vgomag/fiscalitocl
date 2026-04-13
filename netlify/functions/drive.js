@@ -129,7 +129,9 @@ async function listFolder(folderId, token) {
   const r = await driveGet(`/drive/v3/files?q=${q}&fields=${fields}&pageSize=200&orderBy=name`, token);
   if (r.status >= 300) {
     const errDetail = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-    const err = new Error('Google Drive API error ' + r.status + ' listing folder ' + folderId + ': ' + (errDetail || '').substring(0, 300));
+    /* SEC-11 FIX: No exponer folderId ni detalles de API en mensajes de error */
+    console.error('[drive] API error listing folder', folderId, ':', (errDetail || '').substring(0, 300));
+    const err = new Error('Error al acceder a la carpeta de Drive (código ' + r.status + ')');
     err.driveStatus = r.status;
     throw err;
   }
