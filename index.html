@@ -2016,10 +2016,10 @@ const CAT_LABELS={genero:'Género',no_genero:'No Género',cargos:'Cargos',probat
 const VALID_CATS=new Set(['genero','no_genero','cargos','probatorio','finalizacion','terminado']);
 /* getCaseCat asignada a window para permitir override por mod-auto-subdivision */
 window.getCaseCat=function(c){
-  // 1) Campo categoria guardado en BD — fuente de verdad principal
-  if(c.categoria && VALID_CATS.has(c.categoria)) return c.categoria;
-  // 2) status terminado como fallback
+  // 1) status terminado tiene prioridad — siempre va a pestaña Terminados
   if(c.status==='terminado') return 'terminado';
+  // 2) Campo categoria guardado en BD
+  if(c.categoria && VALID_CATS.has(c.categoria)) return c.categoria;
   // 3) Derivar desde materia (solo si categoria no está en BD)
   const m=(c.materia||'').toLowerCase();
   if(m.includes('acoso')||m.includes('género')||m.includes('violencia')||m.includes('genero')) return 'genero';
