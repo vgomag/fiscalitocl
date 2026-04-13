@@ -395,6 +395,12 @@
   async function _saveAnalysis() {
     var db = _sb();
     if (!db || !_userId()) return;
+    /* FIX: Leer valores actuales de inputs del DOM antes de guardar,
+       en caso de que onchange/oninput no se hayan disparado aún */
+    var _driveLinkInput = document.getElementById('ce-drive-link-input');
+    if (_driveLinkInput) ce.driveLink = _driveLinkInput.value || '';
+    var _caseNameInput = document.getElementById('ce-case-name-input');
+    if (_caseNameInput) ce.caseName = _caseNameInput.value || '';
     if (!ce.caseName.trim()) { showToast('⚠ Ingresa un nombre para el caso'); return; }
     ce.saving = true;
     _renderHeader();
@@ -1642,7 +1648,7 @@
       // Case identification
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
       + '<div><label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Nombre del Caso</label>'
-      + '<input type="text" value="' + _escHtml(ce.caseName) + '" onchange="ce_state.caseName=this.value" oninput="ce_state.caseName=this.value" placeholder="Ej: Caso Sumario 2024-001" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;"></div>'
+      + '<input type="text" id="ce-case-name-input" value="' + _escHtml(ce.caseName) + '" onchange="ce_state.caseName=this.value" oninput="ce_state.caseName=this.value" placeholder="Ej: Caso Sumario 2024-001" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;"></div>'
       + '<div><label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Tipo de Caso</label>'
       + '<select onchange="ce_state.caseType=this.value" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;">' + caseTypeOpts + '</select></div>'
       + '<div><label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Institución</label>'
@@ -1656,7 +1662,7 @@
       + '<textarea onchange="ce_state.focusFree=this.value" oninput="ce_state.focusFree=this.value" placeholder="O describe libremente el enfoque del análisis…" style="width:100%;min-height:60px;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);background:var(--surface);font-family:inherit;resize:vertical;box-sizing:border-box;">' + _escHtml(ce.focusFree) + '</textarea></div>'
       // Drive link
       + '<div><label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Enlace Google Drive (normativa, opcional)</label>'
-      + '<input type="text" value="' + _escHtml(ce.driveLink) + '" onchange="ce_state.driveLink=this.value" placeholder="https://drive.google.com/..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;"></div>'
+      + '<input type="text" id="ce-drive-link-input" value="' + _escHtml(ce.driveLink) + '" onchange="ce_state.driveLink=this.value" oninput="ce_state.driveLink=this.value" placeholder="https://drive.google.com/..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);background:var(--surface);font-family:inherit;box-sizing:border-box;"></div>'
       // Case Folder (Drive)
       + '<div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface);">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
