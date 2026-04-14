@@ -235,6 +235,7 @@ async function renderUsersTab(body) {
     body.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div style="font-size:12px;color:var(--text-muted)">${profiles.length} usuarios registrados</div>
+      <button onclick="openInviteUserModal()" style="background:var(--gold);color:#fff;border:none;padding:6px 12px;border-radius:var(--radius);font-size:11px;cursor:pointer;font-weight:500">+ Invitar usuario</button>
     </div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -733,6 +734,106 @@ const canEditAllCases = () => roles.currentRole === 'admin';
   if (welcome) welcome.parentNode.insertBefore(view, welcome);
   else document.querySelector('.main')?.appendChild(view);
 })();
+
+/* ────────────────────────────────────────────────────────────────
+   9B · MODAL INVITAR USUARIO
+   ──────────────────────────────────────────────────────────────── */
+(function injectInviteModal() {
+  if (document.getElementById('inviteUserModal')) return;
+  const modal = document.createElement('div');
+  modal.id = 'inviteUserModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;
+    align-items:center;justify-content:center;z-index:10000;
+  `;
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--radius);padding:20px;max-width:400px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div style="font-size:16px;font-weight:500;margin-bottom:16px">Invitar usuario</div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Email del usuario</label>
+        <input id="inviteEmail" type="email" placeholder="usuario@ejemplo.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-size:12px;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Rol</label>
+        <select id="inviteRole" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-size:12px;box-sizing:border-box">
+          <option value="fiscal">⚖️ Fiscal (acceso completo a IA)</option>
+          <option value="consultor">👁️ Consultor (solo lectura, IA limitada)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="closeInviteUserModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer">Cancelar</button>
+        <button id="inviteSendBtn" onclick="sendInviteEmail()" style="background:var(--gold);color:#fff;border:none;padding:8px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer;font-weight:500">Enviar invitación</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+})();
+
+function openInviteUserModal() {
+  document.getElementById('inviteUserModal').style.display = 'flex';
+  document.getElementById('inviteEmail').focus();
+}
+
+function closeInviteUserModal() {
+  document.getElementById('inviteUserModal').style.display = 'none';
+  document.getElementById('inviteEmail').value = '';
+  document.getElementById('inviteRole').value = 'fiscal';
+}
+
+async function sendInviteEmail() {
+  const email = document.getElementById('inviteEmail').value.trim();
+  const role = document.getElementById('inviteRole').value;
+  const btn = document.getElementById('inviteSendBtn');
+
+  if (!email) {
+    showToast('⚠ Ingresa un email');
+    return;
+  }
+  if (!email.includes('@')) {
+    showToast('⚠ Email inválido');
+    return;
+  }
+
+  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!sb) {
+    showToast('⚠ Supabase no disponible');
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+    btn.textContent = '⏳ Enviando...';
+
+    // Invitar usuario usando Supabase Auth
+    const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
+      redirectTo: window.location.origin
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // Asignar rol si se creó el usuario
+    if (data?.user?.id) {
+      await sb.from('user_roles').upsert(
+        { user_id: data.user.id, role: role },
+        { onConflict: 'user_id' }
+      );
+    }
+
+    showToast(`✓ Invitación enviada a ${email}`);
+    closeInviteUserModal();
+
+    // Recargar tabla de usuarios
+    setTimeout(() => loadAdminData(), 1000);
+  } catch (err) {
+    console.error('[INVITE] Error:', err);
+    showToast(`⚠ Error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enviar invitación';
+  }
+}
 
 /* ────────────────────────────────────────────────────────────────
    10 · INICIALIZACIÓN
