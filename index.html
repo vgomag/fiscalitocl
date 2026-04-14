@@ -608,7 +608,7 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
     <!-- LOGO -->
     <div class="sidebar-logo">
       <div class="logo-img-wrap" onclick="document.getElementById('logoUploadInput')?.click()" title="Haz clic para cambiar el logo">
-        <img id="sidebarLogoImg" src="https://i.imgur.com/0.png" alt="Fiscalito"/>
+        <img id="sidebarLogoImg" src="/img/logo-umag.png" alt="Fiscalito"/>
         <svg class="logo-upload-overlay" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v8M5 6l3-3 3 3"/><path d="M2 12h12"/></svg>
       </div>
       <input type="file" id="logoUploadInput" accept="image/*" style="display:none" onchange="handleLogoUpload(this)"/>
@@ -714,7 +714,7 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
     <div class="view active welcome-view" id="viewWelcome">
       <div class="welcome" style="max-width:720px;">
         <div class="welcome-logo-wrap">
-          <img class="welcome-logo-img" id="welcomeLogoImg" src="https://i.imgur.com/0.png" alt="Fiscalito"/>
+          <img class="welcome-logo-img" id="welcomeLogoImg" src="/img/logo-umag.png" alt="Fiscalito"/>
           <div class="welcome-logo-ring"></div>
         </div>
         <h2>Fiscalito</h2>
@@ -1611,7 +1611,7 @@ window.addEventListener('unhandledrejection', e => {
 let sortField=null,sortDir='asc';
 let _juriSelectedSources=new Set(['cgr','pjud','qdrant']);
 let _chatLoadedForCase=null;
-const LOGO_SRC=()=>document.getElementById('sidebarLogoImg')?.src||'https://i.imgur.com/0.png';
+const LOGO_SRC=()=>document.getElementById('sidebarLogoImg')?.src||'/img/logo-umag.png';
 
 /* ── Auth init ── */
 sb.auth.onAuthStateChange((ev,sess)=>{
