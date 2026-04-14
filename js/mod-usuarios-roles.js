@@ -169,10 +169,19 @@ async function refreshAIUsageBadge() {
    4 · ADMIN: INYECTAR ITEM SIDEBAR
    ──────────────────────────────────────────────────────────────── */
 
-function injectAdminSidebarItem() {
+function injectAdminSidebarItem(attempt = 0) {
   if (document.getElementById('adminNavItem')) return;
   const scrollArea = document.querySelector('.sidebar .sidebar-section-label');
-  if (!scrollArea?.parentNode) return;
+  if (!scrollArea?.parentNode) {
+    // Reintentar: el sidebar puede no estar listo aún al llamarse desde
+    // onAuthStateChange(INITIAL_SESSION), que dispara antes del render.
+    if (attempt < 40) { // ~10s máx (40 × 250ms)
+      setTimeout(() => injectAdminSidebarItem(attempt + 1), 250);
+    } else {
+      console.warn('[ROLES] No se encontró .sidebar-section-label para inyectar Admin');
+    }
+    return;
+  }
 
   const adminItem = document.createElement('div');
   adminItem.id = 'adminNavItem';
