@@ -940,7 +940,12 @@ async function sendInviteEmail() {
   }
 
   function attachAuthListener(){
-    const sb = window.supabaseClient || window.sb;
+    // `supabaseClient` y `sb` están declarados con const en index.html (script clásico),
+    // así que NO son propiedades de window. Accedemos a la global directamente.
+    const sb = (typeof supabaseClient !== 'undefined') ? supabaseClient
+             : (typeof window.supabaseClient !== 'undefined') ? window.supabaseClient
+             : (typeof window.sb !== 'undefined') ? window.sb
+             : null;
     if (!sb?.auth?.onAuthStateChange) return false;
     sb.auth.onAuthStateChange((ev, sess) => {
       if (sess && (ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION')) {
@@ -962,7 +967,10 @@ async function sendInviteEmail() {
 
   // Fallback: si ya hay sesión activa al cargar el script, inicializar directo
   window.addEventListener('load', async () => {
-    const sb = window.supabaseClient || window.sb;
+    const sb = (typeof supabaseClient !== 'undefined') ? supabaseClient
+             : (typeof window.supabaseClient !== 'undefined') ? window.supabaseClient
+             : (typeof window.sb !== 'undefined') ? window.sb
+             : null;
     if (!sb) return;
     const { data: { user } } = await sb.auth.getUser();
     if (user) bootOnce();
