@@ -868,10 +868,22 @@ async function sendInviteEmail() {
     btn.disabled = true;
     btn.textContent = '⏳ Enviando...';
 
+    // Obtener token de sesión actual para autenticar la llamada
+    const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+    if (!sb) throw new Error('Cliente Supabase no inicializado');
+    const { data: sessionData } = await sb.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) {
+      throw new Error('Sesión expirada. Vuelve a iniciar sesión.');
+    }
+
     // Llamar a Netlify Function (backend) con credenciales de admin
     const response = await fetch('/.netlify/functions/invite-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
       body: JSON.stringify({ email, role })
     });
 
