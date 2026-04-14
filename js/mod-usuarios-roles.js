@@ -864,31 +864,21 @@ async function sendInviteEmail() {
     return;
   }
 
-  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
-  if (!sb) {
-    showToast('⚠ Supabase no disponible');
-    return;
-  }
-
   try {
     btn.disabled = true;
     btn.textContent = '⏳ Enviando...';
 
-    // Invitar usuario usando Supabase Auth
-    const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
-      redirectTo: window.location.origin
+    // Llamar a Netlify Function (backend) con credenciales de admin
+    const response = await fetch('/.netlify/functions/invite-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role })
     });
 
-    if (error) {
-      throw error;
-    }
+    const result = await response.json();
 
-    // Asignar rol si se creó el usuario
-    if (data?.user?.id) {
-      await sb.from('user_roles').upsert(
-        { user_id: data.user.id, role: role },
-        { onConflict: 'user_id' }
-      );
+    if (!response.ok) {
+      throw new Error(result.error || 'Error al invitar');
     }
 
     showToast(`✓ Invitación enviada a ${email}`);
