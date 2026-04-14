@@ -108,51 +108,94 @@ const handler = async (req) => {
       });
     }
 
-    // ── Invitar usuario vía Admin API ────────────────────────────
-    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SERVICE_KEY}`,
-        'apikey': SERVICE_KEY,
-      },
-      body: JSON.stringify({
-        email,
-        redirect_to: `${SITE_URL}/auth/callback`,
-      }),
-    });
+    const adminHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'apikey': SERVICE_KEY,
+    };
 
-    const inviteData = await inviteRes.json().catch(() => ({}));
-    if (!inviteRes.ok) {
-      console.error('[INVITE] invite failed:', inviteRes.status, inviteData);
-      return new Response(
-        JSON.stringify({
-          error: inviteData?.msg || inviteData?.error_description || inviteData?.error || `Error ${inviteRes.status}`,
-        }),
-        { status: inviteRes.status, headers: CORS }
+    // ── Ver si el usuario ya existe ──────────────────────────────
+    let newUserId = null;
+    const listRes = await fetch(
+      `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}`,
+      { headers: adminHeaders }
+    );
+    if (listRes.ok) {
+      const listData = await listRes.json().catch(() => ({}));
+      const existing = (listData.users || []).find(
+        (u) => (u.email || '').toLowerCase() === email.toLowerCase()
       );
+      if (existing) newUserId = existing.id;
     }
 
-    const newUserId = inviteData?.id || inviteData?.user?.id;
+    // ── Crear usuario si no existe (con email ya confirmado) ────
+    if (!newUserId) {
+      // Clave temporal aleatoria: el usuario la reemplaza con el link de recuperación
+      const tempPass = 'Tmp-' + Math.random().toString(36).slice(2, 10) + '-' +
+                       Math.random().toString(36).slice(2, 10);
+
+      const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          email,
+          password: tempPass,
+          email_confirm: true, // saltar confirmación de email
+        }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) {
+        console.error('[INVITE] create failed:', createRes.status, createData);
+        return new Response(
+          JSON.stringify({
+            error: createData?.msg || createData?.error_description || createData?.error || `Error ${createRes.status}`,
+          }),
+          { status: createRes.status, headers: CORS }
+        );
+      }
+      newUserId = createData?.id || createData?.user?.id;
+    }
+
+    // ── Enviar correo de "definir contraseña" (recovery) ────────
+    const recoverRes = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        email,
+        // Redirige al usuario después de que define su contraseña
+        options: { redirect_to: `${SITE_URL}` },
+      }),
+    });
+    if (!recoverRes.ok) {
+      const errBody = await recoverRes.text().catch(() => '');
+      console.error('[INVITE] recover failed:', recoverRes.status, errBody);
+      // No bloquear: el usuario ya existe; el admin puede reintentar
+    }
 
     // ── Asignar rol ──────────────────────────────────────────────
+    // El unique constraint de user_roles es (user_id, role), no user_id solo,
+    // así que un upsert "on_conflict=user_id" no aplica. Hacemos DELETE + INSERT
+    // para garantizar un único rol por usuario.
     if (newUserId) {
-      const upsertRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/user_roles?on_conflict=user_id`,
+      const delRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${newUserId}`,
+        { method: 'DELETE', headers: adminHeaders }
+      );
+      if (!delRes.ok && delRes.status !== 404) {
+        const errBody = await delRes.text().catch(() => '');
+        console.error('[INVITE] role delete failed:', delRes.status, errBody);
+      }
+      const insRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/user_roles`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SERVICE_KEY}`,
-            'apikey': SERVICE_KEY,
-            'Prefer': 'resolution=merge-duplicates,return=minimal',
-          },
+          headers: { ...adminHeaders, 'Prefer': 'return=minimal' },
           body: JSON.stringify({ user_id: newUserId, role }),
         }
       );
-      if (!upsertRes.ok) {
-        const errBody = await upsertRes.text().catch(() => '');
-        console.error('[INVITE] role upsert failed:', upsertRes.status, errBody);
+      if (!insRes.ok) {
+        const errBody = await insRes.text().catch(() => '');
+        console.error('[INVITE] role insert failed:', insRes.status, errBody);
         // No bloquear: la invitación ya fue creada
       }
     }
@@ -160,7 +203,7 @@ const handler = async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Invitación enviada a ${email}`,
+        message: `Usuario ${email} creado. Se le envió un correo para definir su contraseña.`,
         user_id: newUserId,
       }),
       { status: 200, headers: CORS }

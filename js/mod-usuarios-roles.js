@@ -267,7 +267,7 @@ async function renderUsersTab(body) {
     body.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div style="font-size:12px;color:var(--text-muted)">${profiles.length} usuarios registrados</div>
-      <button onclick="openInviteUserModal()" style="background:var(--gold);color:#fff;border:none;padding:6px 12px;border-radius:var(--radius);font-size:11px;cursor:pointer;font-weight:500">+ Invitar usuario</button>
+      <button onclick="openInviteUserModal()" style="background:var(--gold);color:#fff;border:none;padding:6px 12px;border-radius:var(--radius);font-size:11px;cursor:pointer;font-weight:500">+ Nuevo usuario</button>
     </div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -332,11 +332,12 @@ async function adminChangeRole(userId, newRole) {
       showToast('⚠ Rol no válido');
       return;
     }
-    const { error } = await sb.from('user_roles').upsert(
-      { user_id: userId, role: newRole },
-      { onConflict: 'user_id' }
-    );
-    if (error) throw error;
+    // unique constraint es (user_id, role), así que usamos DELETE + INSERT
+    // para garantizar un único rol por usuario.
+    const delRes = await sb.from('user_roles').delete().eq('user_id', userId);
+    if (delRes.error) throw delRes.error;
+    const insRes = await sb.from('user_roles').insert({ user_id: userId, role: newRole });
+    if (insRes.error) throw insRes.error;
     showToast(`✓ Rol actualizado a ${ROLE_CONFIG[newRole]?.label || newRole}`);
   } catch (err) {
     showToast(`⚠ Error al cambiar rol: ${err.message}`);
@@ -827,7 +828,7 @@ const canEditAllCases = () => roles.currentRole === 'admin';
   `;
   modal.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--radius);padding:20px;max-width:400px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3)">
-      <div style="font-size:16px;font-weight:500;margin-bottom:16px">Invitar usuario</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:16px">Nuevo usuario</div>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Email del usuario</label>
         <input id="inviteEmail" type="email" placeholder="usuario@ejemplo.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-size:12px;box-sizing:border-box">
@@ -841,7 +842,7 @@ const canEditAllCases = () => roles.currentRole === 'admin';
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="closeInviteUserModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer">Cancelar</button>
-        <button id="inviteSendBtn" onclick="sendInviteEmail()" style="background:var(--gold);color:#fff;border:none;padding:8px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer;font-weight:500">Enviar invitación</button>
+        <button id="inviteSendBtn" onclick="sendInviteEmail()" style="background:var(--gold);color:#fff;border:none;padding:8px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer;font-weight:500">Crear usuario</button>
       </div>
     </div>
   `;
@@ -902,7 +903,7 @@ async function sendInviteEmail() {
       throw new Error(result.error || 'Error al invitar');
     }
 
-    showToast(`✓ Invitación enviada a ${email}`);
+    showToast(`✓ Usuario ${email} creado. Recibirá un correo para definir su contraseña.`);
     closeInviteUserModal();
 
     // Recargar tabla de usuarios
@@ -912,7 +913,7 @@ async function sendInviteEmail() {
     showToast(`⚠ Error: ${err.message}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Enviar invitación';
+    btn.textContent = 'Crear usuario';
   }
 }
 
