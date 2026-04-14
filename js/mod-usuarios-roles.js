@@ -735,23 +735,54 @@ const canEditAllCases = () => roles.currentRole === 'admin';
 })();
 
 /* ────────────────────────────────────────────────────────────────
-   10 · INICIALIZACIÓN (se engancha al initApp del index.html)
+   10 · INICIALIZACIÓN
+   ────────────────────────────────────────────────────────────────
+   Se engancha directamente a onAuthStateChange porque initApp()
+   del index.html se dispara desde ese mismo evento (INITIAL_SESSION /
+   SIGNED_IN) ANTES del evento window.load, por lo que envolver
+   window.initApp en el load no alcanzaba a ejecutarse en el arranque.
    ──────────────────────────────────────────────────────────────── */
-window.addEventListener('load', () => {
-  // Esperar a que initApp esté definido
-  const origInit = window.initApp;
-  if (typeof origInit === 'function') {
-    window.initApp = async function() {
-      await origInit.call(this);
+(function bootRolesModule(){
+  let _rolesLoaded = false;
+
+  async function bootOnce(){
+    if (_rolesLoaded) return;
+    _rolesLoaded = true;
+    try {
       await loadCurrentUserRole();
-      await loadAIUsageLimits();
-    };
-  } else {
-    // Fallback: intentar cargar cuando la sesión esté lista
-    const origAuth = window.sb?.auth?.onAuthStateChange;
-    setTimeout(async () => {
-      await loadCurrentUserRole();
-      await loadAIUsageLimits();
-    }, 1000);
+      if (typeof loadAIUsageLimits === 'function') await loadAIUsageLimits();
+    } catch (err) {
+      console.warn('[ROLES] boot error:', err);
+      _rolesLoaded = false; // permitir reintento
+    }
   }
-});
+
+  function attachAuthListener(){
+    const sb = window.supabaseClient || window.sb;
+    if (!sb?.auth?.onAuthStateChange) return false;
+    sb.auth.onAuthStateChange((ev, sess) => {
+      if (sess && (ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION')) {
+        bootOnce();
+      }
+      if (ev === 'SIGNED_OUT') {
+        _rolesLoaded = false;
+        roles.currentRole = null;
+      }
+    });
+    return true;
+  }
+
+  // Intentar enganchar ya mismo y también en DOMContentLoaded/load
+  if (!attachAuthListener()) {
+    document.addEventListener('DOMContentLoaded', attachAuthListener, { once:true });
+    window.addEventListener('load', attachAuthListener, { once:true });
+  }
+
+  // Fallback: si ya hay sesión activa al cargar el script, inicializar directo
+  window.addEventListener('load', async () => {
+    const sb = window.supabaseClient || window.sb;
+    if (!sb) return;
+    const { data: { user } } = await sb.auth.getUser();
+    if (user) bootOnce();
+  });
+})();
