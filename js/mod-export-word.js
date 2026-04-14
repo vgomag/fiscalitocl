@@ -48,7 +48,7 @@ const WORD_FORMAT = {
 /**
  * Carga el logo UMAG. Intenta:
  * 1. localStorage (subido por el usuario)
- * 2. /img/logo-umag.png (archivo estático)
+ * 2. /img/logo-fiscalito.png (archivo estático)
  * Retorna ArrayBuffer o null.
  */
 async function getWordDocLogo() {
@@ -63,7 +63,7 @@ async function getWordDocLogo() {
 
   /* 2. Intentar archivo estático */
   try {
-    const resp = await fetch('/img/logo-umag.png');
+    const resp = await fetch('/img/logo-fiscalito.png');
     if (resp.ok) return await resp.arrayBuffer();
   } catch(e) { console.warn('[Logo] static file fallback:', e); }
 

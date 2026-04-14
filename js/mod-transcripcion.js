@@ -1941,7 +1941,7 @@ async function f11DownloadWord(){
     try {
       logoBuffer = typeof getWordDocLogo === 'function'
         ? await getWordDocLogo()
-        : await fetch('/img/logo-umag.png').then(r => r.ok ? r.arrayBuffer() : null);
+        : await fetch('/img/logo-fiscalito.png').then(r => r.ok ? r.arrayBuffer() : null);
     } catch(e){ console.warn('[F11] No se pudo cargar logo:', e); }
 
     const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
