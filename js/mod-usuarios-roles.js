@@ -13,23 +13,29 @@
 
    SQL REQUERIDO (Supabase → SQL Editor):
    ──────────────────────────────────────
-   -- Tabla de logs de uso IA
+   -- Tabla de logs de uso IA (ACTUALIZAR si ya existe)
    create table if not exists ai_usage_logs (
      id         uuid primary key default gen_random_uuid(),
      user_id    uuid references auth.users on delete cascade,
      fn_code    text not null,
      detail     text,
+     tokens_used integer default 0,
+     cost_usd   numeric(10,4) default 0,
      logged_at  timestamptz not null default now()
    );
 
-   -- Límites mensuales por rol (config)
+   -- Agregar columnas si no existen (para tablas existentes):
+   ALTER TABLE ai_usage_logs ADD COLUMN IF NOT EXISTS tokens_used integer default 0;
+   ALTER TABLE ai_usage_logs ADD COLUMN IF NOT EXISTS cost_usd numeric(10,4) default 0;
+
+   -- Límites mensuales por rol (ACTUALIZAR)
    create table if not exists ai_usage_limits (
-     role       text primary key,
-     monthly_limit integer not null default 500
+     role              text primary key,
+     monthly_budget_usd numeric(10,2) not null default 10.00
    );
-   insert into ai_usage_limits(role, monthly_limit) values
-     ('admin',500000),('fiscal',500),('consultor',50)
-   on conflict(role) do nothing;
+   insert into ai_usage_limits(role, monthly_budget_usd) values
+     ('admin',9999.99),('fiscal',10.00),('consultor',5.00)
+   on conflict(role) do update set monthly_budget_usd = excluded.monthly_budget_usd;
 
    -- Función check_ai_usage_limit
    create or replace function check_ai_usage_limit(p_user_id uuid)
@@ -105,15 +111,32 @@ async function refreshAIUsageBadge() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return;
 
-    const { count } = await sb.from('ai_usage_logs')
-      .select('*', { count: 'exact', head: true })
+    // Obtener costo total del mes actual
+    const { data: logs, error: logsErr } = await sb.from('ai_usage_logs')
+      .select('cost_usd')
       .eq('user_id', user.id)
       .gte('logged_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
 
-    const limit = roles.usageLimits[roles.currentRole] ?? 500;
-    const used  = count || 0;
-    const pct   = Math.min(100, Math.round(used / limit * 100));
+    const usedUSD = logs?.reduce((sum, log) => sum + (parseFloat(log.cost_usd) || 0), 0) || 0;
+
+    // Obtener presupuesto del mes
+    const { data: roleData } = await sb.from('user_roles').select('role').eq('user_id', user.id).single();
+    const userRole = roleData?.role || 'fiscal';
+    const { data: limitData } = await sb.from('ai_usage_limits').select('monthly_budget_usd').eq('role', userRole).single();
+    const budgetUSD = parseFloat(limitData?.monthly_budget_usd) || 10.00;
+
+    const pct = Math.min(100, Math.round(usedUSD / budgetUSD * 100));
     const color = pct >= 90 ? 'var(--red)' : pct >= 70 ? '#f59e0b' : 'var(--green)';
+
+    // Alertas por porcentaje
+    const prevAlert = window._lastAIAlert || 0;
+    if (pct >= 90 && prevAlert < 90) {
+      showToast(`⚠️ Alerta: Ya gastaste $${usedUSD.toFixed(2)} de tu presupuesto de $${budgetUSD.toFixed(2)}`);
+      window._lastAIAlert = 90;
+    } else if (pct >= 70 && prevAlert < 70) {
+      showToast(`📊 Recordatorio: Gastaste $${usedUSD.toFixed(2)} de $${budgetUSD.toFixed(2)} (${pct}%)`);
+      window._lastAIAlert = 70;
+    }
 
     // Inyectar/actualizar badge
     let badge = document.getElementById('aiUsageBadge');
@@ -126,10 +149,10 @@ async function refreshAIUsageBadge() {
     const isAdmin = roles.currentRole === 'admin';
     badge.innerHTML = isAdmin ? '' : `
       <div style="display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:10px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.07)"
-        title="Uso IA este mes: ${used}/${limit} llamadas" onclick="openAdminUsersView()">
-        <span style="color:${color}">⚡</span>
-        <span style="color:${color};font-weight:600">${used}</span>
-        <span style="color:var(--text-muted)">/ ${limit}</span>
+        title="Gasto IA este mes: $${usedUSD.toFixed(2)}/$${budgetUSD.toFixed(2)}" onclick="openAdminUsersView()">
+        <span style="color:${color}">💰</span>
+        <span style="color:${color};font-weight:600">$${usedUSD.toFixed(2)}</span>
+        <span style="color:var(--text-muted)">/${budgetUSD.toFixed(2)}</span>
       </div>`;
 
     // Bloquear IA si límite superado
@@ -353,16 +376,18 @@ async function renderUsageTab(body) {
     const profileMap = {};
     profiles.forEach(p => { profileMap[p.id] = p; });
 
-    // Agrupar por usuario
+    // Agrupar por usuario (ahora con costo USD)
     const byUser = {};
     usage.forEach(u => {
-      if (!byUser[u.user_id]) byUser[u.user_id] = { calls: 0, fns: {} };
+      if (!byUser[u.user_id]) byUser[u.user_id] = { calls: 0, costUSD: 0, fns: {} };
       byUser[u.user_id].calls++;
+      byUser[u.user_id].costUSD += parseFloat(u.cost_usd) || 0;
       byUser[u.user_id].fns[u.fn_code] = (byUser[u.user_id].fns[u.fn_code] || 0) + 1;
     });
 
-    // Stats globales
+    // Stats globales en USD
     const totalCalls = usage.length;
+    const totalCostUSD = usage.reduce((sum, u) => sum + (parseFloat(u.cost_usd) || 0), 0);
     const topFns = {};
     usage.forEach(u => { topFns[u.fn_code] = (topFns[u.fn_code] || 0) + 1; });
     const fnTop = Object.entries(topFns).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -370,9 +395,9 @@ async function renderUsageTab(body) {
     body.innerHTML = `
     <!-- KPI -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-      <div class="dash-card"><div class="dash-card-val gold">${totalCalls}</div><div class="dash-card-label">Llamadas este mes</div></div>
+      <div class="dash-card"><div class="dash-card-val gold">$${totalCostUSD.toFixed(2)}</div><div class="dash-card-label">Gasto total IA</div></div>
       <div class="dash-card"><div class="dash-card-val blue">${Object.keys(byUser).length}</div><div class="dash-card-label">Usuarios activos</div></div>
-      <div class="dash-card"><div class="dash-card-val green">${fnTop[0]?.[0]||'—'}</div><div class="dash-card-label">Función más usada</div></div>
+      <div class="dash-card"><div class="dash-card-val green">${totalCalls}</div><div class="dash-card-label">Llamadas totales</div></div>
     </div>
 
     <!-- Top funciones -->
@@ -389,24 +414,25 @@ async function renderUsageTab(body) {
     </div>
 
     <!-- Por usuario -->
-    <div style="font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Por usuario</div>
+    <div style="font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Gasto por usuario</div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:11.5px">
       <thead><tr>
         <th class="admin-th">Usuario</th>
         <th class="admin-th">Rol</th>
-        <th class="admin-th">Llamadas</th>
-        <th class="admin-th">Límite</th>
-        <th class="admin-th">Uso</th>
+        <th class="admin-th">Gasto USD</th>
+        <th class="admin-th">Presupuesto</th>
+        <th class="admin-th">% Usado</th>
       </tr></thead>
       <tbody>
       ${Object.entries(byUser)
-        .sort((a,b)=>b[1].calls-a[1].calls)
+        .sort((a,b)=>b[1].costUSD-a[1].costUSD)
         .map(([uid, stats]) => {
           const p = profileMap[uid];
           const role  = rolesMap[uid] || 'fiscal';
-          const limit = roles.usageLimits[role] || 500;
-          const pct   = Math.min(100, Math.round(stats.calls/limit*100));
+          const limitData = { admin: 9999.99, fiscal: 10.00, consultor: 5.00 };
+          const budgetUSD = limitData[role] || 10.00;
+          const pct   = Math.min(100, Math.round(stats.costUSD/budgetUSD*100));
           const barColor = pct>=90?'var(--red)':pct>=70?'#f59e0b':'var(--green)';
           const rc = ROLE_CONFIG[role] || ROLE_CONFIG.fiscal;
           return `<tr>
@@ -415,8 +441,8 @@ async function renderUsageTab(body) {
               <div style="font-size:10px;color:var(--text-muted)">${esc(p?.email||'—')}</div>
             </td>
             <td class="admin-td"><span style="font-size:10px;color:${rc.color}">${rc.badge} ${rc.label}</span></td>
-            <td class="admin-td" style="font-family:'DM Mono',monospace;text-align:right">${stats.calls}</td>
-            <td class="admin-td" style="font-family:'DM Mono',monospace;text-align:right">${limit===500000?'∞':limit}</td>
+            <td class="admin-td" style="font-family:'DM Mono',monospace;text-align:right;font-weight:500;color:${barColor}">$${stats.costUSD.toFixed(2)}</td>
+            <td class="admin-td" style="font-family:'DM Mono',monospace;text-align:right">${role==='admin'?'∞':'$'+budgetUSD.toFixed(2)}</td>
             <td class="admin-td" style="min-width:120px">
               <div style="display:flex;align-items:center;gap:6px">
                 <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
@@ -672,6 +698,50 @@ async function removeAlertRecipient(id) {
 /* ────────────────────────────────────────────────────────────────
    6 · CARGA DE LÍMITES DESDE BD
    ──────────────────────────────────────────────────────────────── */
+
+/* ────────────────────────────────────────────────────────────────
+   4 · REGISTRAR USO IA CON COSTO
+   ──────────────────────────────────────────────────────────────── */
+
+/**
+ * Registra uso de IA con cálculo automático de costo
+ * @param {string} fnCode - Código de la función (ej: "chat", "analyze")
+ * @param {number} tokensUsed - Tokens procesados (aprox. 4 chars = 1 token)
+ * @param {string} detail - Detalle opcional del uso
+ */
+async function logAIUsage(fnCode, tokensUsed = 0, detail = '') {
+  const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!sb) return false;
+
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return false;
+
+    // Calcular costo: $0.01 por 1000 tokens (parecido a Claude)
+    const costUSD = (tokensUsed / 1000) * 0.01;
+
+    // Registrar en ai_usage_logs
+    const { error } = await sb.from('ai_usage_logs').insert({
+      user_id: user.id,
+      fn_code: fnCode,
+      detail: detail,
+      tokens_used: Math.round(tokensUsed),
+      cost_usd: costUSD
+    });
+
+    if (error) {
+      console.warn('[AI_LOG] Error:', error);
+      return false;
+    }
+
+    // Actualizar badge
+    await refreshAIUsageBadge();
+    return true;
+  } catch (err) {
+    console.warn('[AI_LOG] Exception:', err);
+    return false;
+  }
+}
 
 async function loadAIUsageLimits() {
   const sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
