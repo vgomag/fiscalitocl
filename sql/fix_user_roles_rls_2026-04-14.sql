@@ -17,6 +17,13 @@ DROP POLICY IF EXISTS "Authenticated can manage roles"      ON public.user_roles
 DROP POLICY IF EXISTS "users_read_own_role"                 ON public.user_roles;
 DROP POLICY IF EXISTS "admins_read_all_roles"               ON public.user_roles;
 
+-- CRÍTICO: esta política estaba mal nombrada. Su USING clause era
+-- (auth.uid() = user_id) con cmd=ALL, lo que permitía a CUALQUIER usuario
+-- autenticado UPDATE su propia fila y cambiar su role a 'admin'
+-- (privilege escalation). Se elimina: las mutaciones deben pasar por el
+-- backend con SERVICE_ROLE_KEY (que bypassea RLS).
+DROP POLICY IF EXISTS "Admins can manage roles"             ON public.user_roles;
+
 -- 3) SELECT: usuario autenticado puede leer SOLO su propio rol
 CREATE POLICY "users_read_own_role"
   ON public.user_roles
