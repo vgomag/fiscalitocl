@@ -74,8 +74,11 @@ async function _validateTokenAndExtractUid(token) {
   }
 
   // Paso 2: Verificar firma contra Supabase auth.getUser()
+  // Usa ANON_KEY (es suficiente para /auth/v1/user). Nunca uses SERVICE_ROLE_KEY
+  // aquí: si la función tiene un path que loguea el apikey o la key leakea,
+  // el atacante tendría acceso admin a toda la base.
   const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
-  const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY') || Netlify.env.get('SUPABASE_ANON_KEY');
+  const sbKey = Netlify.env.get('SUPABASE_ANON_KEY') || Netlify.env.get('VITE_SUPABASE_ANON_KEY');
   if (sbUrl && sbKey) {
     try {
       const _ac = new AbortController();
