@@ -74,6 +74,7 @@ function driveGet(path, token) {
       req.destroy();
       reject(new Error('Drive GET request timeout'));
     });
+    _to = setTimeout(() => req.destroy(new Error('Drive GET timeout (setTimeout)')), 30000);
   });
 }
 
