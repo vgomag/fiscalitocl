@@ -86,8 +86,15 @@ async function loadCurrentUserRole() {
   try {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return;
-    const { data } = await sb.from('user_roles').select('role').eq('user_id', user.id).single();
-    roles.currentRole = data?.role || 'fiscal';
+    // maybeSingle: no lanza error si no hay fila (devuelve data=null).
+    const { data, error } = await sb.from('user_roles')
+      .select('role').eq('user_id', user.id).maybeSingle();
+    if (error) console.warn('[ROLES] fetch role:', error);
+    // Fallback al rol MENOS privilegiado (consultor = solo lectura).
+    // Usar 'fiscal' como fallback daba acceso completo a usuarios sin rol asignado.
+    roles.currentRole = (data?.role === 'admin' || data?.role === 'fiscal' || data?.role === 'consultor')
+      ? data.role
+      : 'consultor';
 
     // Si es admin, mostrar item de admin en sidebar
     if (roles.currentRole === 'admin') injectAdminSidebarItem();
@@ -96,7 +103,7 @@ async function loadCurrentUserRole() {
     await refreshAIUsageBadge();
   } catch (err) {
     console.warn('[ROLES] loadCurrentUserRole:', err);
-    roles.currentRole = 'fiscal'; // fallback seguro
+    roles.currentRole = 'consultor'; // fallback de mínimo privilegio
   }
 }
 
@@ -120,10 +127,11 @@ async function refreshAIUsageBadge() {
     const usedUSD = logs?.reduce((sum, log) => sum + (parseFloat(log.cost_usd) || 0), 0) || 0;
 
     // Obtener presupuesto del mes
-    const { data: roleData } = await sb.from('user_roles').select('role').eq('user_id', user.id).single();
-    const userRole = roleData?.role || 'fiscal';
-    const { data: limitData } = await sb.from('ai_usage_limits').select('monthly_budget_usd').eq('role', userRole).single();
-    const budgetUSD = parseFloat(limitData?.monthly_budget_usd) || 10.00;
+    const { data: roleData } = await sb.from('user_roles').select('role').eq('user_id', user.id).maybeSingle();
+    const userRole = roleData?.role || 'consultor';
+    const { data: limitData } = await sb.from('ai_usage_limits').select('monthly_budget_usd').eq('role', userRole).maybeSingle();
+    // Si no hay límite configurado para el rol, usar un valor conservador bajo.
+    const budgetUSD = parseFloat(limitData?.monthly_budget_usd) || 1.00;
 
     const pct = Math.min(100, Math.round(usedUSD / budgetUSD * 100));
     const color = pct >= 90 ? 'var(--red)' : pct >= 70 ? '#f59e0b' : 'var(--green)';
