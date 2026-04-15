@@ -1,10 +1,24 @@
 import { corsHeaders } from './shared/cors-esm.js';
 
 /**
- * INVITE-USER — Invita un usuario por email vía Supabase Auth Admin API
+ * INVITE-USER — Invita un usuario por email
  * ──────────────────────────────────────────────────────────────────────
- * Usa fetch directo (sin SDK) para evitar dependencias en package.json.
- * Requiere que el llamante esté autenticado y tenga rol 'admin'.
+ * Flujo:
+ *  1. Verifica que el llamante sea admin.
+ *  2. Usa Supabase Admin API (generate_link) para obtener el action_link
+ *     SIN que Supabase envíe el correo (evita su SMTP poco confiable).
+ *  3. Envía el correo custom vía Resend (RESEND_API_KEY).
+ *  4. Asigna el rol al usuario en user_roles.
+ *
+ * ENV VARS REQUERIDAS EN NETLIFY:
+ *  - SUPABASE_URL
+ *  - SUPABASE_SERVICE_ROLE_KEY
+ *  - RESEND_API_KEY
+ *  - RESEND_FROM        (ej: "Fiscalito <noreply@tudominio.cl>") — requiere
+ *                        dominio verificado en Resend. Si no lo tienes,
+ *                        usa "onboarding@resend.dev" (solo envía a tu propio
+ *                        email de la cuenta Resend — útil para pruebas).
+ *  - URL                (auto-provisto por Netlify; sitio de producción)
  */
 
 function getEnv(name, fallback) {
@@ -12,6 +26,64 @@ function getEnv(name, fallback) {
     (typeof Netlify !== 'undefined' && Netlify.env?.get(name)) ||
     process.env[name];
   return v || fallback;
+}
+
+function escapeHtml(s = '') {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildEmailHtml({ actionLink, role, siteUrl, isRecovery }) {
+  const title = isRecovery
+    ? 'Restablece tu acceso a Fiscalito'
+    : 'Te invitaron a Fiscalito';
+  const intro = isRecovery
+    ? 'Se solicitó restablecer tu contraseña. Haz clic en el botón para definir una nueva.'
+    : `Fuiste invitado a usar <strong>Fiscalito</strong> con el rol <strong>${escapeHtml(role)}</strong>. Haz clic en el botón para definir tu contraseña y acceder.`;
+  const btn = isRecovery ? 'Restablecer contraseña' : 'Aceptar invitación';
+
+  return `<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#222">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:32px 16px">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+        <tr><td style="padding:32px 32px 8px 32px">
+          <h1 style="margin:0 0 12px;font-size:22px;color:#1a1a1a">${escapeHtml(title)}</h1>
+          <p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#444">${intro}</p>
+          <p style="margin:0 0 24px"><a href="${actionLink}" style="display:inline-block;background:#c9a227;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:15px">${btn}</a></p>
+          <p style="margin:0 0 8px;font-size:13px;color:#666">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+          <p style="margin:0 0 24px;font-size:12px;word-break:break-all;color:#0a66c2">${escapeHtml(actionLink)}</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+          <p style="margin:0;font-size:12px;color:#888">Si no esperabas este correo, ignóralo.<br>— Fiscalito · ${escapeHtml(siteUrl)}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendWithResend({ apiKey, from, to, subject, html }) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from, to, subject, html }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data?.message || data?.error || `Resend ${res.status}`;
+    throw new Error(err);
+  }
+  return data;
 }
 
 const handler = async (req) => {
@@ -30,13 +102,22 @@ const handler = async (req) => {
     const SUPABASE_URL = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
     const SERVICE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY');
     const SITE_URL = getEnv('URL', 'https://fiscalitocl.netlify.app');
+    const RESEND_API_KEY = getEnv('RESEND_API_KEY');
+    const RESEND_FROM = getEnv('RESEND_FROM', 'Fiscalito <onboarding@resend.dev>');
 
     if (!SUPABASE_URL || !SERVICE_KEY) {
-      console.error('[INVITE] Missing env vars', {
+      console.error('[INVITE] Missing Supabase env vars', {
         hasUrl: !!SUPABASE_URL, hasKey: !!SERVICE_KEY,
       });
       return new Response(
-        JSON.stringify({ error: 'Configuración del servidor incompleta' }),
+        JSON.stringify({ error: 'Configuración del servidor incompleta (Supabase)' }),
+        { status: 500, headers: CORS }
+      );
+    }
+    if (!RESEND_API_KEY) {
+      console.error('[INVITE] Missing RESEND_API_KEY');
+      return new Response(
+        JSON.stringify({ error: 'Configuración del servidor incompleta (Resend). Falta RESEND_API_KEY.' }),
         { status: 500, headers: CORS }
       );
     }
@@ -116,6 +197,7 @@ const handler = async (req) => {
 
     // ── Ver si el usuario ya existe ──────────────────────────────
     let newUserId = null;
+    let userAlreadyExisted = false;
     const listRes = await fetch(
       `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}`,
       { headers: adminHeaders }
@@ -125,51 +207,75 @@ const handler = async (req) => {
       const existing = (listData.users || []).find(
         (u) => (u.email || '').toLowerCase() === email.toLowerCase()
       );
-      if (existing) newUserId = existing.id;
-    }
-
-    // ── Crear usuario si no existe (con email ya confirmado) ────
-    if (!newUserId) {
-      // Clave temporal aleatoria: el usuario la reemplaza con el link de recuperación
-      const tempPass = 'Tmp-' + Math.random().toString(36).slice(2, 10) + '-' +
-                       Math.random().toString(36).slice(2, 10);
-
-      const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-        method: 'POST',
-        headers: adminHeaders,
-        body: JSON.stringify({
-          email,
-          password: tempPass,
-          email_confirm: true, // saltar confirmación de email
-        }),
-      });
-      const createData = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) {
-        console.error('[INVITE] create failed:', createRes.status, createData);
-        return new Response(
-          JSON.stringify({
-            error: createData?.msg || createData?.error_description || createData?.error || `Error ${createRes.status}`,
-          }),
-          { status: createRes.status, headers: CORS }
-        );
+      if (existing) {
+        newUserId = existing.id;
+        userAlreadyExisted = true;
       }
-      newUserId = createData?.id || createData?.user?.id;
     }
 
-    // ── Enviar correo de "definir contraseña" (recovery) ────────
-    const recoverRes = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+    // ── Generar el link SIN que Supabase mande email ─────────────
+    // generate_link soporta: invite | signup | magiclink | recovery
+    // - Usuario nuevo  → "invite"
+    // - Usuario existente → "recovery" (para que reestablezca contraseña)
+    const linkType = userAlreadyExisted ? 'recovery' : 'invite';
+    const genRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
       method: 'POST',
       headers: adminHeaders,
       body: JSON.stringify({
+        type: linkType,
         email,
-        // Redirige al usuario después de que define su contraseña
-        options: { redirect_to: `${SITE_URL}` },
+        options: { redirect_to: SITE_URL },
+        data: userAlreadyExisted ? undefined : { invited_role: role },
       }),
     });
-    if (!recoverRes.ok) {
-      const errBody = await recoverRes.text().catch(() => '');
-      console.error('[INVITE] recover failed:', recoverRes.status, errBody);
-      // No bloquear: el usuario ya existe; el admin puede reintentar
+    const genData = await genRes.json().catch(() => ({}));
+    if (!genRes.ok) {
+      console.error('[INVITE] generate_link failed:', genRes.status, genData);
+      return new Response(
+        JSON.stringify({
+          error: genData?.msg || genData?.error_description || genData?.error || `Error ${genRes.status} generando link`,
+        }),
+        { status: genRes.status, headers: CORS }
+      );
+    }
+
+    const actionLink =
+      genData?.properties?.action_link ||
+      genData?.action_link ||
+      null;
+    if (!actionLink) {
+      console.error('[INVITE] No action_link in response:', genData);
+      return new Response(
+        JSON.stringify({ error: 'No se recibió link de invitación de Supabase' }),
+        { status: 500, headers: CORS }
+      );
+    }
+    newUserId = genData?.user?.id || genData?.id || newUserId;
+
+    // ── Enviar correo custom vía Resend ──────────────────────────
+    let emailSent = false;
+    let emailError = null;
+    try {
+      const subject = userAlreadyExisted
+        ? 'Restablece tu acceso a Fiscalito'
+        : 'Te invitaron a Fiscalito';
+      const html = buildEmailHtml({
+        actionLink,
+        role,
+        siteUrl: SITE_URL,
+        isRecovery: userAlreadyExisted,
+      });
+      await sendWithResend({
+        apiKey: RESEND_API_KEY,
+        from: RESEND_FROM,
+        to: email,
+        subject,
+        html,
+      });
+      emailSent = true;
+    } catch (err) {
+      emailError = err.message || String(err);
+      console.error('[INVITE] Resend send failed:', emailError);
     }
 
     // ── Asignar rol ──────────────────────────────────────────────
@@ -200,13 +306,23 @@ const handler = async (req) => {
       }
     }
 
+    const statusCode = emailSent ? 200 : 502;
     return new Response(
       JSON.stringify({
-        success: true,
-        message: `Usuario ${email} creado. Se le envió un correo para definir su contraseña.`,
+        success: emailSent,
+        message: emailSent
+          ? (userAlreadyExisted
+              ? `Usuario ${email} ya existía. Se le envió un correo (vía Resend) para restablecer contraseña.`
+              : `Invitación enviada a ${email} vía Resend.`)
+          : `Se generó el link pero falló el envío: ${emailError}`,
         user_id: newUserId,
+        email_sent: emailSent,
+        already_existed: userAlreadyExisted,
+        email_error: emailError || undefined,
+        // action_link útil para depurar; quítalo si no quieres exponerlo al cliente.
+        action_link: emailSent ? undefined : actionLink,
       }),
-      { status: 200, headers: CORS }
+      { status: statusCode, headers: CORS }
     );
   } catch (err) {
     console.error('[INVITE] Exception:', err);
