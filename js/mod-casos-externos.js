@@ -452,12 +452,14 @@
         if (!upRes.data || upRes.data.length === 0) {
           console.warn('[CE] Update afectó 0 filas, analysisId=' + ce.analysisId + '. Insertando nuevo registro.');
           ce.analysisId = null;
-          var insRes = await db.from('external_case_analyses').insert(payload).select('id').single();
-          if (insRes.data) ce.analysisId = insRes.data.id;
+          var insRes = await db.from('external_case_analyses').insert(payload).select('id').maybeSingle();
+          if (insRes.error) { console.error('[CE] insert error:', insRes.error); if (typeof showToast==='function') showToast('⚠ No se pudo guardar el análisis'); }
+          else if (insRes.data) ce.analysisId = insRes.data.id;
         }
       } else {
-        var res = await db.from('external_case_analyses').insert(payload).select('id').single();
-        if (res.data) ce.analysisId = res.data.id;
+        var res = await db.from('external_case_analyses').insert(payload).select('id').maybeSingle();
+        if (res.error) { console.error('[CE] insert error:', res.error); if (typeof showToast==='function') showToast('⚠ No se pudo guardar el análisis'); }
+        else if (res.data) ce.analysisId = res.data.id;
       }
       showToast('✓ Análisis guardado');
       _loadSavedCases();
@@ -473,7 +475,7 @@
     var db = _sb();
     if (!db) return;
     try {
-      var res = await db.from('external_case_analyses').select('*').eq('id', id).eq('user_id', _userId()).single();
+      var res = await db.from('external_case_analyses').select('*').eq('id', id).eq('user_id', _userId()).maybeSingle();
       if (!res.data) { showToast('✗ Análisis no encontrado'); return; }
       var d = res.data;
       ce.analysisId = d.id;
@@ -593,7 +595,7 @@
         user_id: _userId(),
         role: role,
         content: content
-      }).select('id').single();
+      }).select('id').maybeSingle();
       // Store the DB id on the message object
       if (res.data && res.data.id && typeof msgIdx === 'number' && ce.chatMessages[msgIdx]) {
         ce.chatMessages[msgIdx].id = res.data.id;

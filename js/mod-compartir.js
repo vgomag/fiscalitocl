@@ -211,13 +211,19 @@ async function inviteUserToCase(caseId){
     let targetUserId=null;
 
     /* Intentar buscar en profiles */
-    const{data:prof}=await sb.from('profiles').select('id').eq('email',email).maybeSingle();
+    const{data:prof,error:profErr}=await sb.from('profiles').select('id').eq('email',email).maybeSingle();
+    if(profErr)console.warn('[compartir] profiles lookup:',profErr);
     if(prof){
       targetUserId=prof.id;
     } else {
-      /* Intentar buscar por email en auth via rpc si existe */
-      const{data:authUser}=await sb.rpc('get_user_id_by_email',{email_input:email}).catch(()=>({data:null}));
-      if(authUser)targetUserId=authUser;
+      /* Fallback: intentar RPC get_user_id_by_email (opcional, puede no existir) */
+      const rpcRes=await sb.rpc('get_user_id_by_email',{email_input:email}).catch(err=>{
+        console.warn('[compartir] RPC get_user_id_by_email no disponible:',err?.message||err);
+        return{data:null};
+      });
+      const authUser=rpcRes?.data;
+      if(authUser&&typeof authUser==='string')targetUserId=authUser;
+      else if(authUser&&typeof authUser==='object'&&authUser.id)targetUserId=authUser.id;
     }
 
     if(!targetUserId){
