@@ -136,7 +136,7 @@ async function openShareCaseModal(caseId){
           <select id="shareRoleSelect" style="padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:11px;background:var(--surface2);color:var(--text)">
             ${Object.entries(SHARE_ROLES).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('')}
           </select>
-          <button class="btn-save" onclick="inviteUserToCase('${cs}')" style="padding:8px 14px;font-size:11px;white-space:nowrap">+ Invitar</button>
+          <button class="btn-save" data-action="invite-user" data-case-id="${esc(cs)}" style="padding:8px 14px;font-size:11px;white-space:nowrap">+ Invitar</button>
         </div>
       </div>
 
@@ -162,6 +162,37 @@ async function openShareCaseModal(caseId){
   </div>`;
 
   modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+
+  // Event delegation para acciones de cada share row (reemplaza los onclick/onchange
+  // inline que antes interpolaban IDs directo en el HTML -> riesgo de XSS).
+  modal.addEventListener('click', (e) => {
+    const rem = e.target.closest('[data-action="remove-share"]');
+    if (rem) {
+      const shareId = rem.getAttribute('data-share-id');
+      const caseId = rem.getAttribute('data-case-id');
+      if (shareId && caseId && typeof removeShare === 'function') {
+        removeShare(shareId, caseId);
+      }
+      return;
+    }
+    const inv = e.target.closest('[data-action="invite-user"]');
+    if (inv) {
+      const caseId = inv.getAttribute('data-case-id');
+      if (caseId && typeof inviteUserToCase === 'function') {
+        inviteUserToCase(caseId);
+      }
+    }
+  });
+  modal.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-action="update-role"]');
+    if (!sel) return;
+    const shareId = sel.getAttribute('data-share-id');
+    const caseId = sel.getAttribute('data-case-id');
+    if (shareId && caseId && typeof updateShareRole === 'function') {
+      updateShareRole(shareId, caseId, sel.value);
+    }
+  });
+
   document.body.appendChild(modal);
 }
 
