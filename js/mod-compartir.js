@@ -102,15 +102,18 @@ async function openShareCaseModal(caseId){
       const u=userEmails[s.user_id];
       const name=u?.full_name||u?.email||s.user_id.substring(0,8)+'…';
       const email=u?.email||'';
+      // esc() también aplica a los IDs aunque sean UUIDs, por defensa en
+      // profundidad: si alguna vez un id llega con caracteres raros no rompe
+      // el HTML/JS. Se usan data-* + event delegation abajo.
       return `<div class="share-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px">
         <div style="flex:1;min-width:0">
           <div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
           ${email?`<div style="font-size:10.5px;color:var(--text-muted)">${esc(email)}</div>`:''}
         </div>
-        <select onchange="updateShareRole('${s.id}','${cs}',this.value)" style="padding:4px 8px;border-radius:var(--radius);border:1px solid var(--border);font-size:11px;background:var(--surface2);color:var(--text)">
+        <select data-action="update-role" data-share-id="${esc(s.id)}" data-case-id="${esc(cs)}" style="padding:4px 8px;border-radius:var(--radius);border:1px solid var(--border);font-size:11px;background:var(--surface2);color:var(--text)">
           ${Object.entries(SHARE_ROLES).map(([k,v])=>`<option value="${k}"${k===s.role?' selected':''}>${v.icon} ${v.label}</option>`).join('')}
         </select>
-        <button onclick="removeShare('${s.id}','${cs}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--red);padding:2px 6px" title="Quitar acceso">✕</button>
+        <button data-action="remove-share" data-share-id="${esc(s.id)}" data-case-id="${esc(cs)}" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--red);padding:2px 6px" title="Quitar acceso">✕</button>
       </div>`;
     }).join('');
   }
