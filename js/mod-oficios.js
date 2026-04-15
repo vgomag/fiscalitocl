@@ -94,21 +94,34 @@ async function saveSheetConfig(sheetId) {
   if (!window.session?.user?.id) return;
   oficios.sheetId = sheetId;
   oficios.sheetConnected = !!sheetId;
-  // Intentar guardar en user_settings, fallback a case_metadata
+  // Intentar guardar en user_settings, fallback a case_metadata.
+  // Supabase .upsert() NO lanza error; devuelve { error } en el resultado.
+  // Hay que chequear explícitamente para que el fallback realmente actúe.
+  let savedOk = false;
   try {
-    await sb.from('user_settings').upsert({
+    const { error } = await sb.from('user_settings').upsert({
       user_id: session.user.id,
       key: 'oficios_sheet_id',
       value: sheetId,
     }, { onConflict: 'user_id,key' });
+    if (!error) savedOk = true;
+    else console.warn('[oficios] user_settings upsert:', error);
   } catch (e) {
+    console.warn('[oficios] user_settings exception:', e);
+  }
+  if (!savedOk) {
     try {
-      await sb.from('case_metadata').upsert({
+      const { error } = await sb.from('case_metadata').upsert({
         key: 'oficios_sheet_id',
         value: sheetId,
         case_id: '00000000-0000-0000-0000-000000000000',
       }, { onConflict: 'case_id,key' });
+      if (error) console.warn('[oficios] case_metadata upsert:', error);
+      else savedOk = true;
     } catch (e2) { console.warn('No se pudo guardar sheetId:', e2); }
+  }
+  if (!savedOk && typeof showToast === 'function') {
+    showToast('⚠ No se pudo guardar la configuración de Sheet');
   }
 }
 

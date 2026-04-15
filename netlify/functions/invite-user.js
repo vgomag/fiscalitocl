@@ -279,30 +279,41 @@ const handler = async (req) => {
     }
 
     // ── Asignar rol ──────────────────────────────────────────────
-    // El unique constraint de user_roles es (user_id, role), no user_id solo,
-    // así que un upsert "on_conflict=user_id" no aplica. Hacemos DELETE + INSERT
-    // para garantizar un único rol por usuario.
+    // Orden: INSERT nuevo rol primero, y luego DELETE de los roles viejos
+    // que NO sean el nuevo. Así si el INSERT falla, el usuario conserva su
+    // rol anterior en vez de quedar sin rol.
+    // Usamos upsert-equivalente con `on_conflict` sobre la PK (user_id, role):
+    // si ya tenía exactamente ese mismo rol, no duplica.
+    let roleAssigned = false;
     if (newUserId) {
-      const delRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${newUserId}`,
-        { method: 'DELETE', headers: adminHeaders }
-      );
-      if (!delRes.ok && delRes.status !== 404) {
-        const errBody = await delRes.text().catch(() => '');
-        console.error('[INVITE] role delete failed:', delRes.status, errBody);
-      }
       const insRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/user_roles`,
+        `${SUPABASE_URL}/rest/v1/user_roles?on_conflict=user_id,role`,
         {
           method: 'POST',
-          headers: { ...adminHeaders, 'Prefer': 'return=minimal' },
+          headers: {
+            ...adminHeaders,
+            'Prefer': 'return=minimal,resolution=merge-duplicates',
+          },
           body: JSON.stringify({ user_id: newUserId, role }),
         }
       );
       if (!insRes.ok) {
         const errBody = await insRes.text().catch(() => '');
         console.error('[INVITE] role insert failed:', insRes.status, errBody);
-        // No bloquear: la invitación ya fue creada
+        // No borramos roles viejos si el insert falló: el usuario conserva lo
+        // que tenía antes (si algo).
+      } else {
+        roleAssigned = true;
+        // Ahora sí: borrar roles viejos (distintos del nuevo) para mantener
+        // un único rol por usuario.
+        const delRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${newUserId}&role=neq.${encodeURIComponent(role)}`,
+          { method: 'DELETE', headers: adminHeaders }
+        );
+        if (!delRes.ok && delRes.status !== 404) {
+          const errBody = await delRes.text().catch(() => '');
+          console.error('[INVITE] role cleanup failed:', delRes.status, errBody);
+        }
       }
     }
 
@@ -318,9 +329,11 @@ const handler = async (req) => {
         user_id: newUserId,
         email_sent: emailSent,
         already_existed: userAlreadyExisted,
+        role_assigned: roleAssigned,
         email_error: emailError || undefined,
-        // action_link útil para depurar; quítalo si no quieres exponerlo al cliente.
-        action_link: emailSent ? undefined : actionLink,
+        // NUNCA devolver action_link al cliente: es un secreto que permite
+        // tomar posesión de la cuenta. Si el envío falló, el admin debe
+        // reintentar la invitación en lugar de leer el link del response.
       }),
       { status: statusCode, headers: CORS }
     );
