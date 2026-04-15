@@ -23,7 +23,9 @@ async function getAccessToken(sa) {
   const jwt = header+'.'+payload+'.'+sig;
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
+    // FIX: el setTimeout antes usaba `req` antes de ser declarada (TDZ) -> el
+    // destroy del timeout era un no-op y el request podía colgarse indefinido.
+    let _to;
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},
@@ -33,6 +35,7 @@ async function getAccessToken(sa) {
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d).access_token); } catch(e) { reject(new Error('Token error: '+d)); } });
     });
+    _to = setTimeout(() => req.destroy(new Error('Token request timeout (setTimeout)')), 30000);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
@@ -49,7 +52,8 @@ async function getAccessToken(sa) {
 
 function driveGet(path, token) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
+    // FIX: mismo bug que en getAccessToken — req no existía cuando se declaraba el timeout.
+    let _to;
     const req = https.get('https://www.googleapis.com' + path, {
       headers: { Authorization: 'Bearer ' + token },
       timeout: 30000
