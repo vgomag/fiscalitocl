@@ -318,7 +318,7 @@ async function importDriveAsDiligencias(){
 async function processDiligenciaOCR(dilId){
   if(!currentCase||!session)return;
 
-  const{data:dil,error}=await sb.from('diligencias').select('*').eq('id',dilId).single();
+  const{data:dil,error}=await sb.from('diligencias').select('*').eq('id',dilId).maybeSingle();
   if(error||!dil){showToast('⚠️ Diligencia no encontrada');return;}
   if(!dil.drive_file_id){showToast('⚠️ Sin archivo Drive vinculado');return;}
 
@@ -555,7 +555,7 @@ function buildBatchText(pageTexts,startPage,endPage){
 async function analyzeExpediente(dilId){
   if(!currentCase||!session)return;
 
-  const{data:dil,error}=await sb.from('diligencias').select('*').eq('id',dilId).single();
+  const{data:dil,error}=await sb.from('diligencias').select('*').eq('id',dilId).maybeSingle();
   if(error||!dil){showToast('⚠️ Diligencia no encontrada');return;}
 
   await sb.from('diligencias').update({processing_status:'processing'}).eq('id',dilId);
@@ -816,7 +816,7 @@ async function analyzeExpediente(dilId){
     console.error('analyzeExpediente:',err);
   }finally{
     try{
-      const{data:final}=await sb.from('diligencias').select('processing_status').eq('id',dilId).single();
+      const{data:final}=await sb.from('diligencias').select('processing_status').eq('id',dilId).maybeSingle();
       if(final&&final.processing_status==='processing'){
         await sb.from('diligencias').update({processing_status:'error'}).eq('id',dilId);
       }
@@ -858,7 +858,7 @@ async function analyzeAllPending(){
 
 /* ── Generar resumen IA para diligencia ya procesada ── */
 async function generateDiligenciaSummary(dilId){
-  const{data:dil}=await sb.from('diligencias').select('*').eq('id',dilId).single();
+  const{data:dil}=await sb.from('diligencias').select('*').eq('id',dilId).maybeSingle();
   if(!dil||!dil.extracted_text){showToast('⚠️ Sin texto extraído');return;}
 
   showToast('✨ Generando resumen…');
@@ -912,7 +912,7 @@ async function processAndAnalyzePdf(dilId){
   showToast('📄 Paso 1/2: Extrayendo texto del PDF…');
   await processDiligenciaOCR(dilId);
   // Verificar que se extrajo texto
-  const{data:updated}=await sb.from('diligencias').select('extracted_text,is_processed').eq('id',dilId).single();
+  const{data:updated}=await sb.from('diligencias').select('extracted_text,is_processed').eq('id',dilId).maybeSingle();
   if(updated&&updated.is_processed&&updated.extracted_text&&updated.extracted_text.length>200){
     showToast('🔍 Paso 2/2: Analizando diligencias dentro del PDF…');
     await new Promise(r=>setTimeout(r,500));
@@ -938,7 +938,7 @@ async function summarizeAllDiligencias(){
 
 /* ── Ver detalle completo de una diligencia ── */
 async function viewDiligenciaDetail(dilId){
-  const{data:dil}=await sb.from('diligencias').select('*').eq('id',dilId).single();
+  const{data:dil}=await sb.from('diligencias').select('*').eq('id',dilId).maybeSingle();
   if(!dil)return;
   const t=getDilTypeInfo(dil.diligencia_type);
   const modal=document.createElement('div');
@@ -984,7 +984,7 @@ async function viewDiligenciaDetail(dilId){
 
 /* ── Editar diligencia (tipo, etiqueta, fecha) ── */
 async function editDiligenciaModal(dilId){
-  const{data:dil}=await sb.from('diligencias').select('*').eq('id',dilId).single();
+  const{data:dil}=await sb.from('diligencias').select('*').eq('id',dilId).maybeSingle();
   if(!dil)return;
   const modal=document.createElement('div');
   modal.id='dilEditModal';
