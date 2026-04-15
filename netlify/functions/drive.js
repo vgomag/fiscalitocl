@@ -82,7 +82,8 @@ function driveGet(path, token) {
    For binary files (PDF, images), use driveDownloadBinary() instead. */
 function driveDownload(path, token) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
+    // FIX TDZ: `req` debe existir antes del timeout callback referenciarlo.
+    let _to;
     const req = https.get('https://www.googleapis.com' + path, {
       headers: { Authorization: 'Bearer ' + token },
       timeout: 30000
@@ -100,13 +101,15 @@ function driveDownload(path, token) {
       req.destroy();
       reject(new Error('Drive download request timeout'));
     });
+    _to = setTimeout(() => req.destroy(new Error('Drive download timeout (setTimeout)')), 30000);
   });
 }
 
 /* Download binary file as Buffer (for PDFs, images, etc.) */
 function driveDownloadBinary(path, token) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
+    // FIX TDZ: `req` debe existir antes del timeout callback referenciarlo.
+    let _to;
     const req = https.get('https://www.googleapis.com' + path, {
       headers: { Authorization: 'Bearer ' + token },
       timeout: 30000
@@ -125,6 +128,7 @@ function driveDownloadBinary(path, token) {
       req.destroy();
       reject(new Error('Drive binary download request timeout'));
     });
+    _to = setTimeout(() => req.destroy(new Error('Drive binary timeout (setTimeout)')), 30000);
   });
 }
 
