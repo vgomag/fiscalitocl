@@ -224,7 +224,7 @@ const handler = async (req) => {
       body: JSON.stringify({
         type: linkType,
         email,
-        options: { redirect_to: SITE_URL },
+        redirect_to: SITE_URL,
         data: userAlreadyExisted ? undefined : { invited_role: role },
       }),
     });
