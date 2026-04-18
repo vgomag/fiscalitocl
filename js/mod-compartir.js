@@ -480,61 +480,33 @@ async function applyCasePermissions(){
   if(isReadOnly(role)){
     /* Ocultar botones de edición para consultores */
     editSelectors.forEach(sel=>{
-      document.querySelectorAll(sel).forEach(el=>{
-        el.style.display='none';
-      });
+      document.querySelectorAll(sel).forEach(el=>{ el.style.display='none'; });
     });
-    /* Deshabilitar inputs */
-    document.querySelectorAll('#caseForm input, #caseForm select, #caseForm textarea').forEach(el=>{
-      el.disabled=true;
-      el.style.opacity='0.6';
-    });
-    /* Mostrar badge de solo lectura */
-    const badge=document.getElementById('readOnlyBadge');
-    if(badge)badge.style.display='inline-flex';
   }
 
-  if(!canShare(role)){
+  /* Botones que solo el fiscal (dueño) puede ver: eliminar caso, compartir */
+  if(!canDelete(role)){
     fiscalSelectors.forEach(sel=>{
-      document.querySelectorAll(sel).forEach(el=>el.style.display='none');
+      document.querySelectorAll(sel).forEach(el=>{ el.style.display='none'; });
     });
   }
-}
 
-/* ═══════════════════════════════════════
-   TABLA profiles: crear si no existe
-   Necesaria para buscar usuarios por email
-   ═══════════════════════════════════════ */
-
-/** Asegurar que el perfil del usuario actual existe */
-async function ensureUserProfile(){
-  if(!session?.user?.id)return;
-  const uid=session.user.id;
-  const email=session.user.email;
-  const name=session.user.user_metadata?.full_name||session.user.user_metadata?.name||email?.split('@')[0]||'';
-
-  try{
-    const{data}=await sb.from('profiles').select('id').eq('id',uid).maybeSingle();
-    if(!data){
-      await sb.from('profiles').insert({
-        id:uid,
-        email:email,
-        full_name:name
-      }).catch(()=>{});
+  /* Mostrar badge con rol actual del usuario en este caso */
+  const r=SHARE_ROLES[role];
+  if(r){
+    let badge=document.getElementById('myCaseRoleBadge');
+    if(!badge){
+      badge=document.createElement('span');
+      badge.id='myCaseRoleBadge';
+      badge.style.cssText='font-size:10px;padding:2px 7px;border-radius:10px;font-weight:500;display:inline-flex;align-items:center;gap:3px;margin-left:6px';
+      const host=document.querySelector('#caseTitle, .case-header, .caso-header');
+      if(host) host.appendChild(badge);
     }
-  }catch(e){
-    /* Table might not exist yet, create profile on next login */
+    if(badge){
+      badge.style.background=r.color+'15';
+      badge.style.color=r.color;
+      badge.title=r.desc||r.label;
+      badge.innerHTML=`${r.icon} ${r.label}`;
+    }
   }
 }
-
-/* ── Auto-init on load ── */
-document.addEventListener('DOMContentLoaded',()=>{
-  /* Ensure profile exists after login */
-  const origInitApp=window.initApp;
-  if(origInitApp){
-    window.initApp=async function(){
-      await origInitApp.call(this);
-      await ensureUserProfile();
-    };
-  }
-});
