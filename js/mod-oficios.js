@@ -984,17 +984,12 @@ window.oficioAssignAndExport = async function(buttonEl) {
     buttonEl.style.background = 'var(--green, #22c55e)';
   } catch (e) {
     console.error('oficioAssignAndExport:', e);
-    showToast('⚠️ Error: ' + e.message);
-    buttonEl.textContent = '📨 Asignar N° y Word';
+    if (typeof showToast === 'function') showToast('⚠️ Error al asignar/exportar: ' + (e?.message || e));
     buttonEl.disabled = false;
+    buttonEl.textContent = '⚠ Reintentar';
+    buttonEl.style.background = '';
   }
 };
 
-/* ══════════════════════════════════════════
-   EXPONER FUNCIONES
-   ══════════════════════════════════════════ */
-window.renderF12Panel = renderF12Panel;
-window.loadDocCounters = loadDocCounters;
-window.previewNextNumber = previewNextNumber;
-
 })();
+

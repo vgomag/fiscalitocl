@@ -3305,7 +3305,7 @@ async function sendMessage(){
                 if(text){
                   if(text.length>50000)text=text.substring(0,50000)+'\n[...truncado]';
                   dil.extracted_text=text;
-                  sb.from('diligencias').update({extracted_text:text,is_processed:true,processing_status:'completed'}).eq('id',dil.id).then(({error})=>{if(error)console.warn('No se pudo guardar texto extraído para',dil.file_name,error);});
+                  sb.from('diligencias').update({extracted_text:text,is_processed:true,processing_status:'completed'}).eq('id',dil.id).then(({error})=>{if(error)console.warn('No se pudo guardar texto extraído para',dil.file_name,error);}).catch(e=>console.warn('Net error guardando extracted_text de',dil.file_name,e));
                 }
               }catch(exErr){console.warn('Error extrayendo diligencia',dil.file_name,':',exErr);}
             }));
@@ -3970,7 +3970,7 @@ async function sendMessage(){
     _lastVFSectionForContinue=_currentVFSection;
     /* Persist to Supabase */
     if(currentCase&&session){
-      sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}});
+      sb.from('chat_messages').insert({case_id:currentCase.id,user_id:session.user.id,role:'assistant',content:fullText,fn_id:activeFn||'F0'}).then(({error})=>{if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó la respuesta en el historial');}}).catch(e=>{console.warn('Chat save network error:',e);});
     }
   }catch(err){_activeReader=null;const _scb=document.getElementById('streamControlBtn');if(_scb)_scb.remove();removeTyping(typingId);appendMsg('assistant','⚠️ Error: '+err.message);}
   finally{
@@ -4100,7 +4100,7 @@ function appendMsg(role,text){
       if(error){console.warn('Chat save:',error);showToast('⚠️ No se guardó el mensaje en el historial');return;}
       const delBtn=div.querySelector('['+_deletePlaceholder+']');
       if(delBtn&&data&&data.id){delBtn.setAttribute('onclick',`deleteChatMsg('${data.id}',this)`);delBtn.removeAttribute(_deletePlaceholder);}
-    });
+    }).catch(e=>{console.warn('Chat save network error:',e);});
   }
 }
 function showTyping(){
@@ -5317,5 +5317,74 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 
 7. DICTAMENES CGR: SOLO cita dictamenes que aparezcan textualmente en el contexto RAG/Biblioteca proporcionado. NO reconstruyas numeros de dictamen de memoria. Si necesitas referir criterio CGR sin tener el dictamen exacto: "La CGR ha sostenido el criterio de que... [VERIFICAR: localizar dictamen especifico en www.contraloria.cl]". JAMAS inventes un numero de dictamen.
 7b. JURISPRUDENCIA JUDICIAL: SOLO cita Roles de causa y sentencias que aparezcan en el contexto. JAMAS inventes un Rol, una Corte o una fecha de sentencia.
+8. COHERENCIA INTER-FUNCIONAL: Si el expediente contiene NOTAS DE ANÁLISIS (IRAC, HECHOS ACREDITADOS, PÁRRAFOS MODELO, VISTA FISCAL, FORMULACIÓN DE CARGOS, INFORME EN DERECHO), DEBES leerlas e integrarlas como insumo prioritario. Representan el trabajo acumulado del fiscal en funciones anteriores. NUNCA contradigas un análisis previo sin fundamento expreso. Si el usuario pregunta algo sobre el caso, PRIMERO consulta estas notas y los párrafos modelo antes de responder.
 
-8. COHERENCIA INTER-FUNCIONAL: Si el expediente contiene NOTAS DE ANÁLISIS (IRAC, HECHOS ACREDITADOS, PÁRRAFOS MODELO, VISTA FISCAL, FORMULACIÓN DE CARGOS, INFORME EN DERECHO), DEBES leerlas e integrarlas como insumo prioritario. Representan el trabajo acumulado del fiscal en funciones anteriores. NUNC
+9. DILIGENCIAS COMO FUENTE PRIMARIA: El expediente contiene DILIGENCIAS (declaraciones, oficios, informes, prueba documental, resoluciones) y posiblemente PÁRRAFOS MODELO generados desde ellas. Estas son tu FUENTE PRIMARIA de información sobre el caso. SIEMPRE que respondas una consulta sobre el caso, basa tu respuesta en el contenido de las diligencias y párrafos modelo. Cita la diligencia específica, su fecha y fojas cuando sea posible.
+
+10. MEMORIA DEL CASO: El chat mantiene historial. Si el usuario ya generó secciones anteriores (ej: diligencias, hechos acreditados), DEBES considerar ese contenido como parte del expediente analizado y construir sobre él en las secciones siguientes. No repitas análisis ya realizados; referéncialos y profundiza.
+
+### RECORDATORIO ANTI-ALUCINACIÓN (CASE_PROMPT)
+11. Toda cita normativa en documentos del caso DEBE provenir de: (a) el contexto RAG/Biblioteca inyectado, (b) las normas BCN listadas, o (c) los documentos del expediente. NUNCA cites un artículo, dictamen o sentencia "de memoria" si no aparece en estas fuentes.
+12. Cuando generes vistas fiscales, informes en derecho o formulaciones de cargos: cada referencia normativa debe ser TRAZABLE a una fuente del contexto. Si no encuentras fundamento normativo específico en el contexto, usa fórmulas como "conforme a la normativa aplicable" + [VERIFICAR: identificar artículo específico].`;
+</script>
+
+<script src="/drive-client.js"></script>
+
+<!-- ══════════════════ MÓDULOS ══════════════════ -->
+<script src="/js/mod-vistas-casos.js"></script>
+<script src="/js/mod-export.js"></script>
+<script src="/js/mod-escritos.js"></script>
+<script src="/js/mod-transcripcion.js"></script>
+<script>
+// Transcripción module moved to mod-transcripcion.js
+</script>
+<script src="/js/mod-biblioteca.js"></script>
+<script src="/js/mod-parrafos.js"></script>
+<script src="/js/mod-compartir.js"></script>
+<script src="/js/mod-ley21369.js"></script>
+<script src="/js/mod-ses-directrices.js"></script>
+<script src="/js/mod-casos-externos.js"></script>
+<script src="/js/mod-casos-externos-patch.js"></script>
+<script src="/js/mod-drive-qdrant.js"></script>
+<script src="/js/mod-drive-qdrant-patch.js"></script>
+<script src="/js/mod-seguridad.js"></script>
+<script src="/js/mod-usuarios-roles.js"></script>
+<script src="/js/mod-jurisprudencia.js"></script>
+<script src="/js/mod-modelos-rag.js"></script>
+<script src="/js/mod-plantillas-merotramite.js"></script>
+<script src="/js/mod-pendientes.js"></script>
+<script src="/js/mod-razonamiento.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="/js/mod-pdf-tools.js"></script>
+<script src="/js/mod-pdf-tools-patch.js"></script>
+<script src="/js/mod-cuestionarios.js"></script>
+<script src="/js/mod-actas-audio.js"></script>
+<!-- <script src="/js/mod-resoluciones-patch.js"></script> archivo no existe -->
+<script src="/js/mod-diligencias-extractos.js"></script>
+<script src="/js/mod-drive-rag.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="/js/mod-manual-operativo.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.1.0/build/index.umd.min.js"></script>
+<script>window.docx=window.docx||docx;</script>
+<script src="/js/mod-export-word.js"></script>
+<script src="/js/mod-estadisticas.js"></script>
+<!-- mod-estadisticas-avanzadas.js removido: redundante con mod-estadisticas.js -->
+<script src="/js/logo-data.js"></script>
+<!-- mod-alertas-casos.js removido: monitoreo no utilizado -->
+<script src="/js/mod-auto-subdivision.js"></script>
+<script src="/js/mod-biblioteca-procedimientos.js"></script>
+<script src="/js/mod-branding.js"></script>
+<!-- mod-completitud-caso.js removido: monitoreo no utilizado -->
+<!-- mod-etapas-procesales.js removido: pestaña Etapas eliminada por solicitud de usuario -->
+<script src="/js/mod-importador-masivo.js"></script>
+<script src="/js/mod-vista-fiscal.js"></script>
+<script src="/js/mod-inteligencia.js"></script>
+<script src="/js/mod-automatizacion.js"></script>
+<!-- mod-modo-guiado.js removido: redundante con funciones F0-F12 del chat -->
+<script src="/js/mod-oficios.js"></script>
+<script src="/js/mod-plantillas-custom.js"></script>
+<script src="/js/mod-sync-monitor.js"></script>
+<!-- mod-timeline-caso.js removido: redundante con mod-etapas-procesales.js -->
+<!-- mod-validacion-consistencia.js removido: monitoreo no utilizado -->
+</body>
+</html>

@@ -323,18 +323,82 @@ exports.handler = async (event) => {
         if (r.status < 300) buf = r.data;
         finalMime = mime;
       }
-      if (!buf) return { statusCode: 500, headers, body: JSON.stringify({ error: 'No se pudo descargar el archivo' }) };
-      const base64 = buf.toString('base64');
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, name, mimeType: finalMime, size: buf.length, base64 }) };
+      if (!buf) return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'No se pudo descargar el archivo desde Drive' }) };
+      /* Devolver base64 para que el cliente pueda reconstruir el binario sin CORS issues */
+      const base64 = Buffer.from(buf).toString('base64');
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, base64, mimeType: finalMime, name, size: buf.length }) };
     }
 
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Acción no soportada: ' + action + '. Acciones válidas: list, read, download' }) };
-  } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
-  }
-};
+    if (action === 'createFolder') {
+      /* Crear carpeta en Drive bajo la raíz del Shared Drive/root del SA y
+         persistir el id/url en la tabla 'cases'. El cliente envía { caseId, folderName } */
+      const { caseId, folderName } = body;
+      if (!caseId || !folderName) return { statusCode: 400, headers, body: JSON.stringify({ error: 'caseId y folderName requeridos' }) };
+      const parentId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID || null;
+      const meta = { name: String(folderName).slice(0, 200), mimeType: 'application/vnd.google-apps.folder' };
+      if (parentId) meta.parents = [parentId];
+      const createRes = await new Promise((resolve, reject) => {
+        const data = JSON.stringify(meta);
+        const req = https.request('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink&supportsAllDrives=true', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), Authorization: 'Bearer ' + token },
+          timeout: 30000
+        }, (res) => {
+          let d = ''; res.on('data', c => d += c);
+          res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(d) }); } catch(e) { reject(e); } });
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('createFolder timeout')); });
+        req.write(data); req.end();
+      });
+      if (createRes.status >= 300) {
+        return { statusCode: 502, headers, body: JSON.stringify({ ok: false, error: 'Drive rechazó la creación: ' + (createRes.data?.error?.message || createRes.status) }) };
+      }
+      const folder = createRes.data;
+      const folderUrl = folder.webViewLink || ('https://drive.google.com/drive/folders/' + folder.id);
+      /* Persistir en Supabase */
+      try {
+        const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+        const SB_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (SB_URL && SB_KEY) {
+          await fetch(`${SB_URL}/rest/v1/cases?id=eq.${encodeURIComponent(caseId)}`, {
+            method: 'PATCH',
+            headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+            body: JSON.stringify({ drive_folder_id: folder.id, drive_folder_url: folderUrl })
+          });
+        }
+      } catch (sbErr) { console.warn('[drive createFolder] no se pudo persistir en DB:', sbErr.message); }
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, folder: { id: folder.id, name: folder.name, url: folderUrl } }) };
+    }
 
-// Netlify function config (CJS-compatible)
-exports.config = {
-  maxDuration: 30
+    if (action === 'link') {
+      /* Vincular una carpeta existente de Drive al caso (solo persiste en DB, no toca Drive) */
+      const { caseId, folderId, folderName } = body;
+      if (!caseId || !folderId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'caseId y folderId requeridos' }) };
+      var linkIdErr = validateDriveId(folderId, 'folderId'); if (linkIdErr) return linkIdErr;
+      /* Verificar que el SA tenga acceso */
+      const meta = await driveGet(`/drive/v3/files/${folderId}?fields=id,name,mimeType&supportsAllDrives=true`, token);
+      if (meta.status >= 300) {
+        return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'La cuenta de servicio no tiene acceso a esa carpeta. Compártala primero.' }) };
+      }
+      const folderUrl = 'https://drive.google.com/drive/folders/' + folderId;
+      try {
+        const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+        const SB_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (SB_URL && SB_KEY) {
+          await fetch(`${SB_URL}/rest/v1/cases?id=eq.${encodeURIComponent(caseId)}`, {
+            method: 'PATCH',
+            headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+            body: JSON.stringify({ drive_folder_id: folderId, drive_folder_url: folderUrl })
+          });
+        }
+      } catch (sbErr) { console.warn('[drive link] no se pudo persistir en DB:', sbErr.message); }
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, folder: { id: folderId, name: folderName || meta.data.name, url: folderUrl } }) };
+    }
+
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'action no reconocida: ' + action }) };
+  } catch (err) {
+    console.error('[drive] handler error:', err);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message || 'Error interno' }) };
+  }
 };
