@@ -49,7 +49,9 @@ export default async (req) => {
       return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
     const key = Netlify.env.get('ANTHROPIC_API_KEY');
-    if (!key) return new Response(JSON.stringify({ error: 'API key no configurada' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    /* Bug-fix: incluir ...CORS en este error response (antes faltaba, el navegador
+       bloqueaba el error con CORS error en lugar de mostrar el mensaje real). */
+    if (!key) return new Response(JSON.stringify({ error: 'API key no configurada' }), { status: 500, headers: { 'Content-Type': 'application/json', ...CORS } });
 
     /* Validar messages */
     if (!Array.isArray(body.messages) || !body.messages.length) {

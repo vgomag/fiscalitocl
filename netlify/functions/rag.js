@@ -227,7 +227,14 @@ export default async (req) => {
     if (!qdrantUrl) return new Response(JSON.stringify({ context: '', sources: [], error: 'QDRANT_URL not configured' }), { headers });
     if (!saKey) return new Response(JSON.stringify({ context: '', sources: [], error: 'GOOGLE_SERVICE_ACCOUNT_KEY not configured' }), { headers });
 
-    const sa = JSON.parse(saKey);
+    /* Bug-fix: try/catch en JSON.parse de la env var. Antes un JSON malformado
+       crasheaba con stack trace genérico al cliente. */
+    let sa;
+    try { sa = JSON.parse(saKey); }
+    catch (e) {
+      console.error('[rag] GOOGLE_SERVICE_ACCOUNT_KEY no es JSON válido:', e.message);
+      return new Response(JSON.stringify({ context: '', sources: [], error: 'GOOGLE_SERVICE_ACCOUNT_KEY malformed' }), { status: 500, headers });
+    }
     const accessToken = await getGoogleAccessToken(sa);
 
     /* Generate embedding once */

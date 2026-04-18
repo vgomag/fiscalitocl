@@ -238,11 +238,14 @@ async function loadData(){
     if(iRes.data) items=iRes.data;
     if(dRes.data) docs=dRes.data;
     if(mRes.data){
+      /* Bug-fix: cada JSON.parse envuelto en try para que un valor corrupto en BD
+         no rompa el forEach completo (antes: un value malformado abortaba toda la carga). */
+      const _safeParse=(s,fallback)=>{try{return JSON.parse(s||(typeof fallback==='string'?fallback:JSON.stringify(fallback)));}catch(e){console.warn('[Ley21369] JSON inválido en meta:',e.message);return fallback;}};
       mRes.data.forEach(m=>{
-        if(m.key==="evidencias") evidencias=JSON.parse(m.value||"{}");
-        else if(m.key==="plan_mejora") planMejora=JSON.parse(m.value||"[]");
-        else if(m.key==="conclusion") conclusion=JSON.parse(m.value||"{}");
-        else if(m.key?.startsWith("seccion_")) seccionMeta[m.key.replace("seccion_","")]=JSON.parse(m.value||"{}");
+        if(m.key==="evidencias") evidencias=_safeParse(m.value,{});
+        else if(m.key==="plan_mejora") planMejora=_safeParse(m.value,[]);
+        else if(m.key==="conclusion") conclusion=_safeParse(m.value,{});
+        else if(m.key?.startsWith("seccion_")) seccionMeta[m.key.replace("seccion_","")]=_safeParse(m.value,{});
       });
     }
     if(!planMejora.length) planMejora=[...PLAN_MEJORA_DEFAULT];

@@ -130,7 +130,14 @@ async function extractTextViaClaude(apiKey, base64Data, mediaType) {
     }
 
     const data = await r.json();
-    return (data.content || []).map(b => b.text || '').join('');
+    /* Bug-fix: si Anthropic devuelve sin content[].text (error sin field, modelo
+       que devolvió tool_use, etc.), devolvíamos "" silenciosamente y el cliente creía
+       que el OCR funcionó. Ahora validamos que haya texto real. */
+    const text = (data.content || []).filter(b => b && b.type === 'text' && b.text).map(b => b.text).join('');
+    if (!text) {
+      throw new Error('Claude no devolvió texto extraíble (stop_reason=' + (data.stop_reason || 'unknown') + ')');
+    }
+    return text;
   } catch (err) {
     clearTimeout(_to);
     throw err;

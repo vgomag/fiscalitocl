@@ -257,7 +257,9 @@ export default async (req) => {
     }
 
     const result = await res.json();
-    const structured = (result.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+    /* Bug-fix: filtrar también por b.text presente para que un block sin texto
+       no produzca "null" al hacer join. */
+    const structured = (result.content || []).filter(b => b && b.type === 'text' && b.text).map(b => b.text).join('') || '';
 
     if (!structured) throw new Error('No se generó texto estructurado');
 
