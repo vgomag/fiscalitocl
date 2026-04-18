@@ -1358,7 +1358,7 @@ window._ley21369={
   toggleEvidencia,updateConclusion,updateSeccionMeta,
   updatePlan,addPlanRow,removePlanRow,
   resetToTemplate,
-  copyReport:()=>{if(aiReport){navigator.clipboard.writeText(aiReport);showToast("Copiado al portapapeles","success")}},
+  copyReport:()=>{if(aiReport){navigator.clipboard.writeText(aiReport).then(()=>showToast("Copiado al portapapeles","success")).catch(()=>showToast("No se pudo copiar (permiso denegado)","error"))}},
   closeReport:()=>{aiReport=null;renderBody()}
 };
 
