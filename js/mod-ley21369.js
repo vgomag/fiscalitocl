@@ -1051,12 +1051,12 @@ function cancelClassify(){
   // File already uploaded to storage — save as unclassified
   if(classifyingDoc&&classifyingDoc.filePath){
     getUser().then(user=>{
-      sb.from("ley21369_documentos").insert({
+      return sb.from("ley21369_documentos").insert({
         user_id:user?user.id:null,item_id:null,file_name:classifyingDoc.fileName,
         file_path:classifyingDoc.filePath,file_size:classifyingDoc.fileSize,
         file_type:classifyingDoc.fileType,category:"evidencia_ses"
       }).then(()=>loadData());
-    });
+    }).catch(err=>console.warn('[ley21369] cancelClassify insert failed:',err));
   }
   const overlay=document.getElementById("leyClassifyOverlay");
   if(overlay)overlay.remove();

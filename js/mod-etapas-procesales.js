@@ -448,7 +448,7 @@ if(window._etapasPatched) {
 
 /* ── Inicialización ── */
 function init(){
-  patchShowTab();
+  // El patch de showTab ya se aplicó arriba (idempotente con _etapasPatched).
   injectEtapasTab();
   console.log('[etapas-procesales] Módulo cargado ✓');
 }

@@ -330,9 +330,9 @@ window.openWizard = function(template, caseId){
     generatedDoc: null,
     isOpen: true
   };
-  if(caseId) prefillFromCase(caseId).then(renderWizard);
+  if(caseId) prefillFromCase(caseId).then(renderWizard).catch(e=>{console.warn('[guiado] prefillFromCase:',e); renderWizard();});
   else if(typeof currentCase !== 'undefined' && currentCase){
-    prefillFromCase(currentCase.id).then(renderWizard);
+    prefillFromCase(currentCase.id).then(renderWizard).catch(e=>{console.warn('[guiado] prefillFromCase:',e); renderWizard();});
   } else {
     renderWizard();
   }

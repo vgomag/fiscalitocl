@@ -287,7 +287,7 @@ window.openAlertPanel = function(){
   if(panel){
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     if(panel.style.display !== 'none'){
-      generateAlerts().then(() => { renderAlertPanel(); renderSettingsPanel(); });
+      generateAlerts().then(() => { renderAlertPanel(); renderSettingsPanel(); }).catch(e=>{console.warn('[alertas] openAlertPanel:',e); renderAlertPanel(); renderSettingsPanel();});
     }
   }
 };
