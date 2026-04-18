@@ -460,7 +460,7 @@ function parrafosInsertAll() {
 function copyParrafo(id) {
   const p = PARRAFOS_DB.find(x => x.id === id);
   if (!p) return;
-  navigator.clipboard.writeText(p.text).then(() => showToast(`✓ "${p.label}" copiado`));
+  navigator.clipboard.writeText(p.text).then(() => showToast(`✓ "${p.label}" copiado`)).catch(() => showToast('⚠️ No se pudo copiar (permiso denegado)'));
 }
 
 async function generateParrafoIA() {

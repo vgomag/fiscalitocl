@@ -386,6 +386,8 @@ window.wizardCopy = function(){
   if(wizardState.generatedDoc){
     navigator.clipboard.writeText(wizardState.generatedDoc).then(() => {
       if(typeof showToast === 'function') showToast('✓ Copiado al portapapeles');
+    }).catch(() => {
+      if(typeof showToast === 'function') showToast('⚠️ No se pudo copiar (permiso denegado)');
     });
   }
 };

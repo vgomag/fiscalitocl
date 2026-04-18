@@ -516,6 +516,8 @@
     if(!state || !state.text){ if(typeof showToast==='function') showToast('No hay contenido para copiar','error'); return; }
     navigator.clipboard.writeText(state.text).then(function(){
       if(typeof showToast==='function') showToast('Sección copiada al portapapeles','success');
+    }).catch(function(){
+      if(typeof showToast==='function') showToast('No se pudo copiar (permiso denegado)','error');
     });
   }
 
@@ -532,6 +534,8 @@
     if(!texts.length){ if(typeof showToast==='function') showToast('No hay secciones generadas','error'); return; }
     navigator.clipboard.writeText(texts.join('\n\n')).then(function(){
       if(typeof showToast==='function') showToast('Vista unificada copiada','success');
+    }).catch(function(){
+      if(typeof showToast==='function') showToast('No se pudo copiar (permiso denegado)','error');
     });
   }
 
@@ -569,6 +573,8 @@
     if(!p) return;
     navigator.clipboard.writeText(p.text).then(function(){
       if(typeof showToast==='function') showToast('✓ "' + p.label + '" copiado');
+    }).catch(function(){
+      if(typeof showToast==='function') showToast('⚠️ No se pudo copiar (permiso denegado)');
     });
   }
 

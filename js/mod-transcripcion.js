@@ -2099,7 +2099,11 @@ async function f11DownloadWord(){
 
 /* ══════════════════ UTILIDADES UI ══════════════════ */
 function f11CopyText(text){
-  if(text){ navigator.clipboard.writeText(text); showToast('📋 Texto copiado'); }
+  if(text){
+    navigator.clipboard.writeText(text)
+      .then(()=>showToast('📋 Texto copiado'))
+      .catch(()=>showToast('⚠️ No se pudo copiar (permiso denegado)'));
+  }
 }
 
 /* ══════════════════ CARGAR TRANSCRIPCIÓN PREVIA ══════════════════ */

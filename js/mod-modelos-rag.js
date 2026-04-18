@@ -691,7 +691,7 @@ function previewRAGDoc(id) {
 }
 
 /* ── Acciones resultado ── */
-function copyRAGResult() { navigator.clipboard.writeText(rag.result); showToast('✓ Copiado al portapapeles'); }
+function copyRAGResult() { navigator.clipboard.writeText(rag.result).then(()=>showToast('✓ Copiado al portapapeles')).catch(()=>showToast('⚠️ No se pudo copiar (permiso denegado)')); }
 
 function downloadRAGResult() {
   const c = rag.cases.find(x => x.id === rag.targetCaseId);

@@ -460,7 +460,9 @@ function bindEvents(){
     if(state.merge.result)downloadBlob(state.merge.result,"fusionado.pdf");
   });
   btn("btnCopyOcr")?.addEventListener("click",()=>{
-    navigator.clipboard.writeText(state.ocr.text);showToast("Copiado","success");
+    navigator.clipboard.writeText(state.ocr.text)
+      .then(()=>showToast("Copiado","success"))
+      .catch(()=>showToast("No se pudo copiar (permiso denegado)","error"));
   });
   btn("btnDownloadOcr")?.addEventListener("click",()=>{
     const blob=new Blob([state.ocr.text],{type:"text/plain;charset=utf-8"});

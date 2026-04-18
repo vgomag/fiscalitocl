@@ -677,8 +677,9 @@ function useMeroTramiteTemplate(code){
 
 function mtCopyToClipboard(){
   if(window._mtPreviewText){
-    navigator.clipboard.writeText(window._mtPreviewText);
-    if(typeof showToast==='function')showToast('✓ Plantilla copiada al portapapeles');
+    navigator.clipboard.writeText(window._mtPreviewText)
+      .then(()=>{ if(typeof showToast==='function')showToast('✓ Plantilla copiada al portapapeles'); })
+      .catch(()=>{ if(typeof showToast==='function')showToast('⚠️ No se pudo copiar (permiso denegado)'); });
   }
 }
 
@@ -838,8 +839,9 @@ function downloadActaPDF(){
 
 function copyActa(){
   const tpl=TEMPLATES[_wizState.tplCode];if(!tpl)return;
-  navigator.clipboard.writeText(fillTemplate(tpl,_wizState.vals));
-  showToast("✓ Copiado al portapapeles");
+  navigator.clipboard.writeText(fillTemplate(tpl,_wizState.vals))
+    .then(()=>showToast("✓ Copiado al portapapeles"))
+    .catch(()=>showToast("⚠️ No se pudo copiar (permiso denegado)"));
 }
 
 function sendActaToChat(){

@@ -977,7 +977,7 @@ async function viewDiligenciaDetail(dilId){
       <div style="font-size:12.5px;line-height:1.7;white-space:pre-wrap;font-family:var(--font-body);color:var(--text)">${dil.extracted_text?esc(dil.extracted_text):'<span style="color:var(--text-muted);font-style:italic">Sin texto extraído. Procesa esta diligencia para obtener el contenido.</span>'}</div>
     </div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0">
-      ${dil.extracted_text?`<button class="btn-sm" onclick="navigator.clipboard.writeText(document.querySelector('#dilDetailModal .dil-text')?.innerText||'');showToast('✓ Copiado')">📋 Copiar texto</button>`:''}
+      ${dil.extracted_text?`<button class="btn-sm" onclick="safeCopy(document.querySelector('#dilDetailModal .dil-text')?.innerText||'','✓ Copiado')">📋 Copiar texto</button>`:''}
       ${!dil.is_processed?`<button class="btn-save" onclick="document.getElementById('dilDetailModal').remove();processDiligenciaOCR('${dil.id}')" style="font-size:11px">🔄 Procesar con IA</button>`:''}
       <button class="btn-cancel" onclick="document.getElementById('dilDetailModal').remove()">Cerrar</button>
     </div>
@@ -1419,8 +1419,12 @@ async function copyParrafosModelo(){
   const content=document.getElementById('parrafosModeloContent');
   if(!content)return;
   const text=content.innerText;
-  await navigator.clipboard.writeText(text);
-  showToast('✓ Párrafos copiados al portapapeles');
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('✓ Párrafos copiados al portapapeles');
+  }catch(e){
+    showToast('⚠️ No se pudo copiar (permiso denegado)');
+  }
 }
 
 /* ── Editar párrafos manualmente ── */

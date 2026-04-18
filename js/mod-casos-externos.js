@@ -1329,7 +1329,7 @@
       }
     });
     if (!text) { showToast('⚠ No hay secciones generadas'); return; }
-    navigator.clipboard.writeText(text).then(function () { showToast('✓ Copiado al portapapeles'); });
+    navigator.clipboard.writeText(text).then(function () { showToast('✓ Copiado al portapapeles'); }).catch(function(){ showToast('⚠️ No se pudo copiar (permiso denegado)'); });
   }
 
   // ─── CASE FOLDER (DRIVE) ─────────────────────────────────────────
@@ -1950,7 +1950,7 @@
       + '<textarea onchange="ce_state.writingInstructions=this.value" oninput="ce_state.writingInstructions=this.value" placeholder="Instrucciones específicas para el escrito…" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);background:var(--surface);font-family:inherit;resize:vertical;box-sizing:border-box;">' + _escHtml(ce.writingInstructions) + '</textarea>'
       + '<button onclick="window._ceGenerateWriting()" style="padding:8px;background:var(--gold);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;" ' + (ce.writingLoading ? 'disabled' : '') + '>' + (ce.writingLoading ? '⏳ Generando escrito…' : '▶ Generar Escrito') + '</button>'
       + (ce.writingResult ? '<div id="ce-writing-result" style="padding:10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text);line-height:1.6;max-height:400px;overflow-y:auto;">' + _markdownToHtml(ce.writingResult) + '</div>'
-        + '<div style="display:flex;gap:6px;"><button onclick="navigator.clipboard.writeText(ce_state.writingResult);showToast(\'✓ Copiado\')" style="padding:5px 10px;border:1px solid var(--border);background:var(--surface);border-radius:4px;font-size:11px;cursor:pointer;color:var(--text);font-family:inherit;">📋 Copiar</button>'
+        + '<div style="display:flex;gap:6px;"><button onclick="safeCopy(ce_state.writingResult,\'✓ Copiado\')" style="padding:5px 10px;border:1px solid var(--border);background:var(--surface);border-radius:4px;font-size:11px;cursor:pointer;color:var(--text);font-family:inherit;">📋 Copiar</button>'
         + '<button onclick="window._ceExportWritingWord()" style="padding:5px 10px;border:1px solid var(--border);background:var(--surface);border-radius:4px;font-size:11px;cursor:pointer;color:var(--text);font-family:inherit;">📄 Word</button></div>' : '')
       + '</div>';
   }
@@ -2058,7 +2058,7 @@
   window._ceCopyMsg = function (idx) {
     var msg = ce.chatMessages[idx];
     if (msg && msg.content) {
-      navigator.clipboard.writeText(msg.content).then(function () { showToast('✓ Copiado'); });
+      navigator.clipboard.writeText(msg.content).then(function () { showToast('✓ Copiado'); }).catch(function(){ showToast('⚠️ No se pudo copiar (permiso denegado)'); });
     }
   };
   window._ceDeleteMsg = async function (idx) {

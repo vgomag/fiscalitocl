@@ -726,7 +726,7 @@ PRECISIÓN: SOLO cita dictámenes, sentencias y normas cuya existencia puedas co
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div style="font-size:11px;font-weight:600;color:var(--gold)">📊 Resumen ejecutivo de ${selected.length} fuente(s)</div>
           <div style="display:flex;gap:5px">
-            <button class="btn-sm" style="font-size:10px" onclick="navigator.clipboard.writeText(this.closest('.skill-summary-wrap').querySelector('.skill-summary-content').textContent);showToast('✓ Copiado')">📋 Copiar</button>
+            <button class="btn-sm" style="font-size:10px" onclick="safeCopy(this.closest('.skill-summary-wrap').querySelector('.skill-summary-content').textContent,'✓ Copiado')">📋 Copiar</button>
             <button class="btn-del" onclick="document.getElementById('skillSummaryBox').style.display='none'">✕</button>
           </div>
         </div>
