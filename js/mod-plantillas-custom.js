@@ -447,26 +447,8 @@ function injectPlantillasView(){
     else document.querySelector('.main')?.appendChild(v);
   }
 
-  // Añadir nav item en sidebar
-  const nav = document.querySelector('.sidebar-bottom') || document.querySelector('.sidebar');
-  if(nav && !document.getElementById('navPlantillas')){
-    const navItems = document.querySelectorAll('.sidebar-nav-item');
-    const lastNav = navItems[navItems.length - 1];
-
-    const item = document.createElement('div');
-    item.id = 'navPlantillas';
-    item.className = 'sidebar-nav-item';
-    item.onclick = function(){
-      document.querySelectorAll('.sidebar-nav-item').forEach(e => e.classList.remove('active'));
-      this.classList.add('active');
-      if(typeof currentCase !== 'undefined') window.currentCase = null;
-      showView('viewPlantillas');
-      loadTemplates();
-    };
-    item.innerHTML = '<span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg></span>Plantillas';
-    if(lastNav) lastNav.after(item);
-    else nav.appendChild(item);
-  }
+  // Nav item "Plantillas" del sidebar removido a pedido del usuario.
+  // La vista viewPlantillas sigue disponible si se invoca desde otro lugar.
 }
 
 /* ── CSS ── */

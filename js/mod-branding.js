@@ -306,7 +306,9 @@
     const prefs = loadPrefs();
     if(prefs.theme) applyTheme(prefs.theme);
     applyCustomProps(prefs);
-    addSidebarButton();
+    /* Botón "Personalizar" del sidebar removido a pedido del usuario.
+       El resto de la lógica de branding (tema, preferencias) sigue activa. */
+    // addSidebarButton();
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
