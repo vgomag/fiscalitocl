@@ -288,7 +288,17 @@
     btn.onclick = openPanel;
     btn.onmouseover = function(){ this.style.color='var(--gold)'; };
     btn.onmouseout = function(){ this.style.color='var(--text-muted)'; };
-    nav.appendChild(btn);
+    /* Bug-fix UX: insertar ANTES del div de account actions (Cambiar contraseña /
+       Cerrar sesión). Antes se hacía nav.appendChild(btn) que lo metía como último
+       hijo del sidebar, quedando DEBAJO de los account actions y cortado/tapado
+       por el borde inferior del sidebar. */
+    const accountActions = document.getElementById('sidebarAccountActions');
+    if (accountActions && accountActions.parentNode === nav) {
+      nav.insertBefore(btn, accountActions);
+    } else {
+      /* Fallback: sidebar viejo sin id — comportamiento original. */
+      nav.appendChild(btn);
+    }
   }
 
   /* ── Init: aplicar tema guardado ── */
