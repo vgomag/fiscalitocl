@@ -487,4 +487,4 @@ async function exportChatResponseToWord(buttonEl) {
   await exportVistaFiscalToWord(text, title);
 }
 
-console.log('%c📄 Módulo Export Word cargado — Folio, Arial 11, Justificado, 1.5', 'color:#4f46e5;font-weight:bold');
+console.log('%c📄 Módulo Export Word cargado — Folio, Arial 11, Justificado, 1.5', 'color:#4f46e5;font-weight:600');
