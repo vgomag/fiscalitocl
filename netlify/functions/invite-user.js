@@ -166,7 +166,10 @@ const handler = async (req) => {
       );
     }
     const roleRows = await roleRes.json();
-    if (!Array.isArray(roleRows) || roleRows[0]?.role !== 'admin') {
+    /* Bug-fix: el caller puede tener múltiples filas en user_roles (transitorio mientras
+       se reasignan o por race conditions). Antes mirábamos solo roleRows[0].role, lo que
+       rechazaba a un admin si su fila 'admin' no era la primera. Ahora validamos con .some(). */
+    if (!Array.isArray(roleRows) || !roleRows.some(r => r && r.role === 'admin')) {
       return new Response(
         JSON.stringify({ error: 'Solo los administradores pueden invitar usuarios' }),
         { status: 403, headers: CORS }
@@ -306,8 +309,10 @@ const handler = async (req) => {
         roleAssigned = true;
         // Ahora sí: borrar roles viejos (distintos del nuevo) para mantener
         // un único rol por usuario.
+        /* Bug-fix: encodeURIComponent también en newUserId como defensa en profundidad
+           (es UUID de Supabase Admin API en la práctica, pero no hay que confiar). */
         const delRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${newUserId}&role=neq.${encodeURIComponent(role)}`,
+          `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(newUserId)}&role=neq.${encodeURIComponent(role)}`,
           { method: 'DELETE', headers: adminHeaders }
         );
         if (!delRes.ok && delRes.status !== 404) {
