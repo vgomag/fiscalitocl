@@ -991,5 +991,12 @@ window.oficioAssignAndExport = async function(buttonEl) {
   }
 };
 
+/* ══════════════════════════════════════════
+   EXPONER FUNCIONES
+   ══════════════════════════════════════════ */
+window.renderF12Panel = renderF12Panel;
+window.loadDocCounters = loadDocCounters;
+window.previewNextNumber = previewNextNumber;
+
 })();
 
