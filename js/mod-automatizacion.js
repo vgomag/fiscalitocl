@@ -238,58 +238,70 @@
     const supabase = getSb();
     const processedDiligencias = [];
 
-    while(state.ocrQueue.length > 0){
-      const item = state.ocrQueue.shift();
-      try{
-        /* Marcar como procesando */
-        if(supabase){
-          await supabase.from('diligencias')
-            .update({processing_status:'processing'})
-            .eq('id', item.dilId);
-        }
-
-        /* Llamar OCR (stage 1: extract) */
-        log(`OCR: ${item.fileName}`);
-        const result = await apiFetch('ocr', {
-          action: 'extract',
-          fileId: item.driveFileId,
-          fileName: item.fileName
-        });
-
-        if(result.ok && result.extractedText){
-          /* Guardar resultado en Supabase */
+    /* Bug-fix: envolver el while en try/finally para garantizar que
+       isProcessingOCR se resetea SIEMPRE (incluso si el .update() del catch
+       lanza por error de Supabase). Antes podía quedar en true para siempre,
+       bloqueando el procesamiento de la cola permanentemente. */
+    try {
+      while(state.ocrQueue.length > 0){
+        const item = state.ocrQueue.shift();
+        try{
+          /* Marcar como procesando */
           if(supabase){
-            await supabase.from('diligencias').update({
-              extracted_text: result.extractedText,
-              ai_summary: result.aiSummary || '',
-              is_processed: true,
-              processing_status: 'completed'
-            }).eq('id', item.dilId);
+            await supabase.from('diligencias')
+              .update({processing_status:'processing'})
+              .eq('id', item.dilId);
           }
 
-          processedDiligencias.push({
-            ...item,
-            extractedText: result.extractedText,
-            aiSummary: result.aiSummary
+          /* Llamar OCR (stage 1: extract) */
+          log(`OCR: ${item.fileName}`);
+          const result = await apiFetch('ocr', {
+            action: 'extract',
+            fileId: item.driveFileId,
+            fileName: item.fileName
           });
-          state.processedFiles++;
-          log(`✓ OCR completado: ${item.fileName} (${result.extractedText.length} chars)`);
-        } else {
-          throw new Error(result.error || 'Sin texto extraído');
-        }
 
-      } catch(err){
-        warn(`✗ OCR falló: ${item.fileName}:`, err.message);
-        if(supabase){
-          await supabase.from('diligencias')
-            .update({processing_status:'error'})
-            .eq('id', item.dilId);
+          if(result.ok && result.extractedText){
+            /* Guardar resultado en Supabase */
+            if(supabase){
+              await supabase.from('diligencias').update({
+                extracted_text: result.extractedText,
+                ai_summary: result.aiSummary || '',
+                is_processed: true,
+                processing_status: 'completed'
+              }).eq('id', item.dilId);
+            }
+
+            processedDiligencias.push({
+              ...item,
+              extractedText: result.extractedText,
+              aiSummary: result.aiSummary
+            });
+            state.processedFiles++;
+            log(`✓ OCR completado: ${item.fileName} (${result.extractedText.length} chars)`);
+          } else {
+            throw new Error(result.error || 'Sin texto extraído');
+          }
+
+        } catch(err){
+          warn(`✗ OCR falló: ${item.fileName}:`, err.message);
+          /* Bug-fix: el update de error envuelto en try aparte para que un fallo
+             secundario no aborte el bucle ni deje isProcessingOCR colgado. */
+          if(supabase){
+            try {
+              await supabase.from('diligencias')
+                .update({processing_status:'error'})
+                .eq('id', item.dilId);
+            } catch (e) {
+              warn('No se pudo marcar dil como error:', e.message);
+            }
+          }
         }
       }
+    } finally {
+      state.isProcessingOCR = false;
+      updateAutomationUI();
     }
-
-    state.isProcessingOCR = false;
-    updateAutomationUI();
 
     if(processedDiligencias.length > 0){
       toast(`✓ OCR completado: ${processedDiligencias.length} archivo(s)`, 'success');
