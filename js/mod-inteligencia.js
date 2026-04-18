@@ -520,6 +520,8 @@
     if(!text){ if(typeof showToast==='function') showToast('No hay contenido para copiar','error'); return; }
     navigator.clipboard.writeText(text).then(function(){
       if(typeof showToast==='function') showToast('Medida cautelar copiada','success');
+    }).catch(function(){
+      if(typeof showToast==='function') showToast('No se pudo copiar (permiso denegado)','error');
     });
   }
 

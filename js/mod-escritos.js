@@ -220,7 +220,7 @@ function copyEscritos(id) {
   if (!draft) return;
   // Plain text version (strip markdown)
   const plain = draft.content.replace(/\*\*(.*?)\*\*/g,'$1').replace(/\*(.*?)\*/g,'$1').replace(/^#+\s+/gm,'').replace(/^[-*]\s+/gm,'• ');
-  navigator.clipboard.writeText(plain).then(() => showToast('✓ Escrito copiado al portapapeles'));
+  navigator.clipboard.writeText(plain).then(() => showToast('✓ Escrito copiado al portapapeles')).catch(() => showToast('⚠️ No se pudo copiar (permiso denegado)'));
 }
 
 /* ── EXPORTAR WORD (básico via blob) ── */

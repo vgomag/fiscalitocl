@@ -84,7 +84,8 @@
   }
 
   function savePrefs(p){
-    localStorage.setItem(LS_KEY, JSON.stringify(p));
+    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); }
+    catch(e){ console.warn('[branding] savePrefs falló (quizás modo privado):', e); }
   }
 
   /* ── Aplicar tema ── */
@@ -267,7 +268,7 @@
   };
 
   window.resetBranding = function(){
-    localStorage.removeItem(LS_KEY);
+    try { localStorage.removeItem(LS_KEY); } catch(e){ console.warn('[branding] removeItem falló:', e); }
     applyTheme('default');
     document.documentElement.style.fontSize = '';
     const sidebar = document.querySelector('.sidebar');

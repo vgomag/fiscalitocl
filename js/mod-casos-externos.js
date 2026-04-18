@@ -2031,7 +2031,7 @@
   window._ceReloadQdrantColls = function () {
     ce.qdrantCollectionsLoaded = false;
     ce.qdrantCollections = [];
-    _loadQdrantCollections().then(function () { _renderTab(); });
+    _loadQdrantCollections().then(function () { _renderTab(); }).catch(function(e){ console.warn('[casos-externos] reload qdrant colls:', e); _renderTab(); });
   };
   window._ceToggleSource = function (key) {
     ce.searchSources[key] = !ce.searchSources[key];

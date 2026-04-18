@@ -1329,8 +1329,9 @@ function juriToggleSection(id) {
 function juriCopySection(id) {
   const content = juri.sections[id]?.content;
   if (!content) return;
-  navigator.clipboard.writeText(content);
-  showToast('✓ Sección copiada al portapapeles');
+  navigator.clipboard.writeText(content)
+    .then(()=>showToast('✓ Sección copiada al portapapeles'))
+    .catch(()=>showToast('⚠️ No se pudo copiar (permiso denegado)'));
 }
 
 function juriClearAll() {
