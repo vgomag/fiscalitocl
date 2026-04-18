@@ -1721,9 +1721,32 @@ async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim();
   const pass=document.getElementById('loginPass').value;
   const err=document.getElementById('loginErr');
+  const btn=document.querySelector('#loginFormEl button[type="submit"]');
+  const showErr=msg=>{err.textContent=msg;err.style.display='block';};
   err.style.display='none';
-  const {error}=await sb.auth.signInWithPassword({email,password:pass});
-  if(error){err.textContent=error.message;err.style.display='block';}
+  /* Bug-fix: validación JS explícita (reemplaza required HTML5 que bloqueaba
+     submit en silencio sin mostrar error visible). */
+  if(!email)return showErr('Ingresá tu correo.');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return showErr('El correo no tiene formato válido.');
+  if(!pass)return showErr('Ingresá tu contraseña.');
+  if(pass.length<6)return showErr('La contraseña es demasiado corta.');
+  if(typeof sb==='undefined'||!sb?.auth)return showErr('Cliente Supabase no disponible. Recargá la página.');
+  if(btn){btn.disabled=true;btn.dataset._origText=btn.textContent;btn.textContent='Iniciando sesión…';}
+  try{
+    const {error}=await sb.auth.signInWithPassword({email,password:pass});
+    if(error){
+      /* Traducir mensajes comunes de Supabase para que sean más claros al usuario. */
+      const m=(error.message||'').toLowerCase();
+      if(m.includes('invalid login')||m.includes('invalid credentials'))showErr('Correo o contraseña incorrectos.');
+      else if(m.includes('email not confirmed'))showErr('Tu correo aún no está confirmado. Revisá tu bandeja.');
+      else if(m.includes('rate limit'))showErr('Demasiados intentos. Esperá unos minutos.');
+      else showErr(error.message);
+    }
+  }catch(e){
+    showErr('Error de conexión: '+(e.message||e));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=btn.dataset._origText||'Iniciar sesión';}
+  }
 }
 async function doRegister(){
   showToast('⚠ Registro deshabilitado. Contacte al administrador.');
