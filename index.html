@@ -589,12 +589,16 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
     <!-- Login -->
     <div id="loginForm">
       <!-- Bug-fix UX: envolver en <form> real con autocomplete y onsubmit para que
-           Chrome/Firefox/Safari/1Password/Bitwarden ofrezcan guardar la contraseña,
-           y para que Enter en el input envíe el formulario. -->
-      <form id="loginFormEl" onsubmit="event.preventDefault();doLogin();return false;" autocomplete="on">
-        <div class="alert alert-err" id="loginErr"></div>
-        <div class="field"><label>Correo</label><input type="email" id="loginEmail" name="email" autocomplete="username" required placeholder="tu@correo.cl"/></div>
-        <div class="field"><label>Contraseña</label><input type="password" id="loginPass" name="password" autocomplete="current-password" required placeholder="Contraseña"/></div>
+           los password managers (Chrome/Firefox/Safari/1Password/Bitwarden) ofrezcan
+           guardar la contraseña, y para que Enter envíe el formulario.
+           NOTA: NO usamos required ni type=email con validación estricta — la
+           validación HTML5 bloqueaba silenciosamente el submit y la usuaria solo
+           veía el texto estático "Acceso restringido" sin saber qué pasaba.
+           Ahora doLogin() valida y muestra errores visibles en #loginErr. -->
+      <form id="loginFormEl" onsubmit="event.preventDefault();doLogin();return false;" autocomplete="on" novalidate>
+        <div class="alert alert-err" id="loginErr" style="display:none"></div>
+        <div class="field"><label>Correo</label><input type="email" id="loginEmail" name="email" autocomplete="username" placeholder="tu@correo.cl"/></div>
+        <div class="field"><label>Contraseña</label><input type="password" id="loginPass" name="password" autocomplete="current-password" placeholder="Contraseña"/></div>
         <button type="submit" class="btn-primary">Iniciar sesión</button>
         <div class="auth-switch" style="color:var(--text-muted);font-size:10px">Acceso restringido. Contacte al administrador.</div>
       </form>
