@@ -1944,7 +1944,7 @@ async function f11DownloadWord(){
       try {
         logoBuffer = typeof getWordDocLogo === 'function'
           ? await getWordDocLogo()
-          : await fetch('/img/logo-umag.png').then(r => r.ok ? r.arrayBuffer() : null);
+          : await fetch('/img/logo-fiscalia-universitaria.png').then(r => r.ok ? r.arrayBuffer() : null);
       } catch(e){ console.warn('[F11] No se pudo cargar logo:', e); }
     }
 
@@ -2050,8 +2050,9 @@ async function f11DownloadWord(){
               new Paragraph({
                 children: [
                   new ImageRun({
+                    /* Logo Fiscalía Universitaria — ratio ~3.1:1 */
                     data: logoBuffer,
-                    transformation: { width: 280, height: 58 },
+                    transformation: { width: 240, height: 77 },
                     type: 'png'
                   })
                 ]

@@ -47,9 +47,10 @@ const WORD_FORMAT = {
 
 /**
  * Carga el logo de Fiscalía Universitaria (UMAG) para los documentos Word
- * exportados desde un caso. Intenta:
- * 1. localStorage `fiscalito_word_logo` (override subido por el usuario)
- * 2. /img/logo-umag.png (archivo estático — Fiscalía Universitaria UMAG)
+ * exportados desde un caso. Intenta, en orden:
+ *   1. localStorage `fiscalito_word_logo` (override subido por el usuario)
+ *   2. /img/logo-fiscalia-universitaria.png (versión color institucional)
+ *   3. /img/logo-umag.png (legacy, fallback)
  * Retorna ArrayBuffer o null.
  *
  * NOTA: el logo de "Fiscalito" (sidebar/inicio) NO se usa en Word.
@@ -64,11 +65,17 @@ async function getWordDocLogo() {
     }
   } catch(e) { console.warn('[Logo] localStorage fallback:', e); }
 
-  /* 2. Logo institucional UMAG / Fiscalía Universitaria */
+  /* 2. Logo oficial Fiscalía Universitaria (color) */
+  try {
+    const resp = await fetch('/img/logo-fiscalia-universitaria.png');
+    if (resp.ok) return await resp.arrayBuffer();
+  } catch(e) { console.warn('[Logo] fiscalia-universitaria fallback:', e); }
+
+  /* 3. Fallback legacy logo-umag.png */
   try {
     const resp = await fetch('/img/logo-umag.png');
     if (resp.ok) return await resp.arrayBuffer();
-  } catch(e) { console.warn('[Logo] static file fallback:', e); }
+  } catch(e) { console.warn('[Logo] umag fallback:', e); }
 
   return null;
 }
@@ -89,10 +96,11 @@ function makeWordDocHeader(docxLib, logoBuffer) {
       children: [new Paragraph({
         children: [
           new ImageRun({
+            /* Logo Fiscalía Universitaria — ratio ~3.1:1 */
             data: logoBuffer,
-            transformation: { width: 280, height: 58 },
+            transformation: { width: 240, height: 77 },
             type: 'png',
-            altText: { title: 'UMAG', description: 'Logo UMAG Fiscalía Universitaria', name: 'logo-umag' },
+            altText: { title: 'UMAG', description: 'Logo UMAG Fiscalía Universitaria', name: 'logo-fiscalia-universitaria' },
           }),
         ],
       })],
