@@ -90,7 +90,13 @@
       estrategias:    { text: '', modelsUsed: [], usage: null },
       genero:         { text: '', modelsUsed: [], usage: null }
     },
-    parrafosOpen: {}
+    parrafosOpen: {},
+    /* Nueva configuración — tipo de documento y modelo de referencia */
+    docType: 'auto',        // 'auto' | 'vista_fiscal' | 'informe_investigadora'
+    referenceModelId: '',   // UUID de caso terminado, o '' para auto-match
+    referenceModelName: '', // Nombre/resolución del caso para mostrar
+    terminadosLoaded: false,
+    terminadosList: []      // [{id, name, nueva_resolucion, tipo_procedimiento, resultado}]
   };
 
   /* ══════════════════════════════════
@@ -309,8 +315,11 @@
       caseLink +
       '</div></div>';
 
+    // Barra de configuración (tipo de documento + caso de referencia)
+    var configBarHtml = '<div id="vfConfigBar">' + buildVfConfigBarContent() + '</div>';
+
     // Sub-pestañas de la vista fiscal
-    var vfHtml = '<div class="vf-tabs-container">' +
+    var vfHtml = configBarHtml + '<div class="vf-tabs-container">' +
       '<div style="padding:12px 16px 0;display:flex;justify-content:space-between;align-items:center">' +
       '<div>' +
       '<h3 style="font-family:var(--font-serif);font-size:15px;font-weight:600;margin:0 0 4px;display:flex;align-items:center;gap:8px">📝 Vista Fiscal / Informe de la Investigadora</h3>' +
@@ -341,6 +350,147 @@
   /* ══════════════════════════════════
      INTERACCIONES
      ══════════════════════════════════ */
+
+  /* ══════════════════════════════════
+     CASOS TERMINADOS — carga para picker de modelo
+     ══════════════════════════════════ */
+  async function loadTerminados(forceReload){
+    if (vfState.terminadosLoaded && !forceReload) return vfState.terminadosList;
+    try {
+      if (typeof sb === 'undefined' || !sb) return [];
+      var r = await sb.from('cases')
+        .select('id,name,nueva_resolucion,tipo_procedimiento,protocolo,resultado,informe_final')
+        .eq('categoria','terminado')
+        .not('informe_final','is',null)
+        .order('nueva_resolucion', {ascending:false})
+        .limit(200);
+      var list = (r && r.data) ? r.data.filter(function(c){ return c.informe_final && c.informe_final.length > 500; }) : [];
+      vfState.terminadosList = list;
+      vfState.terminadosLoaded = true;
+      return list;
+    } catch(e){
+      console.warn('[VF] loadTerminados:', e);
+      vfState.terminadosList = [];
+      vfState.terminadosLoaded = true;
+      return [];
+    }
+  }
+
+  /* ── Cambiar tipo de documento (Vista Fiscal / Informe / Auto) ── */
+  function setDocType(dt){
+    if (['auto','vista_fiscal','informe_investigadora'].indexOf(dt) === -1) return;
+    vfState.docType = dt;
+    // Re-render header para reflejar la selección
+    var cfgBar = document.getElementById('vfConfigBar');
+    if (cfgBar) cfgBar.innerHTML = buildVfConfigBarContent();
+  }
+
+  /* ── Seleccionar caso de referencia ── */
+  function setReferenceModel(caseId, caseName){
+    vfState.referenceModelId = caseId || '';
+    vfState.referenceModelName = caseName || '';
+    var cfgBar = document.getElementById('vfConfigBar');
+    if (cfgBar) cfgBar.innerHTML = buildVfConfigBarContent();
+  }
+
+  /* ── Mostrar picker de modelo de referencia ── */
+  async function openReferenceModelPicker(){
+    var pickerBox = document.getElementById('vfRefPicker');
+    if (!pickerBox) return;
+    pickerBox.style.display = 'block';
+    pickerBox.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">Cargando casos terminados…</div>';
+    var list = await loadTerminados(false);
+    if (!list.length){
+      pickerBox.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">No hay casos terminados con informe final disponible.</div>';
+      return;
+    }
+    var html = '<div style="padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);max-height:260px;overflow-y:auto">';
+    html += '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">';
+    html += '<input id="vfRefFilter" type="text" placeholder="🔍 Filtrar por nombre, rol, tipo..." oninput="window._vf._filterRefList()" style="flex:1;padding:4px 8px;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--font-body)">';
+    html += '<button class="vf-ia-btn vf-ia-btn-secondary" onclick="window._vf.closeReferenceModelPicker()" style="padding:4px 8px;font-size:10px">✕</button>';
+    html += '</div>';
+    html += '<div id="vfRefList">';
+    html += '<div class="vf-ref-item" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid var(--border);font-size:11px" onclick="window._vf.setReferenceModel(\'\',\'\');window._vf.closeReferenceModelPicker()">';
+    html += '<strong style="color:var(--gold)">↻ Auto (match automático)</strong>';
+    html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">El sistema buscará el mejor modelo similar al caso actual.</div>';
+    html += '</div>';
+    list.forEach(function(cs){
+      var nm = escH(cs.name || cs.nueva_resolucion || cs.id);
+      var res = escH(cs.nueva_resolucion || '');
+      var tp = escH(cs.tipo_procedimiento || '—');
+      var prot = escH(cs.protocolo || '');
+      var rs = escH(cs.resultado || '');
+      var searchKey = (cs.name + ' ' + cs.nueva_resolucion + ' ' + cs.tipo_procedimiento + ' ' + cs.protocolo + ' ' + cs.resultado).toLowerCase();
+      html += '<div class="vf-ref-item" data-search="' + escH(searchKey) + '" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid var(--border);font-size:11px" onclick="window._vf.setReferenceModel(\'' + escH(cs.id) + '\',\'' + nm + '\');window._vf.closeReferenceModelPicker()">';
+      html += '<div><strong>' + nm + '</strong>' + (res ? ' · <span style="color:var(--gold)">' + res + '</span>' : '') + '</div>';
+      html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">' + tp + (prot ? ' / ' + prot : '') + (rs ? ' — ' + rs : '') + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+    pickerBox.innerHTML = html;
+  }
+
+  function closeReferenceModelPicker(){
+    var pickerBox = document.getElementById('vfRefPicker');
+    if (pickerBox){ pickerBox.style.display = 'none'; pickerBox.innerHTML = ''; }
+  }
+
+  function _filterRefList(){
+    var q = (document.getElementById('vfRefFilter') || {}).value || '';
+    q = q.toLowerCase().trim();
+    var items = document.querySelectorAll('#vfRefList .vf-ref-item');
+    items.forEach(function(el){
+      var key = el.getAttribute('data-search') || '';
+      var firstItem = !el.hasAttribute('data-search'); // "Auto" no tiene search
+      if (!q || firstItem || key.indexOf(q) !== -1){ el.style.display = ''; }
+      else { el.style.display = 'none'; }
+    });
+  }
+
+  /* ── Contenido de la barra de configuración (tipo + modelo) ── */
+  function buildVfConfigBarContent(){
+    var dtLabel = vfState.docType === 'vista_fiscal' ? 'Vista Fiscal (Sumario Administrativo)'
+      : vfState.docType === 'informe_investigadora' ? 'Informe de la Investigadora (Investigación Sumaria)'
+      : 'Auto (según tipo del expediente)';
+    var dtColor = vfState.docType === 'auto' ? 'var(--text-dim)' : 'var(--gold)';
+
+    var refLabel = vfState.referenceModelId
+      ? escH(vfState.referenceModelName || 'Caso seleccionado')
+      : 'Auto (match automático)';
+    var refColor = vfState.referenceModelId ? 'var(--gold)' : 'var(--text-dim)';
+
+    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);margin:10px 0;font-size:11px">';
+
+    /* Tipo de documento */
+    html += '<div>';
+    html += '<label style="display:block;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📝 Tipo de documento</label>';
+    html += '<select onchange="window._vf.setDocType(this.value)" style="width:100%;padding:5px 8px;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--font-body)">';
+    html += '<option value="auto"' + (vfState.docType==='auto'?' selected':'') + '>Auto — detectar por tipo del caso</option>';
+    html += '<option value="vista_fiscal"' + (vfState.docType==='vista_fiscal'?' selected':'') + '>Vista Fiscal (Sumario Administrativo)</option>';
+    html += '<option value="informe_investigadora"' + (vfState.docType==='informe_investigadora'?' selected':'') + '>Informe de la Investigadora (Investigación Sumaria)</option>';
+    html += '</select>';
+    html += '<div style="font-size:9.5px;color:' + dtColor + ';margin-top:4px">Actual: <strong>' + escH(dtLabel) + '</strong></div>';
+    html += '</div>';
+
+    /* Modelo de referencia */
+    html += '<div>';
+    html += '<label style="display:block;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📚 Caso de referencia</label>';
+    html += '<div style="display:flex;gap:4px">';
+    html += '<button class="vf-ia-btn vf-ia-btn-secondary" onclick="window._vf.openReferenceModelPicker()" style="flex:1;padding:5px 8px;font-size:11px;text-align:left">';
+    html += (vfState.referenceModelId ? '📌 ' : '🔍 ') + escH((vfState.referenceModelName && vfState.referenceModelName.length > 30) ? vfState.referenceModelName.slice(0,30)+'…' : (vfState.referenceModelName || 'Elegir caso terminado…'));
+    html += '</button>';
+    if (vfState.referenceModelId){
+      html += '<button class="vf-ia-btn vf-ia-btn-secondary" onclick="window._vf.setReferenceModel(\'\',\'\')" title="Limpiar selección" style="padding:5px 8px;font-size:11px">✕</button>';
+    }
+    html += '</div>';
+    html += '<div style="font-size:9.5px;color:' + refColor + ';margin-top:4px">Actual: <strong>' + refLabel + '</strong></div>';
+    html += '</div>';
+
+    html += '</div>';
+    /* Contenedor del picker (se rellena al abrir) */
+    html += '<div id="vfRefPicker" style="display:none;margin-top:-4px;margin-bottom:10px"></div>';
+    return html;
+  }
 
   /* ── Cambiar sub-pestaña ── */
   function switchVfTab(tabId) {
@@ -444,7 +594,10 @@
           chronology: (results[2].data || []).map(function(cr){
             return { event_date: cr.event_date, title: cr.event_type || cr.description || '', description: cr.description || '' };
           }),
-          mode: mode
+          mode: mode,
+          /* Nuevos parámetros: tipo de documento y modelo de referencia prioritario */
+          docType: vfState.docType || 'auto',
+          referenceModelId: vfState.referenceModelId || ''
         })
       });
 
@@ -606,7 +759,14 @@
     sendSectionToChat: sendSectionToChat,
     useParrafoInSection: useParrafoInSection,
     copyParrafoText: copyParrafoText,
-    sendParrafoToChat: sendParrafoToChat
+    sendParrafoToChat: sendParrafoToChat,
+    /* Nuevas funciones: tipo de documento y modelo de referencia */
+    setDocType: setDocType,
+    setReferenceModel: setReferenceModel,
+    openReferenceModelPicker: openReferenceModelPicker,
+    closeReferenceModelPicker: closeReferenceModelPicker,
+    _filterRefList: _filterRefList,
+    loadTerminados: loadTerminados
   };
 
   /* Exponer renderF7Panel globalmente para que showFnPanel la delegue */

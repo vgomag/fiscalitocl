@@ -90,7 +90,7 @@ async function supaFetch(path) {
 /* ══════════════════════════════════════════════
    Supabase: Buscar modelos de referencia
    ══════════════════════════════════════════════ */
-async function fetchModelReports(caseData, mode) {
+async function fetchModelReports(caseData, mode, referenceModelId) {
   const sbUrl = env('SUPABASE_URL') || env('VITE_SUPABASE_URL');
   const sbKey = env('SUPABASE_SERVICE_KEY') || env('SUPABASE_SERVICE_ROLE_KEY');
   if (!sbUrl || !sbKey) return [];
@@ -98,6 +98,22 @@ async function fetchModelReports(caseData, mode) {
   const tipo = caseData.tipo_procedimiento || '';
   const protocolo = caseData.protocolo || '';
   const caseId = caseData.id || '';
+
+  /* ── Modelo de referencia explícito (prioridad absoluta) ── */
+  let pinned = null;
+  if (referenceModelId) {
+    try {
+      const pinnedList = await supaFetch(
+        `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
+        + `&id=eq.${encodeURIComponent(referenceModelId)}`
+        + `&informe_final=not.is.null&limit=1`
+      );
+      if (pinnedList && pinnedList.length && pinnedList[0].informe_final) {
+        pinned = pinnedList[0];
+        pinned._isPinned = true;
+      }
+    } catch (e) { /* ignore */ }
+  }
 
   const resultadoFilter = (mode === 'sancion') ? '&resultado=eq.Sanción'
     : (mode === 'sobreseimiento') ? '&resultado=eq.Sobreseimiento'
@@ -110,6 +126,7 @@ async function fetchModelReports(caseData, mode) {
     + `&protocolo=eq.${encodeURIComponent(protocolo)}`
     + resultadoFilter
     + `&id=neq.${encodeURIComponent(caseId)}`
+    + (pinned ? `&id=neq.${encodeURIComponent(pinned.id)}` : '')
     + `&order=nueva_resolucion.desc&limit=3`;
 
   let models = await supaFetch(path);
@@ -121,6 +138,7 @@ async function fetchModelReports(caseData, mode) {
       + `&tipo_procedimiento=eq.${encodeURIComponent(tipo)}`
       + resultadoFilter
       + `&id=neq.${encodeURIComponent(caseId)}`
+      + (pinned ? `&id=neq.${encodeURIComponent(pinned.id)}` : '')
       + `&order=nueva_resolucion.desc&limit=3`;
     const extra = await supaFetch(path);
     if (extra && extra.length) {
@@ -135,13 +153,19 @@ async function fetchModelReports(caseData, mode) {
     path = `cases?select=id,name,nueva_resolucion,informe_final,tipo_procedimiento,protocolo,resultado`
       + `&categoria=eq.terminado&informe_final=not.is.null`
       + `&id=neq.${encodeURIComponent(caseId)}`
+      + (pinned ? `&id=neq.${encodeURIComponent(pinned.id)}` : '')
       + `&order=nueva_resolucion.desc&limit=2`;
     models = await supaFetch(path);
   }
 
-  const validModels = (models || []).filter(m => m.informe_final && m.informe_final.length > 500);
+  let validModels = (models || []).filter(m => m.informe_final && m.informe_final.length > 500);
 
-  // Enriquecer con diligencias del modelo
+  /* Si tenemos modelo pin-eado, va siempre primero (prioridad absoluta) */
+  if (pinned) {
+    validModels = [pinned, ...validModels].slice(0, 3);
+  }
+
+  // Enriquecer con diligencias del modelo principal (pin-eado o el mejor match)
   if (validModels.length > 0 && (mode === 'hechos' || mode === 'informe' || mode === 'vistos')) {
     try {
       const bestModelId = validModels[0].id;
@@ -295,6 +319,7 @@ function buildCaseContext(data, modelReports) {
 
   if (modelReports && modelReports.length) {
     const modeLabel = data.mode || 'informe';
+    const hasPinned = modelReports.some(m => m._isPinned);
     ctx += '\n═══════════════════════════════════════════════════════════════\n';
     ctx += 'MODELOS DE REFERENCIA — Informes finales de expedientes terminados\n';
     ctx += '═══════════════════════════════════════════════════════════════\n';
@@ -305,13 +330,17 @@ function buildCaseContext(data, modelReports) {
     ctx += '4. Si los modelos contienen una sección de ' + modeLabel.toUpperCase() + ', replica su formato, extensión y nivel de detalle.\n';
     ctx += '5. Si los modelos citan normativa, usa las MISMAS citas formales adaptándolas al caso actual.\n';
     ctx += '6. El documento generado debe ser INDISTINGUIBLE en estilo de los modelos proporcionados.\n';
+    if (hasPinned) {
+      ctx += '7. 🔒 MODELO PRIORITARIO: El MODELO 1 ha sido EXPRESAMENTE SELECCIONADO por el usuario como referencia principal. Presta MÁXIMA atención a su estructura, su redacción y su formato. El resultado debe imitar muy de cerca el MODELO 1, incorporando solo de forma subsidiaria los estilos de los demás modelos.\n';
+    }
     ctx += '═══════════════════════════════════════════════════════════════\n\n';
 
     const maxPerModel = isInforme ? 3000 : 2000;
     modelReports.forEach((m, i) => {
       const label = m.name || m.nueva_resolucion || '?';
       const tipoInfo = [m.tipo_procedimiento, m.protocolo, m.resultado].filter(Boolean).join(' / ');
-      ctx += `--- MODELO ${i + 1}: Exp. ${label} (${tipoInfo}) ---\n`;
+      const pinMark = m._isPinned ? '  ⭐ [MODELO PRIORITARIO — Seleccionado expresamente por el usuario]' : '';
+      ctx += `--- MODELO ${i + 1}: Exp. ${label} (${tipoInfo}) ---${pinMark}\n`;
       ctx += extractModelSections(m.informe_final, maxPerModel, data.mode) + '\n';
 
       if (m._diligencias && m._diligencias.length > 0) {
@@ -597,10 +626,68 @@ ${STYLE_RULES}
 - Si el documento queda extenso, eso es CORRECTO cuando el expediente lo justifica.`
 };
 
-function buildSystemPrompt(mode, participants) {
+/* ══════════════════════════════════════════════
+   Instrucciones de tipo de documento
+   — Vista Fiscal (Sumario Admin.) vs Informe
+     de la Investigadora (Investigación Sumaria)
+   ══════════════════════════════════════════════ */
+const DOC_TYPE_INSTRUCTIONS = {
+  vista_fiscal: `
+═══════════════════════════════════════════════════════════════
+🔒 TIPO DE DOCUMENTO FIJADO POR EL USUARIO: VISTA FISCAL
+═══════════════════════════════════════════════════════════════
+Estás redactando una VISTA FISCAL en el contexto de un SUMARIO ADMINISTRATIVO (art. 129 y ss. del Estatuto Administrativo). Reglas obligatorias:
+
+- TÍTULO del documento: "VISTA FISCAL" (en mayúsculas, centrado). NO uses "INFORME DE LA INVESTIGADORA".
+- AUTORÍA y firma: la suscribe el/la FISCAL instructor/a (tratamiento: "el Fiscal" o "la Fiscal" según corresponda). NO uses "la Investigadora".
+- PRONOMBRES: cuando el instructor se refiera a sí mismo en primera persona, usar "este Fiscal" / "la suscrita Fiscal" / "el Fiscal que suscribe". Evita "la suscrita Investigadora".
+- TERMINOLOGÍA: se habla del "sumario administrativo", de la "formulación de cargos", de los "descargos" (cuando corresponda), del "expediente sumarial" y del "vista fiscal" como acto procesal.
+- RESOLUCIÓN DE CIERRE sugerida: "PROPÓNGASE al Sr./Sra. [autoridad instructora]..."
+- El documento debe ser MÁS FORMAL, EXTENSO y TÉCNICO que un informe de investigación sumaria; la propuesta puede contemplar sanciones expulsivas (destitución) si procede.
+- Fundamenta expresamente, cuando proceda, la aplicación del art. 121 del Estatuto Administrativo.
+═══════════════════════════════════════════════════════════════`,
+
+  informe_investigadora: `
+═══════════════════════════════════════════════════════════════
+🔒 TIPO DE DOCUMENTO FIJADO POR EL USUARIO: INFORME DE LA INVESTIGADORA
+═══════════════════════════════════════════════════════════════
+Estás redactando un INFORME DE LA INVESTIGADORA en el contexto de una INVESTIGACIÓN SUMARIA (art. 126 del Estatuto Administrativo). Reglas obligatorias:
+
+- TÍTULO del documento: "INFORME DE LA INVESTIGADORA" (o "INFORME DEL INVESTIGADOR" si el instructor es hombre; úsalo solo si el contexto lo indica). NO uses "VISTA FISCAL".
+- AUTORÍA y firma: la suscribe el/la INVESTIGADOR/A (tratamiento: "la Investigadora" o "el Investigador"). NO uses "el/la Fiscal".
+- PRONOMBRES: cuando el instructor se refiera a sí mismo en primera persona, usar "la suscrita Investigadora" / "la Investigadora que suscribe" / "esta Investigadora". Evita "este Fiscal".
+- TERMINOLOGÍA: se habla de la "investigación sumaria", de la "propuesta" de sanción o sobreseimiento, del "expediente de la investigación" y del "informe" como acto procesal. NUNCA "sumario administrativo", NUNCA "vista fiscal".
+- ESTRUCTURA más breve y directa que una vista fiscal; la sanción propuesta típicamente no excede la multa (art. 126 EA), salvo excepciones expresamente justificadas.
+- RESOLUCIÓN DE CIERRE sugerida: "SUGIERE al Sr./Sra. [autoridad instructora]..."
+- Lenguaje técnico pero MÁS SOBRIO, sin las solemnidades propias del sumario administrativo.
+═══════════════════════════════════════════════════════════════`,
+
+  auto: `
+═══════════════════════════════════════════════════════════════
+TIPO DE DOCUMENTO: AUTO-DETECTAR según "Tipo" del expediente
+═══════════════════════════════════════════════════════════════
+Determina el tipo de documento a partir del campo "Tipo" del expediente:
+- Si "Tipo" contiene "Sumario Administrativo" → redacta una VISTA FISCAL; firma el/la FISCAL; título "VISTA FISCAL".
+- Si "Tipo" contiene "Investigación Sumaria" → redacta un INFORME DE LA INVESTIGADORA; firma el/la INVESTIGADOR/A; título "INFORME DE LA INVESTIGADORA".
+- Usa la terminología (Fiscal vs Investigadora, sumario vs investigación sumaria, vista fiscal vs informe) consistentemente con el tipo detectado. NO mezcles ambas.
+═══════════════════════════════════════════════════════════════`
+};
+
+function buildSystemPrompt(mode, participants, docType) {
   const base = SYSTEM_PROMPTS_BASE[mode] || SYSTEM_PROMPTS_BASE.informe;
   const normativeRegime = getNormativeContext(participants || []);
-  return base.replace('{NORMATIVE_REGIME}', normativeRegime);
+  let prompt = base.replace('{NORMATIVE_REGIME}', normativeRegime);
+
+  /* Instrucciones de tipo de documento (solo cuando aplican: informe completo,
+     hechos, vistos, sancion, sobreseimiento). Para art129/estrategias/genero no
+     aplica porque son secciones que no dependen del tipo de instructor. */
+  const docTypeRelevant = ['informe', 'hechos', 'vistos', 'sancion', 'sobreseimiento'];
+  if (docTypeRelevant.includes(mode)) {
+    const dt = (docType && DOC_TYPE_INSTRUCTIONS[docType]) ? docType : 'auto';
+    prompt = DOC_TYPE_INSTRUCTIONS[dt] + '\n\n' + prompt;
+  }
+
+  return prompt;
 }
 
 /* ── Doc labels ── */
@@ -654,14 +741,24 @@ export default async (req) => {
       return jsonRes({ error: 'mode inválido. Use: informe, sancion, sobreseimiento, art129, vistos, hechos, estrategias, genero' }, 400, CORS);
     }
 
-    /* Fetch model reports */
+    /* Nuevos parámetros opcionales:
+       - docType: 'vista_fiscal' | 'informe_investigadora' | 'auto'
+       - referenceModelId: UUID de caso terminado a usar como modelo prioritario */
+    const docType = (data.docType && DOC_TYPE_INSTRUCTIONS[data.docType]) ? data.docType : 'auto';
+    const referenceModelId = (typeof data.referenceModelId === 'string' && data.referenceModelId.length > 0)
+      ? data.referenceModelId : null;
+
+    /* Fetch model reports (incluye modelo pin-eado si se indicó) */
     let modelReports = [];
-    try { modelReports = await fetchModelReports(data.caseData || {}, mode); } catch (e) { console.warn('fetchModelReports:', e.message); }
+    try { modelReports = await fetchModelReports(data.caseData || {}, mode, referenceModelId); }
+    catch (e) { console.warn('fetchModelReports:', e.message); }
 
     /* Build context and prompt */
     const context = buildCaseContext(data, modelReports);
-    const system = buildSystemPrompt(mode, data.participants || []);
-    const docLabel = DOC_LABELS[mode] || 'vista fiscal';
+    const system = buildSystemPrompt(mode, data.participants || [], docType);
+    const docLabel = (docType === 'vista_fiscal') ? 'vista fiscal'
+      : (docType === 'informe_investigadora') ? 'informe de la investigadora'
+      : (DOC_LABELS[mode] || 'vista fiscal');
     const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}`;
 
     /* Token estimation */
@@ -715,7 +812,9 @@ export default async (req) => {
     /* Send custom meta event with modelsUsed info, then pipe Anthropic SSE */
     const meta = {
       modelsUsed: modelReports.map(m => m.name || m.nueva_resolucion).filter(Boolean),
+      pinnedModel: modelReports.find(m => m._isPinned) ? (modelReports.find(m => m._isPinned).name || modelReports.find(m => m._isPinned).nueva_resolucion || null) : null,
       mode,
+      docType,
       caseName: data.caseData?.name || '',
     };
     writer.write(encoder.encode(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`));
