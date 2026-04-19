@@ -2044,7 +2044,7 @@ async function f11DownloadWord(){
             }
           }
         },
-        headers: {
+        headers: _caseCtx ? {
           default: new Header({
             children: logoBuffer ? [
               new Paragraph({
@@ -2063,7 +2063,7 @@ async function f11DownloadWord(){
               })
             ]
           })
-        },
+        } : undefined,
         footers: {
           default: new Footer({
             children: [new Paragraph({
