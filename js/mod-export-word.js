@@ -46,24 +46,27 @@ const WORD_FORMAT = {
    ══════════════════════════════════════════ */
 
 /**
- * Carga el logo UMAG. Intenta:
- * 1. localStorage (subido por el usuario)
- * 2. /img/logo-fiscalito.png (archivo estático)
+ * Carga el logo de Fiscalía Universitaria (UMAG) para los documentos Word
+ * exportados desde un caso. Intenta:
+ * 1. localStorage `fiscalito_word_logo` (override subido por el usuario)
+ * 2. /img/logo-umag.png (archivo estático — Fiscalía Universitaria UMAG)
  * Retorna ArrayBuffer o null.
+ *
+ * NOTA: el logo de "Fiscalito" (sidebar/inicio) NO se usa en Word.
  */
 async function getWordDocLogo() {
-  /* 1. Intentar desde localStorage (data URL → ArrayBuffer) */
+  /* 1. Override del usuario desde localStorage (data URL → ArrayBuffer) */
   try {
-    const dataUrl = localStorage.getItem('fiscalito_logo');
+    const dataUrl = localStorage.getItem('fiscalito_word_logo') || localStorage.getItem('fiscalia_logo');
     if (dataUrl) {
       const resp = await fetch(dataUrl);
       if (resp.ok) return await resp.arrayBuffer();
     }
   } catch(e) { console.warn('[Logo] localStorage fallback:', e); }
 
-  /* 2. Intentar archivo estático */
+  /* 2. Logo institucional UMAG / Fiscalía Universitaria */
   try {
-    const resp = await fetch('/img/logo-fiscalito.png');
+    const resp = await fetch('/img/logo-umag.png');
     if (resp.ok) return await resp.arrayBuffer();
   } catch(e) { console.warn('[Logo] static file fallback:', e); }
 
@@ -127,10 +130,26 @@ function makeWordDocFooter(docxLib) {
 }
 
 /**
- * Retorna las propiedades de sección estándar (tamaño folio, márgenes, header con logo, footer).
+ * Retorna las propiedades de sección estándar (tamaño folio, márgenes, header, footer).
+ *
+ * El logo UMAG / Fiscalía Universitaria se incluye SOLO cuando el export
+ * proviene de un caso. Reglas de decisión:
+ *   - opts.includeLogo === true  → con logo UMAG
+ *   - opts.includeLogo === false → sin logo (header vacío)
+ *   - opts.caseRef truthy        → con logo UMAG
+ *   - sin parámetros             → sin logo (default conservador, fuera de caso)
+ *
+ * @param {Object} docxLib - Librería docx
+ * @param {{includeLogo?:boolean, caseRef?:Object}} [opts]
  */
-async function getWordSectionProps(docxLib) {
-  const logoBuffer = await getWordDocLogo();
+async function getWordSectionProps(docxLib, opts) {
+  opts = opts || {};
+  let withLogo;
+  if (typeof opts.includeLogo === 'boolean') withLogo = opts.includeLogo;
+  else withLogo = !!opts.caseRef;
+
+  const logoBuffer = withLogo ? await getWordDocLogo() : null;
+
   return {
     properties: {
       page: {
@@ -141,7 +160,9 @@ async function getWordSectionProps(docxLib) {
         },
       },
     },
-    headers: { default: makeWordDocHeader(docxLib, logoBuffer) },
+    headers: withLogo
+      ? { default: makeWordDocHeader(docxLib, logoBuffer) }
+      : undefined,
     footers: { default: makeWordDocFooter(docxLib) },
   };
 }
@@ -269,10 +290,10 @@ async function exportActaToWord() {
     const d = await _waitDocx();
     const { Document, Packer, Paragraph, TextRun, AlignmentType } = d;
 
-    /* Cargar propiedades de sección con logo */
-    const sectionProps = await getWordSectionProps(d);
-
     const caseRef = transcripcion.linkedCase || (typeof currentCase !== 'undefined' ? currentCase : null);
+
+    /* Cargar propiedades de sección — logo UMAG solo si el acta pertenece a un caso */
+    const sectionProps = await getWordSectionProps(d, { caseRef });
     const mt = transcripcion.meta || {};
     const fechaStr = mt.fecha ? new Date(mt.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const tipoActa = { testigo: 'DECLARACIÓN DE TESTIGO', denunciante: 'RATIFICACIÓN DE DENUNCIA', denunciado: 'DECLARACIÓN DE PERSONA DENUNCIADA', otro: 'DILIGENCIA' }[mt.tipoDeclarante] || 'DECLARACIÓN';
@@ -376,10 +397,11 @@ async function exportVistaFiscalToWord(text, title) {
     const d = await _waitDocx();
     const { Document, Packer, Paragraph, TextRun, AlignmentType } = d;
 
-    /* Cargar propiedades de sección con logo */
-    const sectionProps = await getWordSectionProps(d);
-
     const caseRef = typeof currentCase !== 'undefined' ? currentCase : null;
+
+    /* Cargar propiedades de sección — logo UMAG solo si hay caso activo */
+    const sectionProps = await getWordSectionProps(d, { caseRef });
+
     const docTitle = title || 'VISTA FISCAL';
     const fecha = new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
 
