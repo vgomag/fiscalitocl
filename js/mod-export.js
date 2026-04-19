@@ -122,10 +122,13 @@ async function exportToWord(text, filename, options={}){
       alignment:D.AlignmentType.CENTER,
     }));
 
-    /* Usar propiedades de sección con logo si están disponibles */
+    /* Usar propiedades de sección con logo si están disponibles.
+       El logo UMAG solo se aplica si el documento se exporta en contexto de un caso
+       (options.caseRef explícito o currentCase global). */
     let sProps;
+    const _caseCtx = options.caseRef || (typeof currentCase !== 'undefined' ? currentCase : null);
     if(typeof getWordSectionProps === 'function'){
-      sProps = await getWordSectionProps(D);
+      sProps = await getWordSectionProps(D, { caseRef: _caseCtx });
     } else {
       sProps = { properties:{ page:{ size:{ width:12240, height:18720 }, margin:{top:1440,right:1701,bottom:1440,left:1701} } } };
     }

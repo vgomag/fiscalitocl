@@ -419,9 +419,10 @@ window.wizardExportWord = async function(){
           children: [new TextRun({ text: line, font: 'Arial', size: 22 })]
         })
       );
-      /* Usar propiedades de sección con logo si están disponibles */
+      /* Propiedades de sección — logo UMAG solo si el wizard corre sobre un caso */
+      const _caseCtx = (typeof currentCase !== 'undefined' ? currentCase : null);
       const sectionProps = typeof getWordSectionProps === 'function'
-        ? await getWordSectionProps(window.docx)
+        ? await getWordSectionProps(window.docx, { caseRef: _caseCtx })
         : { properties: { page: { size: { width: 12240, height: 18720 }, margin: { top: 1440, bottom: 1440, left: 1701, right: 1701 } } } };
       const doc = new Document({ sections: [{ ...sectionProps, children: paragraphs }] });
       Packer.toBlob(doc).then(blob => {
