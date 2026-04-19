@@ -1936,13 +1936,17 @@ async function f11DownloadWord(){
     const lib = await _f11LoadDocxLib();
     const { Document, Packer, Paragraph, TextRun, AlignmentType, Header, Footer, PageNumber, ImageRun, TabStopType, Tab } = lib;
 
-    /* Cargar logo UMAG — usa función centralizada si está disponible */
+    /* Logo UMAG: solo si esta transcripción pertenece a un caso;
+       si es una transcripción suelta (sin caso vinculado) va sin logo */
+    const _caseCtx = transcripcion.linkedCase || (typeof currentCase !== 'undefined' ? currentCase : null);
     let logoBuffer = null;
-    try {
-      logoBuffer = typeof getWordDocLogo === 'function'
-        ? await getWordDocLogo()
-        : await fetch('/img/logo-fiscalito.png').then(r => r.ok ? r.arrayBuffer() : null);
-    } catch(e){ console.warn('[F11] No se pudo cargar logo:', e); }
+    if (_caseCtx) {
+      try {
+        logoBuffer = typeof getWordDocLogo === 'function'
+          ? await getWordDocLogo()
+          : await fetch('/img/logo-umag.png').then(r => r.ok ? r.arrayBuffer() : null);
+      } catch(e){ console.warn('[F11] No se pudo cargar logo:', e); }
+    }
 
     const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
     const nombre = (document.getElementById('f11NombreDeclarante')?.value||'').trim();
