@@ -51,7 +51,13 @@
   /* ═══ dqProcessFile — Procesa un archivo: Lee texto + Embeddings + Qdrant ═══ */
   window.dqProcessFile = async function dqProcessFile(sb, file, folder) {
   const folderId = folder?.id || dq.selectedFolderId;
-  const collection = folder?.qdrant_collection || 'administrative_discipline';
+  /* BUG-FIX 2026-04-23: los folders de DQ_BASE_FOLDERS y dqAllFolders() exponen la propiedad
+     `.collection` (ver mod-drive-qdrant.js líneas 27-32 y 73-80). El código anterior usaba
+     `folder?.qdrant_collection` que SIEMPRE era undefined, haciendo que todos los archivos
+     se indexaran en la misma colección ('administrative_discipline') sin importar la
+     carpeta seleccionada. Síntoma: "la biblioteca de Qdrant no funciona / no muestra
+     resultados en colecciones distintas a Doctrina Administrativo". */
+  const collection = folder?.collection || folder?.qdrant_collection || 'administrative_discipline';
 
   try {
     /* Paso 1: Obtener texto del archivo via Drive (Netlify) */
@@ -146,7 +152,8 @@
     }
 
     /* Obtener folder info para saber la colección */
-    const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId) || { qdrant_collection: 'administrative_discipline' };
+    /* BUG-FIX 2026-04-23: propiedad real es `collection` no `qdrant_collection` */
+    const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId) || { collection: 'administrative_discipline', id: dq.selectedFolderId };
 
     for (let i = 0; i < newFiles.length; i++) {
       const file = newFiles[i];
@@ -186,7 +193,8 @@
     const allFiles = (dq.scannedFiles || []).filter(f => !f.mimeType?.includes('folder'));
     dq.bulkProgress.total = allFiles.length;
 
-    const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId) || { qdrant_collection: 'administrative_discipline' };
+    /* BUG-FIX 2026-04-23: propiedad real es `collection` no `qdrant_collection` */
+    const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId) || { collection: 'administrative_discipline', id: dq.selectedFolderId };
 
     for (let i = 0; i < allFiles.length; i++) {
       const file = allFiles[i];
@@ -233,7 +241,8 @@
     const allFiles = (dq.scannedFiles || []).filter(f => !f.mimeType?.includes('folder'));
     dq.forceProgress.total = allFiles.length;
 
-    const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId) || { qdrant_collection: 'administrative_discipline' };
+    /* BUG-FIX 2026-04-23: propiedad real es `collection` no `qdrant_collection` */
+    const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId) || { collection: 'administrative_discipline', id: dq.selectedFolderId };
 
     for (let i = 0; i < allFiles.length; i++) {
       const file = allFiles[i];
@@ -264,7 +273,8 @@
   const folder = dqAllFolders().find(f => f.id === dq.selectedFolderId);
   if (!folder) return;
 
-  const collection = folder.qdrant_collection || 'administrative_discipline';
+  /* BUG-FIX 2026-04-23: propiedad real es `collection` no `qdrant_collection` */
+  const collection = folder.collection || folder.qdrant_collection || 'administrative_discipline';
   if (!confirm(`¿Limpiar la colección "${collection}" y re-indexar todos los archivos? Esta acción no se puede deshacer.`)) return;
 
   dq.cleaning = true;
