@@ -183,7 +183,8 @@ function detectProcedureType(tipo){
   const n=tipo.toLowerCase().trim();
   if(n.includes("sumario")&&n.includes("administrativo"))return PROCEDURE_TYPES[1];
   if(n.includes("investigación sumaria")||n.includes("investigacion sumaria"))return PROCEDURE_TYPES[0];
-  if(n.includes("estudiant"))return PROCEDURE_TYPES[2];
+  /* 21-SU-2025 / 21/SU/2025 = Decreto Disciplinario Estudiantil UMAG */
+  if(n.includes("estudiant")||/21[\/\-]su[\/\-]?2025/.test(n))return PROCEDURE_TYPES[2];
   if(n.includes("acoso sexual"))return PROCEDURE_TYPES[3];
   if(n.includes("acoso laboral")||n.includes("mobbing"))return PROCEDURE_TYPES[4];
   if(n.includes("karin"))return PROCEDURE_TYPES[5];
