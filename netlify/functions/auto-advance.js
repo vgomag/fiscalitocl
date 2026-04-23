@@ -65,7 +65,9 @@ const METADATA_PATTERNS = {
     { pattern: /ley\s+karin/i, value: 'Ley Karin' },
     { pattern: /protocolo\s+2022/i, value: '2022' },
     { pattern: /protocolo\s+2020/i, value: '2020' },
-    { pattern: /ley\s+18\.?834/i, value: '18834' }
+    { pattern: /ley\s+18\.?834/i, value: '18834' },
+    { pattern: /\b21[\/\-]SU[\/\-]2025\b|decreto\s*(n[°º]?)?\s*21[\/\-]SU[\/\-]2025|disciplinario\s+estudiantil/i, value: '21-SU-2025' },
+    { pattern: /\b34[\/\-]SU(?:[\/\-]2001)?\b|decreto\s*(n[°º]?)?\s*34[\/\-]SU/i, value: '34-SU' }
   ]
 };
 

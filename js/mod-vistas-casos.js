@@ -37,6 +37,8 @@ const PROTOCOLOS = [
   'Protocolo Laboral',
   'Ley Karin',
   'Estatuto Administrativo',
+  '34-SU',
+  '21-SU-2025',
 ];
 
 const RESULTADOS = [
