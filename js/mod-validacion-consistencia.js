@@ -74,6 +74,13 @@
         if(proto.includes('karin') && tipo && !tipo.includes('karin')){
           return { ok:false, issues:['Protocolo Ley Karin pero tipo de procedimiento no coincide: "'+c.tipo_procedimiento+'"'] };
         }
+        /* Decreto 21/SU/2025 = procedimiento disciplinario ESTUDIANTIL */
+        if(/21[\/\-]su[\/\-]?2025/.test(proto)){
+          const estDdo = Array.isArray(c.estamentos_denunciado) ? c.estamentos_denunciado.join(' ').toLowerCase() : String(c.estamentos_denunciado||'').toLowerCase();
+          if(estDdo && !estDdo.includes('estudiant')){
+            return { ok:false, issues:['Protocolo 21-SU-2025 (Disciplinario Estudiantil) pero el estamento del denunciado no es "Estudiante": "'+c.estamentos_denunciado+'"'] };
+          }
+        }
         return { ok:true };
       }
     },
