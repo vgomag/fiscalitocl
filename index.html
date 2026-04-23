@@ -2076,10 +2076,13 @@ async function saveCaseModal(){
     if(currentCase?.id===caseId){currentCase={...currentCase,...payload};renderCaseHeader();}
   } else {
     payload.user_id=session.user.id;
-    /* BUG-FIX 2026-04-23: el insert+select().single() puede devolver data=null sin error
-       cuando RLS rechaza silenciosamente la lectura o la columna de RETURNING está vacía.
-       Sin esta validación, la siguiente línea tira TypeError en data.id y el modal queda
-       abierto sin feedback al usuario (síntoma: "no guarda casos nuevos"). */
+    /* BUG-FIX 2026-04-23: la columna cases.id es NOT NULL sin DEFAULT gen_random_uuid(),
+       por lo que el insert fallaba con:
+       "null value in column 'id' of relation 'cases' violates not-null constraint".
+       Generamos el UUID en el cliente como parche. Solución definitiva: aplicar
+       sql/fix_cases_id_default_2026-04-23.sql en Supabase. */
+    payload.id = (typeof crypto!=='undefined' && crypto.randomUUID) ? crypto.randomUUID() :
+      'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);});
     const{data,error}=await sb.from('cases').insert(payload).select().single();
     if(error){showToast('⚠️ Error al crear: '+error.message);return;}
     if(!data){showToast('⚠️ No se pudo crear el expediente: el servidor no devolvió datos. Revisa permisos (RLS) o refresca la sesión.');return;}

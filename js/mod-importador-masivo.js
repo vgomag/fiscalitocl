@@ -334,6 +334,11 @@
       }
 
       try {
+        /* BUG-FIX 2026-04-23: cases.id es NOT NULL sin DEFAULT, generamos UUID en cliente */
+        if(!caseData.id){
+          caseData.id = (typeof crypto!=='undefined' && crypto.randomUUID) ? crypto.randomUUID() :
+            'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);});
+        }
         const { error } = await sb.from('cases').insert(caseData);
         if(error) throw error;
         imported++;
