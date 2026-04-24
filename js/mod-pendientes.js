@@ -196,11 +196,30 @@ function pendRenderRow(a) {
 </div>`;
 }
 
+function pendSortItems(arr){
+  return [...arr].sort((a,b)=>{
+    if(pend.sortField==='_urgencia'){
+      const av=(a.priority==='alta'||a.priority==='urgente')?0:1;
+      const bv=(b.priority==='alta'||b.priority==='urgente')?0:1;
+      return pend.sortDir==='asc'?av-bv:bv-av;
+    }
+    const ca=pend.cases[a.case_id]||{}, cb=pend.cases[b.case_id]||{};
+    const f=pend.sortField||'name';
+    let av=ca[f], bv=cb[f];
+    if(typeof av==='boolean') av=av?1:0;
+    if(typeof bv==='boolean') bv=bv?1:0;
+    av=(av===null||av===undefined)?'':av.toString();
+    bv=(bv===null||bv===undefined)?'':bv.toString();
+    const cmp=av.localeCompare(bv,'es',{numeric:true,sensitivity:'base'});
+    return pend.sortDir==='asc'?cmp:-cmp;
+  });
+}
+
 function pendRenderKanban(filtered) {
   const cols=[{id:'pendiente',l:'Pendientes',c:'#f59e0b'},{id:'en_progreso',l:'En progreso',c:'#4f46e5'},{id:'completado',l:'Completadas',c:'#059669'}];
   return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
   ${cols.map(col=>{
-    const items=filtered.filter(a=>a.status===col.id);
+    const items=pendSortItems(filtered.filter(a=>a.status===col.id));
     return `<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.06);background:#fafafa;border-top:3px solid ${col.c}">
         <b style="font-size:12px">${col.l}</b><span class="pt-tot-chip">${items.length}</span>
