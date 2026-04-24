@@ -8,6 +8,7 @@ const pend = {
   catTab: 'all', statusTab: 'all',
   search: '', caseFilter: 'all',
   viewMode: 'lista', collapsed: new Set(),
+  sortField: 'name', sortDir: 'asc',
 };
 
 function openPendientes() {
@@ -27,7 +28,7 @@ async function loadPendientesData() {
   try {
     const [acR, caR] = await Promise.all([
       sb.from('acciones_pendientes').select('id,case_id,title,description,status,priority,due_date,created_at,completed_at').order('due_date',{ascending:true,nullsFirst:false}),
-      sb.from('cases').select('id,name,rol,categoria,status,tipo_procedimiento,materia').is('deleted_at',null),
+      sb.from('cases').select('id,name,rol,categoria,status,tipo_procedimiento,estado_procedimiento,materia,protocolo,judicializada,medida_cautelar,propuesta,fecha_vista,nueva_resolucion').is('deleted_at',null),
     ]);
     pend.acciones = acR.data || [];
     pend.cases = {};
@@ -84,6 +85,20 @@ function pendRender() {
         <option value="all">Todos los casos</option>
         ${Object.values(pend.cases).filter(c=>pend.acciones.some(a=>a.case_id===c.id)).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${c.id}" ${pend.caseFilter===c.id?'selected':''}>${esc(c.name||'—')}</option>`).join('')}
       </select>
+      <select class="pt-sel" title="Ordenar por" onchange="pend.sortField=this.value;pendRender()">
+        <option value="name" ${pend.sortField==='name'?'selected':''}>Expediente</option>
+        <option value="rol" ${pend.sortField==='rol'?'selected':''}>ROL</option>
+        <option value="tipo_procedimiento" ${pend.sortField==='tipo_procedimiento'?'selected':''}>Procedimiento</option>
+        <option value="estado_procedimiento" ${pend.sortField==='estado_procedimiento'?'selected':''}>Etapa</option>
+        <option value="materia" ${pend.sortField==='materia'?'selected':''}>Materia</option>
+        <option value="protocolo" ${pend.sortField==='protocolo'?'selected':''}>Normativa</option>
+        <option value="judicializada" ${pend.sortField==='judicializada'?'selected':''}>Judicializada</option>
+        <option value="medida_cautelar" ${pend.sortField==='medida_cautelar'?'selected':''}>M. Cautelar</option>
+        <option value="propuesta" ${pend.sortField==='propuesta'?'selected':''}>Propuesta</option>
+        <option value="fecha_vista" ${pend.sortField==='fecha_vista'?'selected':''}>Vista</option>
+        <option value="_urgencia" ${pend.sortField==='_urgencia'?'selected':''}>Más urgentes</option>
+      </select>
+      <button class="pt-vb" title="Invertir orden (asc/desc)" onclick="pend.sortDir=pend.sortDir==='asc'?'desc':'asc';pendRender()" style="padding:5px 10px;border:1px solid rgba(0,0,0,.1);border-radius:7px;background:#fff;cursor:pointer">${pend.sortDir==='asc'?'↑ A-Z':'↓ Z-A'}</button>
       <div style="display:flex;border:1px solid rgba(0,0,0,.1);border-radius:7px;overflow:hidden">
         <button class="pt-vb ${pend.viewMode==='lista'?'act':''}" onclick="pend.viewMode='lista';pendRender()">≡ Lista</button>
         <button class="pt-vb ${pend.viewMode==='kanban'?'act':''}" onclick="pend.viewMode='kanban';pendRender()">⊞ Kanban</button>
@@ -120,7 +135,22 @@ function pendRenderLista(filtered) {
   if(!filtered.length) return '<div style="padding:48px;text-align:center;color:#9ca3af;font-size:13px">Sin acciones que coincidan con los filtros.</div>';
   const byCase={};
   filtered.forEach(a=>{if(!byCase[a.case_id])byCase[a.case_id]=[];byCase[a.case_id].push(a);});
-  const sorted=Object.entries(byCase).sort(([,al],[,bl])=>(al.some(a=>a.priority==='alta'||a.priority==='urgente')?0:1)-(bl.some(b=>b.priority==='alta'||b.priority==='urgente')?0:1));
+  const sorted=Object.entries(byCase).sort(([aid,al],[bid,bl])=>{
+    if(pend.sortField==='_urgencia'){
+      const av=al.some(a=>a.priority==='alta'||a.priority==='urgente')?0:1;
+      const bv=bl.some(a=>a.priority==='alta'||a.priority==='urgente')?0:1;
+      return pend.sortDir==='asc'?av-bv:bv-av;
+    }
+    const ca=pend.cases[aid]||{}, cb=pend.cases[bid]||{};
+    const f=pend.sortField||'name';
+    let av=ca[f], bv=cb[f];
+    if(typeof av==='boolean') av=av?1:0;
+    if(typeof bv==='boolean') bv=bv?1:0;
+    av=(av===null||av===undefined)?'':av.toString();
+    bv=(bv===null||bv===undefined)?'':bv.toString();
+    const cmp=av.localeCompare(bv,'es',{numeric:true,sensitivity:'base'});
+    return pend.sortDir==='asc'?cmp:-cmp;
+  });
   const CAT_CLR={genero:'#db2777',no_genero:'#d97706',cargos:'#4f46e5',probatorio:'#7c3aed',finalizacion:'#059669',terminado:'#6b7280'};
   return sorted.map(([cid,items])=>{
     const c=pend.cases[cid]||{};
