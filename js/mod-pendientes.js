@@ -240,36 +240,66 @@ function pendRenderKanban(filtered) {
 
 function pendOpenDetail(id) {
   const a=pend.acciones.find(x=>x.id===id); if(!a) return;
-  const c=pend.cases[a.case_id]||{};const ovd=pendOvd(a);const urg=a.priority==='alta'||a.priority==='urgente';
-  document.getElementById('miniModalTitle').textContent='Detalle de acción';
+  const c=pend.cases[a.case_id]||{};const ovd=pendOvd(a);
+  document.getElementById('miniModalTitle').textContent='Editar acción';
+  const lbl='font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin-bottom:4px';
+  const inp='width:100%;background:#fff;border:1px solid rgba(0,0,0,.15);color:#111;padding:7px 10px;border-radius:6px;font-size:12.5px;outline:none;font-family:inherit;box-sizing:border-box';
   document.getElementById('miniModalBody').innerHTML=`<div style="display:flex;flex-direction:column;gap:12px">
-    <div style="background:rgba(79,70,229,.06);border:1px solid rgba(79,70,229,.18);border-radius:8px;padding:12px 14px">
-      <div style="font-size:13.5px;font-weight:600;margin-bottom:5px;line-height:1.4">${esc(a.title||'—')}</div>
-      <div style="font-size:11px;color:#9ca3af">📋 ${esc(c.name||'—')}${c.rol?' · '+esc(c.rol):''}</div>
+    <div style="background:rgba(79,70,229,.06);border:1px solid rgba(79,70,229,.18);border-radius:8px;padding:10px 14px;font-size:11px;color:#4f46e5">
+      📋 <b>${esc(c.name||'—')}</b>${c.rol?' · '+esc(c.rol):''}
     </div>
-    ${a.description?`<p style="font-size:12.5px;color:#374151;line-height:1.65;margin:0">${esc(a.description)}</p>`:''}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-      <div><div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin-bottom:4px">Estado</div>
-        <select onchange="pendUpdateStatus('${a.id}',this.value);typeof closeMiniModal!=='undefined'&&closeMiniModal()" style="width:100%;background:#fafafa;border:1px solid rgba(0,0,0,.1);color:#111;padding:5px 9px;border-radius:6px;font-size:12px;outline:none">
+    <div><div style="${lbl}">Próxima acción</div>
+      <input id="pendEditTitle" style="${inp}" placeholder="Escribe el próximo paso a seguir…" value="${esc(a.title||'').replace(/"/g,'&quot;')}"/>
+    </div>
+    <div><div style="${lbl}">Descripción / notas</div>
+      <textarea id="pendEditDesc" rows="4" style="${inp};resize:vertical;font-family:inherit" placeholder="Contexto, detalles, observaciones…">${esc(a.description||'')}</textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div><div style="${lbl}">Estado</div>
+        <select id="pendEditStatus" style="${inp}">
           <option value="pendiente" ${a.status==='pendiente'?'selected':''}>Pendiente</option>
           <option value="en_progreso" ${a.status==='en_progreso'?'selected':''}>En progreso</option>
           <option value="completado" ${a.status==='completado'?'selected':''}>Completada</option>
         </select>
       </div>
-      <div><div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin-bottom:4px">Prioridad</div>
-        <div style="padding:5px 0;font-weight:500;color:${urg?'#ef4444':'#9ca3af'}">${urg?'🔴 Urgente':'🟡 Normal'}</div>
+      <div><div style="${lbl}">Prioridad</div>
+        <select id="pendEditPriority" style="${inp}">
+          <option value="alta" ${(a.priority==='alta'||a.priority==='urgente')?'selected':''}>🔴 Urgente</option>
+          <option value="normal" ${(!a.priority||a.priority==='normal'||a.priority==='media')?'selected':''}>🟡 Normal</option>
+          <option value="baja" ${a.priority==='baja'?'selected':''}>⚪ Baja</option>
+        </select>
       </div>
-      ${a.due_date?`<div><div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin-bottom:4px">Fecha límite</div><div style="color:${ovd?'#ef4444':'#374151'}">${pendFmt(a.due_date)}${ovd?' ⚠':''}</div></div>`:''}
+      <div><div style="${lbl}">Fecha límite</div>
+        <input type="date" id="pendEditDue" style="${inp}" value="${a.due_date?(a.due_date.includes('T')?a.due_date.split('T')[0]:a.due_date):''}"/>
+      </div>
     </div>
-    <div style="display:flex;gap:8px">
-      <button onclick="pendUpdateStatus('${a.id}','completado')" style="flex:1;padding:7px;background:#4f46e5;color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;font-size:12.5px;font-family:inherit">✓ Marcar completada</button>
-      <button onclick="typeof pickCaseById!=='undefined'&&pickCaseById('${typeof esc==='function'?esc(a.case_id):a.case_id}');typeof closeMiniModal!=='undefined'&&closeMiniModal()" style="padding:7px 12px;background:#fafafa;border:1px solid rgba(0,0,0,.1);color:#374151;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit">Abrir caso</button>
-      <button onclick="pendDelete('${a.id}')" style="padding:7px 11px;background:#fef2f2;border:1px solid #fecaca;color:#ef4444;border-radius:7px;cursor:pointer;font-size:12px">🗑</button>
+    ${ovd?'<div style="font-size:11px;color:#ef4444;margin-top:-4px">⚠ Fecha vencida</div>':''}
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="typeof pickCaseById!=='undefined'&&pickCaseById('${typeof esc==='function'?esc(a.case_id):a.case_id}');typeof closeMiniModal!=='undefined'&&closeMiniModal()" style="flex:1;padding:7px 12px;background:#fafafa;border:1px solid rgba(0,0,0,.1);color:#374151;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit">Abrir caso</button>
+      <button onclick="pendDelete('${a.id}')" style="padding:7px 11px;background:#fef2f2;border:1px solid #fecaca;color:#ef4444;border-radius:7px;cursor:pointer;font-size:12px">🗑 Eliminar</button>
     </div>
   </div>`;
-  document.getElementById('miniModalSaveBtn').style.display='none';
-  window._miniModalSave=null;
+  document.getElementById('miniModalSaveBtn').style.display='';
+  document.getElementById('miniModalSaveBtn').textContent='Guardar cambios';
+  window._miniModalSave=async()=>{
+    const sb=typeof supabaseClient!=='undefined'?supabaseClient:null; if(!sb)return;
+    const title=document.getElementById('pendEditTitle').value.trim();
+    const description=document.getElementById('pendEditDesc').value.trim()||null;
+    const status=document.getElementById('pendEditStatus').value;
+    const priority=document.getElementById('pendEditPriority').value;
+    const due_date=document.getElementById('pendEditDue').value||null;
+    if(!title){if(typeof showToast==='function')showToast('⚠ El título no puede estar vacío');return;}
+    const patch={title,description,status,priority,due_date,updated_at:new Date().toISOString()};
+    if(status==='completado'&&a.status!=='completado')patch.completed_at=new Date().toISOString();
+    else if(status!=='completado')patch.completed_at=null;
+    const{error}=await sb.from('acciones_pendientes').update(patch).eq('id',a.id);
+    if(error){if(typeof showToast==='function')showToast('⚠ '+error.message);return;}
+    Object.assign(a,patch);
+    if(typeof closeMiniModal==='function')closeMiniModal();
+    pendRender();if(typeof showToast==='function')showToast('✓ Guardado');
+  };
   if(typeof openMiniModal==='function') openMiniModal();
+  setTimeout(()=>document.getElementById('pendEditTitle')?.focus(),100);
 }
 
 async function pendToggleDone(id,done) {
