@@ -116,6 +116,9 @@
     return [];
   }
 
+  /* Considera "activo" todo caso cuyo status NO sea 'terminado' (ni 'archived' opcional) */
+  const esActivo = c => c && c.status !== 'terminado' && c.status !== 'archived';
+
   function pickCasesToExport() {
     /* 1) si hay getFilteredCases, úsalo (respeta pestaña + filtros) */
     let gfc;
@@ -126,8 +129,9 @@
       try {
         const r = gfc();
         if (Array.isArray(r) && r.length) {
-          console.log('[export-casos-xlsx] getFilteredCases() → n =', r.length);
-          return r;
+          const onlyActive = r.filter(esActivo);
+          console.log('[export-casos-xlsx] getFilteredCases() → n =', r.length, '· activos =', onlyActive.length);
+          return onlyActive;
         }
       } catch (e) { console.log('[export-casos-xlsx] getFilteredCases falló:', e.message); }
     }
@@ -136,10 +140,11 @@
     let adv;
     try { if (typeof _applyAdvancedFilters === 'function') adv = _applyAdvancedFilters; } catch {}
     if (!adv && typeof window._applyAdvancedFilters === 'function') adv = window._applyAdvancedFilters;
+    let base = all;
     if (typeof adv === 'function') {
-      try { return adv(all); } catch {}
+      try { base = adv(all); } catch {}
     }
-    return all;
+    return base.filter(esActivo);
   }
 
   /* ── HOJA 1: «Mis Casos» (19 columnas) ───────────────────────────── */
@@ -217,13 +222,14 @@
   }
 
   /* ── HOJA 2: «Gestión» ───────────────────────────────────────────── */
+  /* Sólo etapas de casos ACTIVOS — los terminados no entran en esta planilla */
   const ETAPA_MAP = [
     { label: 'Indagatoria',              keys: ['indagatoria'],         obs: 'En investigación inicial' },
     { label: 'Término Etapa Indagatoria',keys: ['cargos'],              obs: 'Próxima resolución de cierre' },
     { label: 'Discusión y Prueba',       keys: ['descargos','prueba'],  obs: 'Etapa de rendición de pruebas' },
     { label: 'Preparación de Vista',     keys: ['vista'],               obs: 'En preparación de vista sumario' },
     { label: 'Decisión',                 keys: ['resolucion'],          obs: 'Resolución pendiente del fiscal' },
-    { label: 'Terminada',                keys: ['finalizacion'],        obs: 'Causa concluida' }
+    { label: 'Finalización',             keys: ['finalizacion'],        obs: 'Pendiente de cierre formal' }
   ];
 
   const TIPO_MAP = [
@@ -239,7 +245,8 @@
     return null;
   }
 
-  function buildGestionSheet(todos) {
+  function buildGestionSheet(casos) {
+    /* casos = ya viene filtrado por status !== 'terminado' */
     const xx = X();
     const ws = {};
     const merges = [];
@@ -270,8 +277,8 @@
 
     const conteoEtapa = {};
     let totalEtapa = 0;
-    for (const c of todos) {
-      let key = (c.status === 'terminado') ? 'finalizacion' : getEtapaKey(c);
+    for (const c of casos) {
+      const key = getEtapaKey(c);
       conteoEtapa[key] = (conteoEtapa[key] || 0) + 1;
       if (key !== 'sin_etapa') totalEtapa++;
     }
@@ -303,10 +310,9 @@
     setCell(ws, r, 3, 'NORMA APLICABLE',       ST.th);
     r++;
 
-    const activos = todos.filter(c => c.status !== 'terminado');
     const conteoTipo = {};
     let totalTipo = 0;
-    for (const c of activos) {
+    for (const c of casos) {
       const m = clasificarTipo(c.tipo_procedimiento);
       if (!m) continue;
       conteoTipo[m.label] = (conteoTipo[m.label] || 0) + 1;
