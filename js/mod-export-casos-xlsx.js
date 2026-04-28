@@ -12,6 +12,18 @@
 
   console.log('[export-casos-xlsx] cargando módulo…');
 
+  /* ── Acceso a variables globales declaradas con `let` ────────────── */
+  /* En index.html `allCases`, `session`, `currentCase`, etc. están como
+     `let` a nivel top-level → NO viven en `window`. Para leerlas desde
+     este script las recuperamos vía `new Function()` (scope global). */
+  const _readGlobal = (name) => {
+    try {
+      return (new Function(
+        'try { return typeof ' + name + ' !== "undefined" ? ' + name + ' : undefined; } catch(e){ return undefined; }'
+      ))();
+    } catch { return undefined; }
+  };
+
   /* ── Helpers ─────────────────────────────────────────────────────── */
   const X = () => (typeof window !== 'undefined' && window.XLSX) ? window.XLSX : null;
 
@@ -44,7 +56,9 @@
   };
 
   const getFiscalNombre = () => {
-    const u = (window.session && window.session.user) || {};
+    const sess = (window.session && window.session.user) ? window.session
+                 : _readGlobal('session');
+    const u = (sess && sess.user) || {};
     const meta = u.user_metadata || {};
     const nombre = meta.full_name || meta.name || meta.nombre || '';
     if (nombre) return String(nombre).toUpperCase();
