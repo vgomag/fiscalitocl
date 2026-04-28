@@ -68,8 +68,12 @@
 
   /* Mismo getEtapaKey que mod-vistas-casos pero con regex segura */
   function getEtapaKey(c) {
-    if (typeof window.getEtapaKey === 'function') {
-      try { return window.getEtapaKey(c); } catch {}
+    /* primero intenta la función global (puede ser window.* o let-global) */
+    const fn = (typeof window.getEtapaKey === 'function')
+      ? window.getEtapaKey
+      : _readGlobal('getEtapaKey');
+    if (typeof fn === 'function') {
+      try { return fn(c); } catch {}
     }
     const ep = (c.estado_procedimiento || '').toLowerCase()
       .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -83,17 +87,30 @@
     return 'sin_etapa';
   }
 
+  function pickAllCases() {
+    let arr = window.allCases;
+    if (!Array.isArray(arr)) arr = _readGlobal('allCases');
+    return Array.isArray(arr) ? arr.slice() : [];
+  }
+
   function pickCasesToExport() {
-    if (typeof window.getFilteredCases === 'function') {
-      try { const r = window.getFilteredCases(); if (Array.isArray(r) && r.length) return r; } catch {}
+    /* 1) si hay getFilteredCases, úsalo (respeta pestaña + filtros) */
+    const gfc = (typeof window.getFilteredCases === 'function')
+      ? window.getFilteredCases
+      : _readGlobal('getFilteredCases');
+    if (typeof gfc === 'function') {
+      try { const r = gfc(); if (Array.isArray(r) && r.length) return r; } catch {}
     }
-    const all = Array.isArray(window.allCases) ? window.allCases.slice() : [];
-    if (typeof window._applyAdvancedFilters === 'function') {
-      try { return window._applyAdvancedFilters(all); } catch {}
+    /* 2) sino, allCases (con filtros avanzados si existen) */
+    const all = pickAllCases();
+    const adv = (typeof window._applyAdvancedFilters === 'function')
+      ? window._applyAdvancedFilters
+      : _readGlobal('_applyAdvancedFilters');
+    if (typeof adv === 'function') {
+      try { return adv(all); } catch {}
     }
     return all;
   }
-  function pickAllCases() { return Array.isArray(window.allCases) ? window.allCases.slice() : []; }
 
   /* ── HOJA 1: «Mis Casos» (19 columnas) ───────────────────────────── */
   const HEADERS = [
@@ -350,7 +367,8 @@
       xx.utils.book_append_sheet(wb, buildGestionSheet(todos),        'Gestión');
 
       const fecha   = new Date().toISOString().slice(0, 10);
-      const usuario = ((window.session && window.session.user && window.session.user.email) || '').split('@')[0] || 'usuario';
+      const sess    = (window.session && window.session.user) ? window.session : _readGlobal('session');
+      const usuario = ((sess && sess.user && sess.user.email) || '').split('@')[0] || 'usuario';
       const filename = `Mis-Casos_${usuario}_${fecha}.xlsx`;
       xx.writeFile(wb, filename);
       console.log('[export-casos-xlsx] OK →', filename);
