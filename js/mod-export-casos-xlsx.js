@@ -87,25 +87,55 @@
     return 'sin_etapa';
   }
 
+  /* Localiza el array de casos probando varias rutas, registrando cuál funcionó. */
   function pickAllCases() {
-    let arr = window.allCases;
-    if (!Array.isArray(arr)) arr = _readGlobal('allCases');
-    return Array.isArray(arr) ? arr.slice() : [];
+    /* 1) referencia desnuda — funciona en mod-vistas-casos.js, debería aquí */
+    try {
+      if (typeof allCases !== 'undefined' && Array.isArray(allCases)) {
+        console.log('[export-casos-xlsx] allCases ← bare reference, n =', allCases.length);
+        return allCases.slice();
+      }
+    } catch (e) { console.log('[export-casos-xlsx] bare allCases falló:', e.message); }
+    /* 2) window.allCases (sólo serviría si fuese `var`) */
+    if (Array.isArray(window.allCases)) {
+      console.log('[export-casos-xlsx] allCases ← window, n =', window.allCases.length);
+      return window.allCases.slice();
+    }
+    /* 3) new Function() — global lexical scope */
+    const viaFn = _readGlobal('allCases');
+    if (Array.isArray(viaFn)) {
+      console.log('[export-casos-xlsx] allCases ← _readGlobal, n =', viaFn.length);
+      return viaFn.slice();
+    }
+    /* 4) globalThis */
+    if (typeof globalThis !== 'undefined' && Array.isArray(globalThis.allCases)) {
+      console.log('[export-casos-xlsx] allCases ← globalThis, n =', globalThis.allCases.length);
+      return globalThis.allCases.slice();
+    }
+    console.warn('[export-casos-xlsx] ⚠ No se pudo leer allCases por ninguna vía');
+    return [];
   }
 
   function pickCasesToExport() {
     /* 1) si hay getFilteredCases, úsalo (respeta pestaña + filtros) */
-    const gfc = (typeof window.getFilteredCases === 'function')
-      ? window.getFilteredCases
-      : _readGlobal('getFilteredCases');
+    let gfc;
+    try { if (typeof getFilteredCases === 'function') gfc = getFilteredCases; } catch {}
+    if (!gfc && typeof window.getFilteredCases === 'function') gfc = window.getFilteredCases;
+    if (!gfc) gfc = _readGlobal('getFilteredCases');
     if (typeof gfc === 'function') {
-      try { const r = gfc(); if (Array.isArray(r) && r.length) return r; } catch {}
+      try {
+        const r = gfc();
+        if (Array.isArray(r) && r.length) {
+          console.log('[export-casos-xlsx] getFilteredCases() → n =', r.length);
+          return r;
+        }
+      } catch (e) { console.log('[export-casos-xlsx] getFilteredCases falló:', e.message); }
     }
     /* 2) sino, allCases (con filtros avanzados si existen) */
     const all = pickAllCases();
-    const adv = (typeof window._applyAdvancedFilters === 'function')
-      ? window._applyAdvancedFilters
-      : _readGlobal('_applyAdvancedFilters');
+    let adv;
+    try { if (typeof _applyAdvancedFilters === 'function') adv = _applyAdvancedFilters; } catch {}
+    if (!adv && typeof window._applyAdvancedFilters === 'function') adv = window._applyAdvancedFilters;
     if (typeof adv === 'function') {
       try { return adv(all); } catch {}
     }
@@ -354,7 +384,13 @@
     console.log('[export-casos-xlsx] visibles:', casosVisibles.length, '· todos:', todos.length);
 
     if (!casosVisibles.length && !todos.length) {
-      const msg = 'No hay casos para exportar.';
+      console.warn('[export-casos-xlsx] DIAGNÓSTICO:',
+        '\n  - typeof allCases (bare):', (function(){try{return typeof allCases;}catch(e){return 'ReferenceError';}})(),
+        '\n  - window.allCases:',        (Array.isArray(window.allCases) ? 'array['+window.allCases.length+']' : typeof window.allCases),
+        '\n  - _readGlobal(allCases):',  (function(){const v=_readGlobal('allCases'); return Array.isArray(v)?'array['+v.length+']':typeof v;})(),
+        '\n  - currentCase:',            (function(){try{return currentCase ? 'objeto' : typeof currentCase;}catch(e){return 'ReferenceError';}})()
+      );
+      const msg = 'No hay casos para exportar. Revisa la consola (F12) para ver el diagnóstico.';
       if (typeof showToast === 'function') showToast('⚠ ' + msg);
       else alert(msg);
       return;
