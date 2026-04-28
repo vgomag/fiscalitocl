@@ -332,38 +332,7 @@
     setCell(ws, r, 1, totalTipo,  ST.total);
     setCell(ws, r, 2, '',         ST.total);
     setCell(ws, r, 3, '',         ST.total);
-    r += 2;
-
-    /* C) TERMINADOS */
-    setCell(ws, r, 0, 'C) CASOS TERMINADOS', ST.seccion);
-    for (let c = 1; c < NCOLS; c++) setCell(ws, r, c, '', ST.seccion);
-    merges.push({ s: { r, c: 0 }, e: { r, c: NCOLS - 1 } });
     r++;
-
-    setCell(ws, r, 0, 'N° CAUSA',           ST.th);
-    setCell(ws, r, 1, 'CARATULADO',         ST.th);
-    setCell(ws, r, 2, 'TIPO PROCEDIMIENTO', ST.th);
-    setCell(ws, r, 3, 'NORMA',              ST.th);
-    r++;
-
-    const terminados = todos.filter(c => c.status === 'terminado');
-    if (!terminados.length) {
-      setCell(ws, r, 0, '— sin casos terminados —', ST.td);
-      for (let c = 1; c < NCOLS; c++) setCell(ws, r, c, '', ST.td);
-      merges.push({ s: { r, c: 0 }, e: { r, c: NCOLS - 1 } });
-      r++;
-    } else {
-      for (const c of terminados) {
-        const tipo = c.tipo_procedimiento || 'Sumario (sin clasificar)';
-        const m = clasificarTipo(tipo);
-        const norma = m ? m.norma : (c.protocolo || '');
-        setCell(ws, r, 0, c.name || c.numero_expediente || '', ST.td);
-        setCell(ws, r, 1, c.caratula || '',                    ST.td);
-        setCell(ws, r, 2, tipo,                                ST.td);
-        setCell(ws, r, 3, norma,                               ST.td);
-        r++;
-      }
-    }
 
     ws['!cols'] = [{ wch: 28 }, { wch: 28 }, { wch: 24 }, { wch: 38 }];
     ws['!merges'] = merges;
@@ -385,11 +354,13 @@
     }
     if (typeof showToast === 'function') showToast('📊 Generando Excel…');
 
-    const casosVisibles = pickCasesToExport();
-    const todos = pickAllCases();
-    console.log('[export-casos-xlsx] visibles:', casosVisibles.length, '· todos:', todos.length);
+    const casosVisibles = pickCasesToExport(); /* ya filtrados a activos */
+    const todos = pickAllCases();              /* universo completo (sólo para diagnóstico) */
+    const todosActivos = todos.filter(esActivo);
+    console.log('[export-casos-xlsx] visibles activos:', casosVisibles.length,
+                '· universo:', todos.length, '· universo activos:', todosActivos.length);
 
-    if (!casosVisibles.length && !todos.length) {
+    if (!casosVisibles.length && !todosActivos.length) {
       console.warn('[export-casos-xlsx] DIAGNÓSTICO:',
         '\n  - typeof allCases (bare):', (function(){try{return typeof allCases;}catch(e){return 'ReferenceError';}})(),
         '\n  - window.allCases:',        (Array.isArray(window.allCases) ? 'array['+window.allCases.length+']' : typeof window.allCases),
@@ -401,12 +372,14 @@
       else alert(msg);
       return;
     }
-    const casosParaHoja1 = casosVisibles.length ? casosVisibles : todos;
+    const casosParaHoja1 = casosVisibles.length ? casosVisibles : todosActivos;
 
     try {
       const wb = xx.utils.book_new();
       xx.utils.book_append_sheet(wb, buildCasosSheet(casosParaHoja1), 'Mis Casos');
-      xx.utils.book_append_sheet(wb, buildGestionSheet(todos),        'Gestión');
+      /* La planilla de Gestión siempre se calcula sobre TODOS los activos
+         (no solo los visibles), para que los porcentajes reflejen la cartera completa. */
+      xx.utils.book_append_sheet(wb, buildGestionSheet(todosActivos),  'Gestión');
 
       const fecha   = new Date().toISOString().slice(0, 10);
       const sess    = (window.session && window.session.user) ? window.session : _readGlobal('session');
