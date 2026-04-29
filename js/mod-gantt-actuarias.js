@@ -583,14 +583,34 @@
      Patcheamos `renderDashboard` para añadir el botón de tab.
      ─────────────────────────────────────────────────────────────── */
   function injectGanttTab() {
-    /* Esperar hasta que loadStats esté disponible */
     if (typeof window.renderDashboard !== 'function' || typeof window.setStatsTab !== 'function') return false;
     if (window._ganttTabPatched) return true;
     const origRender = window.renderDashboard;
     window.renderDashboard = function() {
       origRender.apply(this, arguments);
-      /* Tras render, inyectar el botón de tab si no existe */
+      /* Tras render, inyectar (a) un botón en la toolbar principal y (b) un tab */
       try {
+        /* (a) Botón muy visible en la toolbar principal de Estadísticas */
+        const toolbar = document.querySelector('#viewDashboard div[style*="display:flex;gap:6px"]');
+        if (toolbar && !toolbar.querySelector('[data-gantt-toolbar-btn]')) {
+          const tbtn = document.createElement('button');
+          tbtn.className='btn-sm';
+          tbtn.dataset.ganttToolbarBtn='1';
+          tbtn.title='Abrir la Carta Gantt — seguimiento de actuarias por etapa y plazos';
+          tbtn.style.cssText='background:#1F4E78;color:#fff;font-weight:700;font-size:11.5px;padding:5px 12px;border-radius:6px;border:none;cursor:pointer;box-shadow:0 0 0 0 rgba(31,78,120,0.6);animation:ganttPulse 2s ease-out 1';
+          tbtn.innerHTML='📅 Carta Gantt';
+          tbtn.onclick = ()=>renderGanttView();
+          toolbar.insertBefore(tbtn, toolbar.firstChild);
+          /* Inyectar keyframes una sola vez */
+          if (!document.getElementById('gantt-pulse-style')) {
+            const st=document.createElement('style');
+            st.id='gantt-pulse-style';
+            st.textContent='@keyframes ganttPulse{0%{box-shadow:0 0 0 0 rgba(31,78,120,0.6)}70%{box-shadow:0 0 0 12px rgba(31,78,120,0)}100%{box-shadow:0 0 0 0 rgba(31,78,120,0)}}';
+            document.head.appendChild(st);
+          }
+        }
+
+        /* (b) Tab "📅 Gantt Actuarias" en la fila de tabs */
         const tabsRow = document.querySelector('#viewDashboard div[style*="border-bottom:2px solid"]');
         if (tabsRow && !tabsRow.querySelector('[data-gantt-tab]')) {
           const btn = document.createElement('button');
@@ -599,7 +619,6 @@
           btn.style.cssText='border-radius:8px 8px 0 0;padding:8px 16px;font-weight:400;background:var(--surface);color:var(--text-dim)';
           btn.innerHTML='📅 Gantt Actuarias';
           btn.onclick = ()=>{
-            /* Marcar tab activa visualmente y renderizar Gantt */
             document.querySelectorAll('#viewDashboard div[style*="border-bottom:2px solid"] button').forEach(b=>{
               b.style.background='var(--surface)';b.style.color='var(--text-dim)';b.style.fontWeight='400';
             });
@@ -608,10 +627,10 @@
           };
           tabsRow.appendChild(btn);
         }
-      } catch (e) { console.warn('[gantt] inject tab err:', e.message); }
+      } catch (e) { console.warn('[gantt] inject err:', e.message); }
     };
     window._ganttTabPatched = true;
-    console.log('[gantt-actuarias] tab inyectado en Estadísticas');
+    console.log('[gantt-actuarias] inyección activa: botón toolbar + tab en Estadísticas');
     return true;
   }
   function tryInject(retries) {
@@ -894,6 +913,7 @@
       if (typeof showToast==='function') showToast('⚠ Error: '+e.message); else alert('Error: '+e.message);
     }
   }
+
 
   /* ───────────────────────────────────────────────────────────────
      INIT
