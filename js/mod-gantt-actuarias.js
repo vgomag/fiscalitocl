@@ -386,9 +386,9 @@
     return out;
   }
 
-  function renderGanttView() {
-    const el = document.getElementById('statsTabContent');
-    if (!el) return;
+  function renderGanttView(containerId) {
+    const el = document.getElementById(containerId || 'statsTabContent') || document.getElementById('statsTabContent') || document.getElementById('viewGanttContent');
+    if (!el) { console.warn('[gantt] container no encontrado'); return; }
     _ganttData = loadGanttData();
     const data = _ganttFilterActuaria
       ? _ganttData.filter(r => r.actuaria === _ganttFilterActuaria)
@@ -635,8 +635,10 @@
   }
   function tryInject(retries) {
     retries = retries || 0;
-    if (injectGanttTab()) return;
-    if (retries > 50) { console.warn('[gantt-actuarias] no se pudo inyectar tab tras 50 intentos'); return; }
+    const tabOk = injectGanttTab();
+    const sidebarOk = injectSidebarItem();
+    if (tabOk && sidebarOk) return;
+    if (retries > 50) { console.warn('[gantt-actuarias] no se pudo inyectar tras 50 intentos · tab='+tabOk+' · sidebar='+sidebarOk); return; }
     setTimeout(()=>tryInject(retries+1), 200);
   }
 
@@ -922,7 +924,56 @@
     document.addEventListener('DOMContentLoaded', ()=>tryInject());
   } else {
     tryInject();
+  }  /* ───────────────────────────────────────────────────────────────
+     INYECCIÓN DE PRIMER NIVEL: ítem en sidebar + vista propia
+     ─────────────────────────────────────────────────────────────── */
+  function _ensureGanttView() {
+    let v = document.getElementById('viewGantt');
+    if (!v) {
+      v = document.createElement('div');
+      v.className = 'view';
+      v.id = 'viewGantt';
+      v.style.cssText = 'flex-direction:column;overflow-y:auto;flex:1';
+      v.innerHTML = '<div id="viewGanttContent" style="width:100%;padding:0"></div>';
+      const anyView = document.querySelector('.view');
+      if (anyView && anyView.parentNode) anyView.parentNode.appendChild(v);
+      else document.body.appendChild(v);
+    }
+    return v;
   }
+
+  async function openGanttView() {
+    _ensureGanttView();
+    if (typeof window.showView === 'function') window.showView('viewGantt');
+    else document.querySelectorAll('.view').forEach(x => x.classList.toggle('active', x.id === 'viewGantt'));
+    document.querySelectorAll('.sidebar-nav-item').forEach(el => el.classList.remove('active'));
+    const navItem = document.getElementById('navGantt');
+    if (navItem) navItem.classList.add('active');
+    try {
+      const sd = _readGlobal('_statsData');
+      if (!sd && typeof window.loadStats === 'function') await window.loadStats();
+    } catch (e) { console.warn('[gantt] loadStats fallback:', e.message); }
+    renderGanttView('viewGanttContent');
+  }
+
+  function injectSidebarItem() {
+    if (document.getElementById('navGantt')) return true;
+    const sidebar = document.querySelector('.sidebar') || document.querySelector('[class*="sidebar"]');
+    if (!sidebar) return false;
+    const ref = document.getElementById('navPendientes') || document.getElementById('navTabla');
+    const item = document.createElement('div');
+    item.className = 'sidebar-nav-item';
+    item.id = 'navGantt';
+    item.title = 'Carta Gantt — seguimiento de actuarias';
+    item.onclick = () => openGanttView();
+    item.innerHTML = '<span class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="3" height="2" rx="0.4"/><rect x="6" y="6" width="6" height="2" rx="0.4"/><rect x="3" y="9" width="8" height="2" rx="0.4"/><rect x="5" y="12" width="4" height="2" rx="0.4"/><line x1="2" y1="2" x2="2" y2="15"/></svg></span>Carta Gantt';
+    if (ref && ref.parentNode) ref.parentNode.insertBefore(item, ref.nextSibling);
+    else sidebar.appendChild(item);
+    console.log('[gantt-actuarias] sidebar item inyectado');
+    return true;
+  }
+
+
 
   /* ── API global ─────────────────────────────────────────────── */
   window.renderGanttView = renderGanttView;
