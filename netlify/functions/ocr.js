@@ -37,7 +37,7 @@ async function getAccessToken(sa) {
     .sign(sa.private_key,'base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${header}.${payload}.${sig}`;
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), OAUTH_TIMEOUT_MS);
+    let _to;
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},
       timeout: OAUTH_TIMEOUT_MS
@@ -62,7 +62,7 @@ async function getAccessToken(sa) {
 
 function driveGet(path, token, binary) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), DRIVE_TIMEOUT_MS);
+    let _to;
     const req = https.get('https://www.googleapis.com' + path, { headers: { Authorization: 'Bearer ' + token }, timeout: DRIVE_TIMEOUT_MS }, (res) => {
       clearTimeout(_to);
       if (binary) { const c = []; res.on('data', d => c.push(d)); res.on('end', () => resolve({ status: res.statusCode, data: Buffer.concat(c) })); }
@@ -82,7 +82,7 @@ function driveGet(path, token, binary) {
 
 function driveText(path, token) {
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), DRIVE_TIMEOUT_MS);
+    let _to;
     const req = https.get('https://www.googleapis.com' + path, { headers: { Authorization: 'Bearer ' + token }, timeout: DRIVE_TIMEOUT_MS }, (res) => {
       clearTimeout(_to);
       let d = ''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, data: d }));
