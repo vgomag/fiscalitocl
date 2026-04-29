@@ -354,6 +354,9 @@ function injectToolbar(){
   filterBtn.onclick = toggleFilters;
   toolbar.insertBefore(filterBtn, rightDiv);
 
+  /* Botón universal para limpiar filtros — aparece cuando hay alguno activo */
+  if(typeof window.ensureClearFilterButton === 'function') window.ensureClearFilterButton();
+
   // View selector
   const selector = document.createElement('div');
   selector.className = 'vista-selector';
@@ -527,6 +530,9 @@ function applyFiltersAndRender(){
       if(!filtersOpen) btn.classList.remove('has-filters');
     }
   }
+  // Mostrar/ocultar botón "✕ Limpiar filtros" universal
+  if(typeof window.ensureClearFilterButton === 'function') window.ensureClearFilterButton();
+
   // Update count
   const cases = getFilteredCases();
   const cnt = document.getElementById('casosCount');
