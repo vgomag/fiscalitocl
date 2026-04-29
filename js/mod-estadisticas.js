@@ -301,14 +301,17 @@ function renderActivosTab(){
       <span style="font-size:11px;color:var(--text-dim)">${esc(a.case.nueva_resolucion||a.case.name)}</span>
     </div>`).join(''):'<div style="font-size:11px;color:var(--text-muted);padding:8px">✅ Sin alertas de prescripción</div>';
 
+  /* KPI cards por etapa procesal — antes mostraban Género/No Género/Cargos/Probatorio,
+     pero esas cat-keys ya no existen. Ahora reflejan las 6 etapas activas. */
   el.innerHTML=`
-    <!-- Subcategorías activos -->
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
-      ${kpiCard('♀ Género',cg.genero.length,'',STAT_COLORS.pink)}
-      ${kpiCard('📄 No Género',cg.no_genero.length,'',STAT_COLORS.blue)}
-      ${kpiCard('⚖️ Cargos',cg.cargos.length,'',STAT_COLORS.orange)}
-      ${kpiCard('🔍 Probatorio',cg.probatorio.length,'',STAT_COLORS.purple)}
-      ${kpiCard('📋 Finalización',cg.finalizacion.length,'',STAT_COLORS.cyan)}
+    <!-- Subcategorías activos por etapa procesal -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px">
+      ${kpiCard('🔍 Indagatoria',     (cg.indagatoria_inicial?.length)||0, '', STAT_COLORS.blue)}
+      ${kpiCard('⚖️ Térm. Indag.',    (cg.termino_indagatoria?.length)||0, '', STAT_COLORS.orange)}
+      ${kpiCard('📜 Decisión',        (cg.decision?.length)||0,            '', STAT_COLORS.purple)}
+      ${kpiCard('🛡️ Discusión/Prueba',(cg.discusion_prueba?.length)||0,    '', STAT_COLORS.pink)}
+      ${kpiCard('👁️ Prep. Vista',     (cg.preparacion_vista?.length)||0,   '', STAT_COLORS.teal)}
+      ${kpiCard('✅ Finalización',     (cg.finalizacion?.length)||0,        '', STAT_COLORS.cyan)}
     </div>
 
     <!-- KPIs adicionales -->
