@@ -638,7 +638,9 @@ exports.handler = async (event) => {
     const rl = await checkRateLimit(userId, 'generate-vista');
     if (!rl.allowed) return rateLimitResponse(rl, CORS);
 
-    const data = JSON.parse(event.body);
+    let data;
+    try { data = JSON.parse(event.body || '{}'); }
+    catch (e) { return { statusCode: 400, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'JSON inválido en request body' }) }; }
     const bodyStr = JSON.stringify(data);
     if (bodyStr.length > 2000000) {
       return { statusCode: 413, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'Payload too large' }) };

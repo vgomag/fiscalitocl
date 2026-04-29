@@ -143,7 +143,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body);
+    let body;
+    try { body = JSON.parse(event.body || '{}'); }
+    catch (e) { return { statusCode: 400, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'JSON inválido en request body' }) }; }
     const bodyStr = JSON.stringify(body);
     if (bodyStr.length > 1000000) {
       return { statusCode: 413, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ error: 'Payload too large' }) };
