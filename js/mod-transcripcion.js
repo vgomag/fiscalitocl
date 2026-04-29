@@ -1188,6 +1188,12 @@ async function f11StartRecording(){
     showToast('⚠ MediaRecorder no disponible. Actualiza tu navegador.');
     return;
   }
+  /* Guard contra doble-tap: si ya hay un Recorder activo, no iniciar otro
+     (evita stream-leak y "device in use"). */
+  if(_f11Recording || (_f11Recorder && _f11Recorder.state !== 'inactive')){
+    console.warn('[F11] f11StartRecording llamado mientras ya estaba grabando — ignorado');
+    return;
+  }
 
   /* Mostrar estado "solicitando micrófono" inmediatamente */
   const icon = document.getElementById('f11RecordIcon');
@@ -1200,6 +1206,10 @@ async function f11StartRecording(){
   if(label) label.textContent = 'Permiso…';
   if(recBtn){ recBtn.disabled = true; }
 
+  /* `stream` declarado FUERA del try para que el catch pueda liberarlo si algo
+     falla DESPUÉS de getUserMedia pero ANTES de Recorder.start(). Sin esto,
+     el micrófono queda capturado y el usuario debe recargar la página. */
+  let stream = null;
   try {
     /* ── Construir constraints con dispositivo seleccionado ── */
     const deviceSelect = document.getElementById('f11AudioDevice');
@@ -1214,7 +1224,7 @@ async function f11StartRecording(){
     }
 
     /* getUserMedia con timeout de 15 s por si el diálogo de permisos queda colgado */
-    const stream = await Promise.race([
+    stream = await Promise.race([
       navigator.mediaDevices.getUserMedia({ audio: audioConstraints }),
       new Promise((_,rej) => setTimeout(()=>rej(new Error('Tiempo agotado esperando permiso de micrófono')),15000))
     ]);
@@ -1330,8 +1340,14 @@ function f11StopRecording(){
 
 /* ════════════════════════════════════════════════════════
    PASO 1: TRANSCRIBIR AUDIO — ElevenLabs/Whisper
-   sb.functions.invoke('transcribe-audio')
-   ════════════════════════════════════════════════════════ */
+   POST /.netlify/functions/chat con mode='transcribe'
+   ════════════════════════════════════════════════════════
+   FIX 2026-04-29: Antes este código llamaba a sb.functions.invoke('transcribe-audio')
+   apuntando a una Edge Function de Supabase que NO existe en el repo. El endpoint real
+   de transcripción es la Netlify Function `chat.js` con body.mode='transcribe' (acepta
+   audioBase64 directo, signedUrl, o storageBucket+storagePath; devuelve {transcript,provider}).
+   También se corrigieron los nombres de campos (audio → audioBase64) y se agregó timeout
+   explícito + cleanup garantizado del MediaStream/Storage. */
 async function f11Paso1_Transcribir(){
   if(!_f11AudioBlob || _f11Processing) return;
 
@@ -1340,27 +1356,37 @@ async function f11Paso1_Transcribir(){
   const bar = document.getElementById('f11TransBar');
   const status = document.getElementById('f11TransStatus');
 
+  /* Doble guard: bloquear el botón ANTES de cualquier await para que un doble-click
+     real (entre el click handler y el await) no dispare dos transcripciones. */
+  if(btn && btn.disabled) return;
   _f11Processing = true;
   transcripcion.isProcessing = true;
-  btn.disabled = true;
-  btn.textContent = '⏳ Transcribiendo con ElevenLabs/Whisper…';
-  progress.style.display = 'block';
-  bar.style.width = '5%';
-  bar.style.background = 'var(--gold)';
-  status.textContent = 'Preparando audio…';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Transcribiendo con ElevenLabs/Whisper…'; }
+  if(progress) progress.style.display = 'block';
+  if(bar){ bar.style.width = '5%'; bar.style.background = 'var(--gold)'; }
+  if(status) status.textContent = 'Preparando audio…';
 
   let storagePath = null;
+  /* AbortController para timeout explícito (audios de 30+ min pueden exceder el
+     timeout default del fetch). 5 minutos = límite de Netlify Pro. */
+  const controller = new AbortController();
+  const timeoutId = setTimeout(()=>controller.abort(), 290000);
 
   try {
     const file = _f11AudioBlob;
-    const useStorage = file.size > T_BASE64_LIMIT;
-    let invokeBody;
+    /* Validar sesión ANTES de gastar CPU/red. Si la sesión expiró, abortamos limpio. */
+    const userId = (typeof session!=='undefined' && session?.user?.id) || null;
+    if(!userId) throw new Error('Sesión expirada — vuelve a iniciar sesión.');
+
+    /* Margen de 1.4× porque base64 crece ~33% y queremos evitar quedar pegados al
+       límite. Si el archivo binario es > ~17.8MB, mejor subir a Storage. */
+    const useStorage = file.size > Math.floor(T_BASE64_LIMIT / 1.4);
+    let bodyPayload;
 
     if(useStorage){
-      bar.style.width = '10%';
-      status.textContent = 'Subiendo audio a almacenamiento (' + _f11Sz(file.size) + ')…';
+      if(bar) bar.style.width = '10%';
+      if(status) status.textContent = 'Subiendo audio a almacenamiento (' + _f11Sz(file.size) + ')…';
 
-      const userId = (typeof session!=='undefined' && session?.user?.id) || 'anon';
       const ts = Date.now();
       const ext = _f11Ext(file.name) || 'bin';
       const path = `${userId}/${ts}.${ext}`;
@@ -1379,39 +1405,58 @@ async function f11Paso1_Transcribir(){
         }
       }
       storagePath = path;
-      invokeBody = { storagePath: storagePath, mimeType: _f11Mime(file) };
-      bar.style.width = '25%';
-      status.textContent = 'Audio subido. Enviando a transcripción…';
+      bodyPayload = {
+        mode: 'transcribe',
+        storageBucket: T_STORAGE_BUCKET,
+        storagePath: storagePath,
+        fileName: file.name,
+        mimeType: _f11Mime(file)
+      };
+      if(bar) bar.style.width = '25%';
+      if(status) status.textContent = 'Audio subido. Enviando a transcripción…';
     } else {
-      bar.style.width = '10%';
-      status.textContent = 'Codificando audio (' + _f11Sz(file.size) + ')…';
+      if(bar) bar.style.width = '10%';
+      if(status) status.textContent = 'Codificando audio (' + _f11Sz(file.size) + ')…';
       const arrayBuffer = await file.arrayBuffer();
       const base64Audio = _f11ToBase64(arrayBuffer);
-      invokeBody = { audio: base64Audio, mimeType: _f11Mime(file) };
-      bar.style.width = '25%';
-      status.textContent = 'Enviando a transcripción…';
+      bodyPayload = {
+        mode: 'transcribe',
+        audioBase64: base64Audio,
+        fileName: file.name,
+        mimeType: _f11Mime(file)
+      };
+      if(bar) bar.style.width = '25%';
+      if(status) status.textContent = 'Enviando a transcripción…';
     }
 
-    bar.style.width = '35%';
-    status.textContent = 'Transcribiendo con ElevenLabs/Whisper…';
+    if(bar) bar.style.width = '35%';
+    if(status) status.textContent = 'Transcribiendo con ElevenLabs/Whisper…';
 
-    const { data, error } = await sb.functions.invoke('transcribe-audio', { body: invokeBody });
+    /* authFetch (definido en index.html) inyecta el x-auth-token requerido por
+       chat.js para validar JWT y rate-limit del usuario. Si por alguna razón no
+       está disponible, fallback a fetch nativo con el token manual. */
+    const _doFetch = (typeof authFetch === 'function')
+      ? (url, opts) => authFetch(url, opts)
+      : (url, opts) => fetch(url, opts);
+    const r = await _doFetch(_CHAT_EP, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyPayload),
+      signal: controller.signal
+    });
 
-    bar.style.width = '85%';
-    status.textContent = 'Procesando resultado…';
+    if(bar) bar.style.width = '85%';
+    if(status) status.textContent = 'Procesando resultado…';
 
-    if(error){
-      let errMsg = error.message || String(error);
-      try {
-        if(error.context){
-          const body = await error.context.json();
-          errMsg = body.error || errMsg;
-        }
-      } catch(e){}
+    if(!r.ok){
+      let errMsg = `HTTP ${r.status}`;
+      try { const ej = await r.json(); errMsg = ej.error || errMsg; }
+      catch(e){ try { errMsg = (await r.text()).substring(0,200) || errMsg; } catch{} }
       throw new Error(errMsg);
     }
 
-    const transcriptText = data?.text || data?.transcript || '';
+    const data = await r.json();
+    const transcriptText = data?.transcript || data?.text || '';
     if(!transcriptText){
       throw new Error(data?.error || 'Sin texto de transcripción en la respuesta');
     }
@@ -1424,29 +1469,37 @@ async function f11Paso1_Transcribir(){
     /* Auto-guardar checkpoint */
     _f11CheckpointState();
 
-    bar.style.width = '100%';
-    bar.style.background = 'var(--green)';
-    status.textContent = '✅ Transcripción completada — texto crudo guardado (respaldo automático activo)';
+    if(bar){ bar.style.width = '100%'; bar.style.background = 'var(--green)'; }
+    if(status) status.textContent = '✅ Transcripción completada (' + (data.provider||'?') + ') — texto crudo guardado';
 
     const _rr=document.getElementById('f11RawResult');if(_rr)_rr.value = _f11RawText;
     const _rs=document.getElementById('f11RawResultSection');if(_rs)_rs.style.display = 'block';
     const _s2=document.getElementById('f11Step2Section');if(_s2)_s2.style.display = 'block';
 
     _f11UpdateSteps();
-    showToast('✅ Paso 1 completado: transcripción cruda guardada (respaldo automático)');
+    showToast('✅ Paso 1 completado · transcrito con ' + (data.provider||'IA'));
 
   } catch(e){
-    bar.style.background = 'var(--red)';
-    status.textContent = '❌ Error: ' + e.message;
+    if(bar) bar.style.background = 'var(--red)';
+    const isAbort = e.name === 'AbortError';
+    const friendlyMsg = isAbort
+      ? 'Tiempo agotado (>4:50min). Audio muy largo, divídelo en partes.'
+      : e.message;
+    if(status) status.textContent = '❌ Error: ' + friendlyMsg;
     console.error('[F11] Paso 1 error:', e);
-    showToast('❌ Error en transcripción: ' + e.message);
+    showToast('❌ Error en transcripción: ' + friendlyMsg);
   } finally {
+    clearTimeout(timeoutId);
     _f11Processing = false;
     transcripcion.isProcessing = false;
-    btn.textContent = '🎙️ Paso 1: Transcribir Audio (ElevenLabs/Whisper)';
-    btn.disabled = !_f11AudioBlob;
+    if(btn){ btn.textContent = '🎙️ Paso 1: Transcribir Audio (ElevenLabs/Whisper)'; btn.disabled = !_f11AudioBlob; }
+    /* Cleanup del archivo en Storage en background — no bloquea el UI. */
     if(storagePath){
-      try { await sb.storage.from(T_STORAGE_BUCKET).remove([storagePath]); } catch(e){}
+      const _path = storagePath;
+      Promise.resolve().then(async ()=>{
+        try { await sb.storage.from(T_STORAGE_BUCKET).remove([_path]); }
+        catch(e){ console.log('[F11] Storage cleanup falló (no crítico):', e.message); }
+      });
     }
   }
 }
