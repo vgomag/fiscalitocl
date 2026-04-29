@@ -2555,8 +2555,29 @@ window.redactarResolucionTermino=async function(caseId){
 async function moveCase(caseId,newCat){
   if(!newCat)return;
   const c=allCases.find(x=>x.id===caseId);
+  if(!c)return;
 
-  /* Si se mueve a terminado, pedir resolución que instruye */
+  /* ════════════════════════════════════════════════════════════════════
+     CASO ESPECIAL: Finalización es WORKSPACE, no estado.
+     Si el caso YA está terminado y la fiscal lo "mueve" a Finalización,
+     NO se cambia ni status ni categoria — solo aparece en la pestaña
+     Finalización (vía isTerminadoPendienteResolucion) como espacio de
+     trabajo para redactar la resolución de término. Los Terminados deben
+     seguir contando en estadísticas como tal.
+     ════════════════════════════════════════════════════════════════════ */
+  if(newCat==='finalizacion' && c.status==='terminado'){
+    /* Ya aparece automáticamente en Finalización si tiene resolucion_termino vacía.
+       Si tiene resolucion ya redactada, mostrarle al usuario el porqué. */
+    const tieneResol=(c.resolucion_termino||'').toString().trim().length>10;
+    if(tieneResol){
+      showToast('ℹ️ Este caso ya tiene resolución de término redactada. Si quieres re-redactarla, abre el redactor desde el botón 📋',6000);
+    } else {
+      showToast('ℹ️ Los terminados sin resolución de término ya aparecen automáticamente en Finalización para que redactes la resolución que afina el procedimiento. No se altera el estado.',6500);
+    }
+    return; /* sin cambios en BD */
+  }
+
+  /* Si se mueve A terminado, pedir resolución que instruye */
   let nuevaRes=c?.nueva_resolucion||null;
   if(newCat==='terminado'){
     const current=c?.nueva_resolucion||'';
@@ -2590,11 +2611,7 @@ async function moveCase(caseId,newCat){
   if(idx>=0){
     allCases[idx].categoria=newCat;
     if(nuevoEstado)allCases[idx].estado_procedimiento=nuevoEstado;
-    /* CRÍTICO: sincronizar el status local con el payload, no sólo cuando se
-       mueve A terminado, sino TAMBIÉN cuando se mueve DE terminado a una etapa
-       activa. Sin esto, `allCases[idx].status` queda en 'terminado' y getCaseCat()
-       sigue clasificando el caso como terminado en memoria, aunque la BD ya lo
-       marcó como 'active'. Bug observado con caso 536-2024-VRAC. */
+    /* Sincronizar status local con el payload */
     if(newCat==='terminado'){
       allCases[idx].status='terminado';
       allCases[idx].nueva_resolucion=nuevaRes;
