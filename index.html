@@ -1002,13 +1002,13 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
     <!-- CASOS TABLE VIEW -->
     <div class="view" id="viewTabla" style="flex-direction:column;overflow:hidden;">
       <div class="casos-tabs" id="casosTabs">
-        <div class="cat-tab active" onclick="setCatTab('indagatoria_inicial')" title="Casos en investigación inicial">🔍 Indagatoria inicial <span class="tab-count" id="cnt-indagatoria_inicial">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('termino_indagatoria')" title="Casos próximos a la resolución de cierre de indagatoria (formulación de cargos)">⚖️ Término Etapa Indagatoria <span class="tab-count" id="cnt-termino_indagatoria">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('decision')" title="Casos con resolución pendiente del fiscal">📜 Decisión <span class="tab-count" id="cnt-decision">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('discusion_prueba')" title="Casos en período de descargos y rendición de pruebas">🛡️ Discusión y Prueba <span class="tab-count" id="cnt-discusion_prueba">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('preparacion_vista')" title="Casos en preparación de vista fiscal">👁️ Preparación de Vista <span class="tab-count" id="cnt-preparacion_vista">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('finalizacion')" title="Casos pendientes de cierre formal">✅ Finalización <span class="tab-count" id="cnt-finalizacion">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('terminado')" title="Casos terminados">📦 Terminados <span class="tab-count" id="cnt-terminado">0</span></div>
+        <div class="cat-tab active" onclick="setCatTab('indagatoria_inicial')" title="Mover caso a Indagatoria inicial · etapa de investigación inicial">🔍 Mover a Indagatoria inicial <span class="tab-count" id="cnt-indagatoria_inicial">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('termino_indagatoria')" title="Mover caso a Término Indagatoria · próxima resolución de cierre (formulación de cargos)">⚖️ Mover a Término Indagatoria <span class="tab-count" id="cnt-termino_indagatoria">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('decision')" title="Mover caso a Decisión · resolución pendiente del fiscal">📜 Mover a Decisión <span class="tab-count" id="cnt-decision">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('discusion_prueba')" title="Mover caso a Discusión y Prueba · período de descargos y rendición de pruebas">🛡️ Mover a Discusión y Prueba <span class="tab-count" id="cnt-discusion_prueba">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('preparacion_vista')" title="Mover caso a Preparación de Vista · en preparación de vista fiscal">👁️ Mover a Preparación de Vista <span class="tab-count" id="cnt-preparacion_vista">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('finalizacion')" title="Mover caso a Finalización · pendiente de cierre formal">✅ Mover a Finalización <span class="tab-count" id="cnt-finalizacion">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('terminado')" title="Mover caso a Terminados · casos cerrados">📦 Mover a Terminados <span class="tab-count" id="cnt-terminado">0</span></div>
         <div class="cat-tab" id="tab-cuestionarios" onclick="openCuestionarios()" style="border-left:1px solid var(--border);margin-left:4px;padding-left:12px" title="Cuestionarios indagatorios, actas y resoluciones de mero trámite">❓ Cuestionarios</div>
       </div>
       <div class="casos-toolbar">
@@ -2152,13 +2152,13 @@ function openTabla(){showView('viewTabla');renderTabla();}
    Etapa Indagatoria → Decisión → Discusión y Prueba → Preparación de Vista →
    Finalización → Terminados. */
 const CAT_LABELS={
-  indagatoria_inicial:'Indagatoria inicial',
-  termino_indagatoria:'Término Etapa Indagatoria',
-  decision:'Decisión',
-  discusion_prueba:'Discusión y Prueba',
-  preparacion_vista:'Preparación de Vista',
-  finalizacion:'Finalización',
-  terminado:'Terminado'
+  indagatoria_inicial:'Mover a Indagatoria inicial',
+  termino_indagatoria:'Mover a Término Indagatoria',
+  decision:'Mover a Decisión',
+  discusion_prueba:'Mover a Discusión y Prueba',
+  preparacion_vista:'Mover a Preparación de Vista',
+  finalizacion:'Mover a Finalización',
+  terminado:'Mover a Terminados'
 };
 const VALID_CATS=new Set(['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado']);
 
