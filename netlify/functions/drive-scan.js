@@ -38,7 +38,7 @@ function getGoogleToken(saKey){
     const jwt = signInput + '.' + signature;
 
     const body = `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`;
-    const _to = setTimeout(() => req.destroy(), 30000);
+    let _to;
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body)},
@@ -51,6 +51,7 @@ function getGoogleToken(saKey){
         catch(e) { reject(new Error('Google token parse error')); }
       });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, 30000);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
@@ -71,7 +72,7 @@ function listDriveFolder(folderId, token){
     const fields = encodeURIComponent('files(id,name,mimeType,modifiedTime,webViewLink,createdTime)');
     const url = `/drive/v3/files?q=${q}&fields=${fields}&pageSize=200`;
 
-    const _to = setTimeout(() => req.destroy(), 30000);
+    let _to;
     const req = https.request({
       hostname: 'www.googleapis.com',
       path: url,
@@ -88,6 +89,7 @@ function listDriveFolder(folderId, token){
         } catch(e) { reject(new Error('Drive list parse error')); }
       });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, 30000);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
@@ -134,7 +136,7 @@ function supabaseFetch(url, serviceKey, path, method, body){
     if(reqBody) headers['Content-Length'] = Buffer.byteLength(reqBody);
 
     const parsed = new URL(url + '/rest/v1/' + path);
-    const _to = setTimeout(() => req.destroy(), 30000);
+    let _to;
     const req = https.request({
       hostname: parsed.hostname,
       path: parsed.pathname + parsed.search,
@@ -149,6 +151,7 @@ function supabaseFetch(url, serviceKey, path, method, body){
         catch { resolve(d); }
       });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, 30000);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
