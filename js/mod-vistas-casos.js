@@ -467,11 +467,49 @@ window.updateFilterValue = function(key, value){
 };
 
 window.clearAllFilters = function(){
+  /* Reset COMPLETO: chips, selects, fechas, búsqueda, filtros legacy. */
   activeFilters = { etapa:[],tipo_procedimiento:[],protocolo:[],resultado:[],fecha_desde:'',fecha_hasta:'',medida_cautelar:'',judicializada:'' };
   document.querySelectorAll('#filtrosPanel .filtro-chip').forEach(c=>c.classList.remove('active'));
   document.querySelectorAll('#filtrosPanel select').forEach(s=>s.value='');
   document.querySelectorAll('#filtrosPanel input[type="date"]').forEach(i=>i.value='');
+  /* Buscador: si tenía texto, limpiarlo también */
+  const search = document.getElementById('tablaSearch');
+  if(search) search.value = '';
+  /* Filtro legacy stageFilter (por si quedó residual en el DOM o memoria) */
+  if(typeof window.applyStageFilter === 'function') window.applyStageFilter('all');
+  const oldStage = document.getElementById('stageFilter');
+  if(oldStage) oldStage.value = 'all';
   applyFiltersAndRender();
+  if(typeof showToast === 'function') showToast('✓ Filtros limpiados');
+};
+
+/* ── Indica si HAY ALGÚN filtro activo (chips, fechas, selects, búsqueda) ── */
+window.hasAnyFilterActive = function(){
+  if(typeof countActiveFilters === 'function' && countActiveFilters() > 0) return true;
+  const search = document.getElementById('tablaSearch');
+  if(search && search.value && search.value.trim()) return true;
+  return false;
+};
+
+/* ── Botón X universal en la toolbar: aparece sólo cuando hay filtros activos ──
+   Se inyecta una vez junto al buscador y se muestra/oculta según el estado.
+   Esto soluciona el bug de "filtro pegado sin botón visible". */
+window.ensureClearFilterButton = function(){
+  const toolbar = document.querySelector('.casos-toolbar');
+  if(!toolbar) return;
+  let btn = document.getElementById('btnClearAllFilters');
+  if(!btn){
+    btn = document.createElement('button');
+    btn.id = 'btnClearAllFilters';
+    btn.title = 'Limpiar todos los filtros y la búsqueda';
+    btn.style.cssText = 'background:#fff;border:1px solid #f59e0b;color:#92400e;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;display:none;align-items:center;gap:5px;font-family:inherit;font-weight:600;margin-left:6px';
+    btn.innerHTML = '✕ Limpiar filtros';
+    btn.onclick = window.clearAllFilters;
+    const search = document.getElementById('tablaSearch');
+    if(search && search.parentNode === toolbar){ search.after(btn); }
+    else { toolbar.appendChild(btn); }
+  }
+  btn.style.display = window.hasAnyFilterActive() ? 'inline-flex' : 'none';
 };
 
 function applyFiltersAndRender(){

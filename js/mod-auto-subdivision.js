@@ -245,14 +245,9 @@ window.renderTabla = function(searchOverride){
     );
   }
 
-  // Aplicar filtro de etapa
-  if(activeStageFilter !== 'all'){
-    cases = cases.filter(c => {
-      const stage = etapasMap[c.id] || (c.estado_procedimiento || '').toLowerCase().trim();
-      if(activeStageFilter === 'sin_etapa') return !stage;
-      return stage === activeStageFilter || stage.includes(activeStageFilter);
-    });
-  }
+  // Filtro de etapa LEGACY removido — la clasificación por etapa ahora la
+  // hacen las cat-tabs vía getCaseCat(c). Mantener cualquier filtrado adicional
+  // aquí causaba que casos quedaran ocultos sin botón visible para resetear.
 
   // Delegar al render original si existe
   if(_origRenderTabla){
