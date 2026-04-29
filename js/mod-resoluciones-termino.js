@@ -511,6 +511,10 @@ async function generarBorradorIA(){
     /* 5) crear nuevo draft en BD */
     const s = _sb();
     const titulo = `${TIPOS[state.selectedTipo]?.icon || ''} ${tipoLabel} · ${state.caseObj.nueva_resolucion||state.caseObj.name||''}`.trim();
+    /* Persistir info del memo en `notes` para que la próxima generación reuse el contexto */
+    const notesBlob = state.memoJuridico
+      ? `MEMO USADO: ${state.memoJuridico.fileName} (${state.memoJuridico.source}, ${state.memoJuridico.text?.length||0} chars)`
+      : 'Sin memo jurídico inyectado';
     const { data: newDraft, error: insErr } = await s.from('resoluciones_drafts')
       .insert({
         user_id: state.caseObj.user_id,
@@ -520,7 +524,8 @@ async function generarBorradorIA(){
         titulo,
         content_text: generated,
         modelo_id: modeloId || null,
-        prompt_used: userPrompt
+        prompt_used: userPrompt,
+        notes: notesBlob
       })
       .select()
       .single();
