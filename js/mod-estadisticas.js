@@ -235,7 +235,8 @@ function renderDashboard(){
         <div style="font-size:12px;color:var(--text-muted)">Resumen de tu gestión disciplinaria · ${d.cases.length} casos totales</div>
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn-sm" onclick="exportStatsCSV()" title="Exportar CSV">📥 CSV</button>
+        <button class="btn-sm" onclick="exportStatsXLSX()" title="Descargar Excel completo (activos + terminados, KPIs y distribuciones)" style="background:#107C41;color:#fff;font-weight:600">📊 Excel</button>
+        <button class="btn-sm" onclick="exportStatsCSV()" title="Exportar CSV plano">📥 CSV</button>
         <button class="btn-sm" onclick="loadStats()" title="Actualizar">↻</button>
       </div>
     </div>
@@ -563,6 +564,9 @@ function renderTerminadosTab(){
 
 /* ═══ TAB: CHAT IA ═══ */
 let _statsChatHistory=[];
+/* Metadatos por respuesta del asistente (para exportar a Excel solo los casos referenciados) */
+let _statsChatRefs={};        /* msgId → { resoluciones:[...], scope:'activos|terminados|ambos', query, reply, ts } */
+let _statsChatNextMsgId=1;
 
 function renderStatsChat(){
   const el=document.getElementById('statsTabContent');if(!el)return;
@@ -661,6 +665,19 @@ Tienes acceso a TODOS los datos de los casos del usuario. Responde con datos pre
 Usa tablas cuando sea apropiado. Sé conciso pero completo.
 Si te piden datos que no están en el contexto, indícalo.
 
+REGLA OBLIGATORIA DE EXPORTACIÓN A EXCEL:
+Al final de CADA respuesta, SIEMPRE incluye un bloque oculto exactamente con este formato (incluidos los corchetes literales) para permitir descargar la respuesta como Excel:
+
+[CASOS_REFERENCIADOS]
+{"resoluciones": ["FU-001/2024", "FU-002/2024"], "scope": "activos", "titulo": "Casos de acoso sexual activos"}
+[/CASOS_REFERENCIADOS]
+
+Reglas del bloque:
+- "resoluciones": array con los identificadores EXACTOS de los casos que tu respuesta menciona o usa (campo "nueva_resolucion" o "name" tal como aparece en el contexto). Si la pregunta es sobre TODOS los casos de una categoría, incluye los identificadores de todos los que apliquen (lista completa, no truncar). Si no se refiere a casos específicos (p. ej. una pregunta general sobre cifras agregadas), usa [].
+- "scope": "activos" | "terminados" | "ambos" según corresponda.
+- "titulo": etiqueta corta (≤80 chars) que describa el resultado, será el nombre de la hoja Excel.
+- El bloque va al final, separado por una línea en blanco. NO lo expliques al usuario, debe verse como cierre técnico.
+
 ${dataSummary}`,
           messages:_statsChatHistory.slice(-10)
         }),
@@ -688,7 +705,45 @@ ${dataSummary}`,
       const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin respuesta.';
       _statsChatHistory.push({role:'assistant',content:reply});
 
-      msgs.innerHTML+=`<div style="align-self:flex-start;background:var(--surface2);border:1px solid var(--border);padding:10px 14px;border-radius:2px 12px 12px 12px;max-width:90%;font-size:12px;line-height:1.6">${md(reply)}</div>`;
+      /* Parsear bloque [CASOS_REFERENCIADOS] para habilitar exportación a Excel */
+      let visibleReply=reply;
+      let refMeta=null;
+      const refMatch=reply.match(/\[CASOS_REFERENCIADOS\]\s*([\s\S]*?)\s*\[\/CASOS_REFERENCIADOS\]/i);
+      if(refMatch){
+        visibleReply=reply.replace(refMatch[0],'').trim();
+        try{
+          const parsed=JSON.parse(refMatch[1]);
+          const arr=Array.isArray(parsed.resoluciones)?parsed.resoluciones.filter(x=>typeof x==='string'&&x.trim()):[];
+          if(arr.length){
+            refMeta={
+              resoluciones:arr,
+              scope:(['activos','terminados','ambos'].includes(parsed.scope))?parsed.scope:'ambos',
+              titulo:(typeof parsed.titulo==='string'&&parsed.titulo.trim())?parsed.titulo.trim().substring(0,80):'Consulta IA',
+              query:text,
+              reply:visibleReply,
+              ts:new Date().toISOString()
+            };
+          }
+        }catch(e){console.warn('[stats-chat] no se pudo parsear CASOS_REFERENCIADOS:',e.message);}
+      }
+
+      const msgId=_statsChatNextMsgId++;
+      let exportBtnHtml='';
+      if(refMeta){
+        _statsChatRefs[msgId]=refMeta;
+        const safeTitle=esc(refMeta.titulo);
+        exportBtnHtml=`<div style="margin-top:6px;display:flex;justify-content:flex-start">
+          <button class="btn-sm" onclick="exportChatXLSX(${msgId})" title="Descargar estos ${refMeta.resoluciones.length} caso(s) en Excel"
+            style="background:#107C41;color:#fff;font-size:10.5px;padding:4px 10px;border-radius:6px;font-weight:600;border:none;cursor:pointer">
+            📊 Descargar Excel · ${refMeta.resoluciones.length} caso${refMeta.resoluciones.length===1?'':'s'} (${esc(refMeta.scope)})
+          </button>
+        </div>`;
+      }
+
+      msgs.innerHTML+=`<div data-stats-msg-id="${msgId}" style="align-self:flex-start;max-width:90%;display:flex;flex-direction:column">
+        <div style="background:var(--surface2);border:1px solid var(--border);padding:10px 14px;border-radius:2px 12px 12px 12px;font-size:12px;line-height:1.6">${md(visibleReply)}</div>
+        ${exportBtnHtml}
+      </div>`;
       msgs.scrollTop=msgs.scrollHeight;
 
     }finally{
