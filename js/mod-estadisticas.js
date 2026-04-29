@@ -52,9 +52,11 @@ function countBusinessDays(startDate,endDate){
   return count;
 }
 
-/* Usar función global unificada de mod-auto-subdivision.js */
+/* Detección de caso de género por sufijo -G en nombre/rol.
+   (Antes delegaba a window.isGenderCase de mod-auto-subdivision.js, pero esa
+   función fue eliminada cuando la categorización pasó a basarse en etapa
+   procesal en vez de materia.) */
 function _statIsGenderCase(name,rol){
-  if(typeof window.isGenderCase==='function') return window.isGenderCase({name:name,rol:rol});
   const p=/\d+\s*[-]?\s*G(?:\s|$|[^a-záéíóúñ])/;
   return p.test(name||'')||(name||'').toUpperCase().includes('-G')||p.test(rol||'');
 }
