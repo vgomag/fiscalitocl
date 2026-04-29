@@ -564,20 +564,30 @@ function renderTerminadosTab(){
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:${sinInforme.length>1?'8px':'0'}">
         <span style="font-size:14px">⚠️</span>
         <strong style="font-size:12.5px;color:#92400e">${sinInforme.length} caso${sinInforme.length>1?'s':''} terminado${sinInforme.length>1?'s':''} sin informe/vista fiscal subido</strong>
-        <span style="font-size:11px;color:var(--text-muted);margin-left:auto">Haz click para abrir y subir el informe</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:auto">Click para subir informe · 📋 abre Redactor de Resolución</span>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${sinInforme.map(c=>`
-          <button
-            onclick="if(typeof pickCaseById==='function'){pickCaseById('${esc(c.id)}');setTimeout(()=>{if(typeof openEditCase==='function')openEditCase();},300);}"
-            style="background:#fff;border:1px solid rgba(245,158,11,.4);color:#92400e;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit"
-            onmouseover="this.style.background='rgba(245,158,11,.1)';this.style.borderColor='#f59e0b'"
-            onmouseout="this.style.background='#fff';this.style.borderColor='rgba(245,158,11,.4)'"
-            title="Abrir caso para subir informe/vista fiscal">
-            <span style="font-family:var(--font-mono);font-weight:600">${esc(c.nueva_resolucion||c.name||'?')}</span>
-            <span style="font-size:10px;color:var(--text-muted)">${esc((c.materia||'').substring(0,30))}</span>
-            <span style="font-size:10px">📄+</span>
-          </button>`).join('')}
+          <div style="display:flex;align-items:center;gap:0">
+            <button
+              onclick="if(typeof pickCaseById==='function'){pickCaseById('${esc(c.id)}');setTimeout(()=>{if(typeof openEditCase==='function')openEditCase();},300);}"
+              style="background:#fff;border:1px solid rgba(245,158,11,.4);border-right:none;color:#92400e;padding:5px 10px;border-radius:6px 0 0 6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit"
+              onmouseover="this.style.background='rgba(245,158,11,.1)'"
+              onmouseout="this.style.background='#fff'"
+              title="Abrir caso para subir informe/vista fiscal manualmente">
+              <span style="font-family:var(--font-mono);font-weight:600">${esc(c.nueva_resolucion||c.name||'?')}</span>
+              <span style="font-size:10px;color:var(--text-muted)">${esc((c.materia||'').substring(0,30))}</span>
+              <span style="font-size:10px">📄+</span>
+            </button>
+            <button
+              onclick="if(typeof openResolucionRedactor==='function')openResolucionRedactor('${esc(c.id)}');else showToast('Recarga la página para activar el Redactor');"
+              style="background:#7c3aed;border:1px solid #7c3aed;color:#fff;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;cursor:pointer;display:flex;align-items:center;font-family:inherit"
+              onmouseover="this.style.background='#6d28d9'"
+              onmouseout="this.style.background='#7c3aed'"
+              title="Abrir Redactor de Resolución de Término con IA, modelos y versionado">
+              📋
+            </button>
+          </div>`).join('')}
       </div>
     </div>` : '';
 

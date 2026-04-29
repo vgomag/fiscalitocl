@@ -2507,7 +2507,7 @@ function renderTabla(searchOverride){
         <td>${(c.resultado||c.propuesta)?`<span class="proc-badge ${(c.resultado||c.propuesta)==='Sanción'?'proc-is':(c.resultado||c.propuesta)==='Sobreseimiento'?'proc-sa':'proc-pd'}">${esc(c.resultado||c.propuesta)}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
         <td><span class="fecha-cell">${c.fecha_vista||'—'}</span></td>
         <td><div class="acciones-cell">
-          ${_isPendRes?`<button class="btn-action" title="Redactar resolución de término con IA (acceso a antecedentes)" onclick="event.stopPropagation();redactarResolucionTermino('${esc(c.id)}')" style="color:#b45309">📝</button>`:''}
+          ${_isPendRes?`<button class="btn-action" title="Abrir Redactor de Resolución de Término (con IA, modelos, versiones y exportación)" onclick="event.stopPropagation();(typeof openResolucionRedactor==='function'?openResolucionRedactor('${esc(c.id)}'):redactarResolucionTermino('${esc(c.id)}'))" style="color:#b45309">📝</button>`:''}
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
           <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>
           <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
@@ -5581,6 +5581,7 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-export.js"></script>
 <script src="/js/mod-escritos.js"></script>
 <script src="/js/mod-transcripcion.js"></script>
+<script src="/js/mod-resoluciones-termino.js"></script>
 <script>
 // Transcripción module moved to mod-transcripcion.js
 </script>
