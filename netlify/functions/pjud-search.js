@@ -46,17 +46,11 @@ async function getSession(court = 'Corte_Suprema') {
 
     const html = await resp.text();
 
-    // Extract CSRF token
+    // Extract CSRF token (try primary pattern, then meta csrf-token fallback)
     const tokenMatch = html.match(/name="_token"\s+(?:type="hidden"\s+)?value="([^"]+)"/);
-    if (!tokenMatch) {
-      // Try alternative pattern
-      const altMatch = html.match(/value="([^"]+)"\s*(?:>|\/?>)\s*(?:<!--.*?-->)?\s*(?:<input)?/);
-      // Fallback: look for meta csrf
-      const metaMatch = html.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
-      const token = tokenMatch?.[1] || metaMatch?.[1] || null;
-      if (!token) throw new Error('Could not extract CSRF token from PJUD');
-    }
-    const token = tokenMatch[1];
+    const metaMatch = html.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
+    const token = tokenMatch?.[1] || metaMatch?.[1] || null;
+    if (!token) throw new Error('Could not extract CSRF token from PJUD');
 
     // Extract id_buscador from inline scripts
     let idBuscador = BUSCADOR_IDS[court] || '528';
