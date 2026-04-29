@@ -926,6 +926,7 @@
 
   /* ── API global ─────────────────────────────────────────────── */
   window.renderGanttView = renderGanttView;
+  window.openGanttView = openGanttView;
   window.setGanttFilter = setGanttFilter;
   window.assignActuaria = assignActuaria;
   window.manageActuariasModal = manageActuariasModal;
