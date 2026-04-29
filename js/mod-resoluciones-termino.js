@@ -423,6 +423,18 @@ async function generarBorradorIA(){
 
     /* 3) prompt para la IA */
     const tipoLabel = TIPOS[state.selectedTipo]?.label || state.selectedTipo;
+
+    /* Bloque del Memo Jurídico (si está disponible) — pieza CRÍTICA porque
+       contiene la recomendación del Director Jurídico al Rector que el dispositivo
+       del RESUELVO debe respetar. */
+    const memoBlock = (state.memoJuridico && state.memoJuridico.text && state.memoJuridico.text.length > 50)
+      ? `## MEMO JURÍDICO DEL DIRECTOR JURÍDICO AL RECTOR (CRÍTICO)\n` +
+        `Archivo: ${state.memoJuridico.fileName} (fuente: ${state.memoJuridico.source})\n` +
+        `Este memo contiene la opinión legal del Director Jurídico que la Rectoría DEBE considerar al firmar la resolución de término. El dispositivo del RESUELVO de tu borrador debe ALINEARSE con la sugerencia/recomendación que aparece al final de este memo.\n\n` +
+        state.memoJuridico.text.substring(0, 25000) +
+        `\n\n--- FIN MEMO JURÍDICO ---\n\n`
+      : '';
+
     const sysPrompt =
       `Eres Fiscalito, asistente jurídico de la Universidad de Magallanes (UMAG). ` +
       `Vas a redactar la RESOLUCIÓN DE TÉRMINO que dictará la autoridad universitaria ` +
@@ -437,8 +449,14 @@ async function generarBorradorIA(){
       `5. Estructura: encabezado · VISTOS · CONSIDERANDO (numerados) · RESUELVO (numerados) · ANÓTESE.\n` +
       `6. NO incluyas el "RESOLUCIÓN EXENTA N°XXX" — la autoridad la asigna al firmar; deja [N° A ASIGNAR].\n` +
       `7. La fecha del encabezado déjala como [FECHA DE FIRMA].\n` +
-      `8. Cita SIEMPRE las normas con su número exacto (ej. "Art. 157 letra b) Estatuto Administrativo").\n\n` +
+      `8. Cita SIEMPRE las normas con su número exacto (ej. "Art. 157 letra b) Estatuto Administrativo").\n` +
+      (memoBlock
+        ? `9. CRÍTICO: el dispositivo del RESUELVO debe alinearse con la sugerencia del Director Jurídico expresada en el MEMO JURÍDICO (ver más abajo). Si el memo recomienda "aprobar informe del investigador y dictar sobreseimiento", tu RESUELVO debe hacer eso. NO contradigas la recomendación del Director Jurídico.\n`
+        : `9. NO se proporcionó Memo Jurídico — basa el dispositivo en la propuesta de la Vista Fiscal y en lo que indica el modelo de referencia.\n`
+      ) +
+      `\n` +
       (modelo ? `## MODELO DE REFERENCIA: ${modelo.nombre}\n${modelo.content_text}\n\n--- FIN MODELO ---\n\n` : '') +
+      memoBlock +
       caseCtx;
 
     /* 4) llamada a /api/chat-stream */
