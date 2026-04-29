@@ -834,6 +834,12 @@ function _renderSidebar(){
     });
   }
 
+  /* Memo Jurídico — sección con auto-detección desde Drive + zona de upload */
+  html += `
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:14px 0 6px 0;font-weight:600">Memo Jurídico</div>
+    <div id="resolMemoSection"></div>
+  `;
+
   /* Versiones (drafts del caso) */
   html += `
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:14px 0 6px 0;font-weight:600;display:flex;justify-content:space-between;align-items:center">
@@ -844,6 +850,54 @@ function _renderSidebar(){
   `;
   el.innerHTML = html;
   _renderVersions();
+  _renderMemoSection();
+}
+
+/* Render de la sección Memo Jurídico (estado vacío / cargando / detectado / subido) */
+function _renderMemoSection(){
+  const el = document.getElementById('resolMemoSection');
+  if(!el) return;
+  const m = state.memoJuridico;
+  if(state.memoLoading){
+    el.innerHTML = `<div style="padding:9px;background:var(--bg);border:1px dashed var(--border);border-radius:6px;font-size:11px;color:var(--text-muted);text-align:center">⏳ Procesando memo…</div>`;
+    return;
+  }
+  if(m && m.text && m.text.length > 50){
+    const sourceIcon = m.source === 'drive' ? '☁️' : '📤';
+    const sourceLabel = m.source === 'drive' ? 'desde Drive' : 'subido manualmente';
+    el.innerHTML = `
+      <div style="padding:8px 10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:6px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#047857">
+          ${sourceIcon} Memo cargado <span style="font-size:9px;background:#10b981;color:#fff;padding:1px 5px;border-radius:3px;text-transform:uppercase">${m.source==='drive'?'auto':'manual'}</span>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_esc(m.fileName)}">${_esc(m.fileName)}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:1px">${m.text.length.toLocaleString('es-CL')} caracteres · ${sourceLabel}</div>
+        <div style="display:flex;gap:5px;margin-top:6px">
+          <button onclick="resolMemoClear()" style="flex:1;background:#fff;border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit">✕ Quitar</button>
+          ${m.source==='drive' ? `<button onclick="resolMemoRedetect()" style="flex:1;background:#fff;border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit" title="Buscar de nuevo en Drive">↻ Re-detectar</button>` : ''}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  /* Estado vacío: dropzone + botón */
+  el.innerHTML = `
+    <div id="resolMemoDrop"
+      style="padding:10px;background:var(--bg);border:2px dashed var(--border);border-radius:6px;text-align:center;cursor:pointer;transition:all .15s"
+      ondragover="event.preventDefault();this.style.borderColor='#7c3aed';this.style.background='rgba(124,58,237,.05)'"
+      ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg)'"
+      ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';if(event.dataTransfer.files[0])resolMemoUpload(event.dataTransfer.files[0])"
+      onclick="document.getElementById('resolMemoFileInput').click()">
+      <div style="font-size:18px;margin-bottom:4px">📥</div>
+      <div style="font-size:11px;color:var(--text);font-weight:500">Arrastra el PDF del Memo Jurídico</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">o haz click para seleccionar</div>
+      <input id="resolMemoFileInput" type="file" accept="application/pdf,.pdf" style="display:none" onchange="if(this.files[0])resolMemoUpload(this.files[0])"/>
+    </div>
+    <button onclick="resolMemoRedetect()" style="width:100%;margin-top:5px;background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:5px;border-radius:4px;font-size:10.5px;cursor:pointer;font-family:inherit">🔍 Buscar memo en Drive del caso</button>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:6px;line-height:1.4">
+      El memo es CRÍTICO: contiene la recomendación legal del Director Jurídico. Sin él, el RESUELVO se basa solo en la propuesta de la vista fiscal.
+    </div>
+  `;
 }
 
 function _renderVersions(){
