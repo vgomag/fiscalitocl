@@ -2088,6 +2088,15 @@ async function saveCaseModal(){
        sql/fix_cases_id_default_2026-04-23.sql en Supabase. */
     payload.id = (typeof crypto!=='undefined' && crypto.randomUUID) ? crypto.randomUUID() :
       'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);});
+    /* Default explícito al crear: si no se eligió etapa en el formulario, el caso
+       arranca en "Indagatoria inicial". Evita que aparezca con `categoria=NULL` y
+       `estado_procedimiento=NULL` y dependa del fallback implícito de getCaseCat. */
+    if(!payload.estado_procedimiento){
+      payload.estado_procedimiento='Indagatoria';
+    }
+    if(!payload.categoria){
+      payload.categoria='indagatoria_inicial';
+    }
     const{data,error}=await sb.from('cases').insert(payload).select().single();
     if(error){showToast('⚠️ Error al crear: '+error.message);return;}
     if(!data){showToast('⚠️ No se pudo crear el expediente: el servidor no devolvió datos. Revisa permisos (RLS) o refresca la sesión.');return;}
