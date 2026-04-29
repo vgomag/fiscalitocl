@@ -1314,6 +1314,17 @@ async function f11StartRecording(){
     if(label) label.textContent = 'Grabar';
     if(recBtn){ recBtn.disabled = false; recBtn.style.background=''; recBtn.style.color=''; }
 
+    /* CRÍTICO: si getUserMedia ya retornó pero algo falló después (mime detect,
+       Recorder constructor, etc.), el stream sigue capturando el micrófono.
+       Liberarlo aquí evita el bug "dispositivo en uso" en re-intentos. */
+    if(stream && typeof stream.getTracks === 'function'){
+      try { stream.getTracks().forEach(t => { try { t.stop(); } catch(e2){} }); }
+      catch(e3){ console.warn('[F11] Error liberando stream:', e3); }
+    }
+    /* Limpiar el recorder a medio-construir para que el guard contra doble-tap no
+       se quede pegado en `state !== 'inactive'`. */
+    _f11Recorder = null;
+
     let msg = e.message || String(e);
     if(e.name==='NotAllowedError' || msg.includes('Permission'))
       msg = 'Permiso de micrófono denegado. Habilítalo en la configuración del navegador.';
