@@ -85,6 +85,9 @@ async function loadSubdivisionData(){
     }
     /* Exponer globalmente para que index.html y el redactor puedan consultarlo */
     window.finalizacionWorkspaceIds = finalizacionWorkspaceIds;
+    /* Diagnóstico: log visible en consola del navegador (F12) */
+    console.log('[auto-subdivision] workspace flags cargados:', finalizacionWorkspaceIds.size,
+      Array.from(finalizacionWorkspaceIds), 'wsRes.error:', wsRes.error||'OK');
 
     // Mapear shares
     sharesMap = {};
@@ -320,6 +323,24 @@ window.setCatTab = function(cat){
   });
 
   renderTabla();
+
+  /* Robustez: si entras a Finalización y el Set de workspace está vacío
+     (puede pasar por timing al inicio de la app), re-fetcheamos los flags
+     en background y re-renderizamos cuando termine. */
+  if(cat === 'finalizacion'){
+    const empty = !window.finalizacionWorkspaceIds || window.finalizacionWorkspaceIds.size === 0;
+    if(empty){
+      console.log('[auto-subdivision] Finalización abierta con workspace vacío — recargando flags…');
+      loadSubdivisionData().then(() => {
+        const n = window.finalizacionWorkspaceIds ? window.finalizacionWorkspaceIds.size : 0;
+        console.log('[auto-subdivision] workspace flags recargados:', n);
+        if(n > 0){
+          if(typeof updateCatCounts === 'function') updateCatCounts();
+          renderTabla();
+        }
+      }).catch(e => console.warn('[auto-subdivision] reload workspace falló:', e));
+    }
+  }
 };
 
 /* ── Drag & Drop entre pestañas ── */
