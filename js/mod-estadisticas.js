@@ -466,8 +466,36 @@ function renderTerminadosTab(){
   const resTerminados={};
   t.forEach(c=>{if(c.resultado){const r=RESULTADO_LABELS[c.resultado]||c.resultado;resTerminados[r]=(resTerminados[r]||0)+1;}});
 
-  /* ── Con/sin informe ── */
+  /* ── Con/sin informe ──
+     Un caso terminado se considera "con informe" si tiene `informe_final` con
+     al menos 100 caracteres (un texto significativo de vista fiscal/informe).
+     Listamos también los casos SIN informe para que la fiscal pueda actuar. */
   const conInforme=t.filter(c=>c.informe_final&&c.informe_final.length>100).length;
+  const sinInforme=t.filter(c=>!c.informe_final||c.informe_final.length<=100);
+
+  /* HTML de la alerta accionable: solo se muestra si hay 1+ casos sin informe.
+     Cada caso es clickeable y abre el caso directamente para subir el informe. */
+  const sinInformeAlert = sinInforme.length > 0 ? `
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:${sinInforme.length>1?'8px':'0'}">
+        <span style="font-size:14px">⚠️</span>
+        <strong style="font-size:12.5px;color:#92400e">${sinInforme.length} caso${sinInforme.length>1?'s':''} terminado${sinInforme.length>1?'s':''} sin informe/vista fiscal subido</strong>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:auto">Haz click para abrir y subir el informe</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${sinInforme.map(c=>`
+          <button
+            onclick="if(typeof pickCaseById==='function'){pickCaseById('${esc(c.id)}');setTimeout(()=>{if(typeof openEditCase==='function')openEditCase();},300);}"
+            style="background:#fff;border:1px solid rgba(245,158,11,.4);color:#92400e;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit"
+            onmouseover="this.style.background='rgba(245,158,11,.1)';this.style.borderColor='#f59e0b'"
+            onmouseout="this.style.background='#fff';this.style.borderColor='rgba(245,158,11,.4)'"
+            title="Abrir caso para subir informe/vista fiscal">
+            <span style="font-family:var(--font-mono);font-weight:600">${esc(c.nueva_resolucion||c.name||'?')}</span>
+            <span style="font-size:10px;color:var(--text-muted)">${esc((c.materia||'').substring(0,30))}</span>
+            <span style="font-size:10px">📄+</span>
+          </button>`).join('')}
+      </div>
+    </div>` : '';
 
   el.innerHTML=`
     <!-- KPIs terminados -->
@@ -478,14 +506,12 @@ function renderTerminadosTab(){
       ${kpiCard('Con Informe/Vista',conInforme+'/'+t.length,'📄',STAT_COLORS.teal)}
       ${kpiCard('Con Resultado',Object.values(resTerminados).reduce((s,v)=>s+v,0)+'/'+t.length,'⚖️',STAT_COLORS.purple)}
     </div>
+    ${sinInformeAlert}
 
-    <!-- 1. Meses de duración -->
+    <!-- 1. Distribución de duración por rango (eliminado el "Top 20 más largos" — refuerza lo negativo) -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;margin-bottom:12px">⏱️ Duración de Tramitación (Meses)</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        ${chartBox('chartTermDurRango','Distribución por Rango','',200)}
-        ${chartBox('chartTermDurMeses','Meses por Caso (Top 20 más largos)','',200)}
-      </div>
+      ${chartBox('chartTermDurRango','Distribución por rango de duración','Cuántos casos cerraste en cada franja temporal',220)}
     </div>
 
     <!-- 2. Terminados por mes y año — dos vistas circulares complementarias -->
@@ -576,15 +602,9 @@ function renderTerminadosTab(){
 
   /* ── Draw all charts ── */
   setTimeout(()=>{
-    /* 1. Duración por rango */
+    /* 1. Duración por rango (chart "Top 20 más largos" eliminado en favor de la
+         tabla "Top 15 cerrados con mayor eficiencia" más abajo, que refuerza avances). */
     makeBar('chartTermDurRango',Object.keys(durRanges),Object.values(durRanges),STAT_COLORS.blue+'cc');
-
-    /* 2. Meses por caso (top 20 más largos) */
-    const top20=durations.slice(-20).reverse();
-    makeBar('chartTermDurMeses',
-      top20.map(x=>(x.case.nueva_resolucion||'').substring(0,15)),
-      top20.map(x=>x.months),
-      STAT_COLORS.gold+'cc',true);
 
     /* 3a. Terminados por AÑO — doughnut (cuántos casos cerraste cada año).
        Agrupar termByMonth (que tiene formato "YYYY-MM") por año. */
