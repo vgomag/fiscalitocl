@@ -234,7 +234,6 @@ window.renderTabla = function(searchOverride){
   const q = (searchOverride !== undefined ? searchOverride : document.getElementById('tablaSearch')?.value || '').toLowerCase();
   const userId = session?.user?.id;
 
-  const _isPendRes = c => typeof window.isTerminadoPendienteResolucion === 'function' && window.isTerminadoPendienteResolucion(c);
   const _isWS = c => finalizacionWorkspaceIds && finalizacionWorkspaceIds.has(c.id);
 
   let cases;
@@ -245,13 +244,12 @@ window.renderTabla = function(searchOverride){
     cases = allCases.filter(c => {
       // Excluir compartidos de las pestañas normales
       if(userId && c.user_id !== userId && sharedCaseIds.has(c.id)) return false;
-      // Finalización agrupa:
-      //  (a) casos activos en etapa 'finalizacion'
-      //  (b) terminados sin resolución de término redactada (auto)
-      //  (c) cualquier caso marcado manualmente como workspace=finalizacion
-      // Ningún caso ALTERA su status por aparecer aquí — Finalización es un workspace.
+      // Finalización es un WORKSPACE: agrupa
+      //  (a) casos activos genuinamente en etapa 'finalizacion'
+      //  (b) cualquier caso marcado manualmente como workspace=finalizacion
+      // La marca workspace NO altera status — el caso sigue contando donde corresponde.
       if(activeCatTab === 'finalizacion'){
-        return getCaseCat(c) === 'finalizacion' || _isPendRes(c) || _isWS(c);
+        return getCaseCat(c) === 'finalizacion' || _isWS(c);
       }
       return getCaseCat(c) === activeCatTab;
     });
