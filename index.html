@@ -1002,12 +1002,13 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
     <!-- CASOS TABLE VIEW -->
     <div class="view" id="viewTabla" style="flex-direction:column;overflow:hidden;">
       <div class="casos-tabs" id="casosTabs">
-        <div class="cat-tab active" onclick="setCatTab('genero')">👥 Género <span class="tab-count" id="cnt-genero">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('no_genero')">📋 No Género <span class="tab-count" id="cnt-no_genero">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('cargos')">⚖️ Cargos <span class="tab-count" id="cnt-cargos">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('probatorio')">📋 Probatorio <span class="tab-count" id="cnt-probatorio">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('finalizacion')">✅ Finalización <span class="tab-count" id="cnt-finalizacion">0</span></div>
-        <div class="cat-tab" onclick="setCatTab('terminado')">📦 Terminados <span class="tab-count" id="cnt-terminado">0</span></div>
+        <div class="cat-tab active" onclick="setCatTab('indagatoria_inicial')" title="Casos en investigación inicial">🔍 Indagatoria inicial <span class="tab-count" id="cnt-indagatoria_inicial">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('termino_indagatoria')" title="Casos próximos a la resolución de cierre de indagatoria (formulación de cargos)">⚖️ Término Etapa Indagatoria <span class="tab-count" id="cnt-termino_indagatoria">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('decision')" title="Casos con resolución pendiente del fiscal">📜 Decisión <span class="tab-count" id="cnt-decision">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('discusion_prueba')" title="Casos en período de descargos y rendición de pruebas">🛡️ Discusión y Prueba <span class="tab-count" id="cnt-discusion_prueba">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('preparacion_vista')" title="Casos en preparación de vista fiscal">👁️ Preparación de Vista <span class="tab-count" id="cnt-preparacion_vista">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('finalizacion')" title="Casos pendientes de cierre formal">✅ Finalización <span class="tab-count" id="cnt-finalizacion">0</span></div>
+        <div class="cat-tab" onclick="setCatTab('terminado')" title="Casos terminados">📦 Terminados <span class="tab-count" id="cnt-terminado">0</span></div>
         <div class="cat-tab" id="tab-cuestionarios" onclick="openCuestionarios()" style="border-left:1px solid var(--border);margin-left:4px;padding-left:12px" title="Cuestionarios indagatorios, actas y resoluciones de mero trámite">❓ Cuestionarios</div>
       </div>
       <div class="casos-toolbar">
@@ -1680,7 +1681,7 @@ Si el estamento NO está determinado, señálalo como [ESTAMENTO NO DETERMINADO 
 `;
 
 /* ── Auth state ── */
-let session=null,currentCase=null,allCases=[],activeFn='F0',activeCatTab='genero';
+let session=null,currentCase=null,allCases=[],activeFn='F0',activeCatTab='indagatoria_inicial';
 
 /* #19: Cleanup registry for dynamic event listeners */
 const _cleanupFns=[];
@@ -1878,7 +1879,7 @@ function renderCaseHeader(){
   let dur;try{dur=c.duracion_dias||calcDur();}catch{dur=null;}
   const resColor={'Sanción':'var(--red)','Sobreseimiento':'var(--green)','Absuelto':'var(--blue)'};
   const f=(label,val)=>val?`<div><div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">${label}</div><div style="font-weight:500">${esc(val)}</div></div>`:'';
-  const caseCat=typeof getCaseCat==='function'?getCaseCat(c):(activeCatTab||'genero');
+  const caseCat=typeof getCaseCat==='function'?getCaseCat(c):(activeCatTab||'indagatoria_inicial');
   const catLabel=(typeof CAT_LABELS!=='undefined'?CAT_LABELS:{})[caseCat]||'Mis Casos';
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text-muted)">
@@ -2143,22 +2144,62 @@ async function confirmDeleteCase(){
 /* ── Tabla view ── */
 function openTabla(){showView('viewTabla');renderTabla();}
 
-const CAT_LABELS={genero:'Género',no_genero:'No Género',cargos:'Cargos',probatorio:'Probatorio',finalizacion:'Finalización',terminado:'Terminado'};
-const VALID_CATS=new Set(['genero','no_genero','cargos','probatorio','finalizacion','terminado']);
-/* getCaseCat asignada a window para permitir override por mod-auto-subdivision */
-window.getCaseCat=function(c){
-  // 1) status terminado tiene prioridad — siempre va a pestaña Terminados
-  if(c.status==='terminado') return 'terminado';
-  // 2) Campo categoria guardado en BD
-  if(c.categoria && VALID_CATS.has(c.categoria)) return c.categoria;
-  // 3) Derivar desde materia (solo si categoria no está en BD)
-  const m=(c.materia||'').toLowerCase();
-  if(m.includes('acoso')||m.includes('género')||m.includes('violencia')||m.includes('genero')) return 'genero';
-  return 'no_genero';
+/* ── Categorías por ETAPA PROCESAL (consistente con xlsx export — ver mod-export-casos-xlsx.js ETAPA_MAP) ──
+   Las pestañas reflejan la etapa procesal actual del caso, derivada de
+   `estado_procedimiento` (cases) o `current_stage` (etapas table).
+   Orden de las pestañas (definido por la usuaria): Indagatoria inicial → Término
+   Etapa Indagatoria → Decisión → Discusión y Prueba → Preparación de Vista →
+   Finalización → Terminados. */
+const CAT_LABELS={
+  indagatoria_inicial:'Indagatoria inicial',
+  termino_indagatoria:'Término Etapa Indagatoria',
+  decision:'Decisión',
+  discusion_prueba:'Discusión y Prueba',
+  preparacion_vista:'Preparación de Vista',
+  finalizacion:'Finalización',
+  terminado:'Terminado'
+};
+const VALID_CATS=new Set(['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado']);
+
+/* Helper: deriva la cat key nueva desde el campo `estado_procedimiento` (o el
+   stage de la tabla etapas, vía window.etapasMap inyectado por mod-auto-subdivision).
+   Replica EXACTAMENTE la lógica de getEtapaKey() del export xlsx para que las
+   pestañas y el archivo Excel siempre coincidan en su clasificación. */
+window.deriveCatFromStage=function(c){
+  /* Lookup de la etapa: prioriza tabla etapas (más reciente que cases.estado_procedimiento) */
+  let stage='';
+  try{
+    if(typeof window!=='undefined' && window.etapasMap && c && c.id && window.etapasMap[c.id]){
+      stage=String(window.etapasMap[c.id]||'').toLowerCase();
+    }
+  }catch{}
+  if(!stage)stage=String(c?.estado_procedimiento||'').toLowerCase();
+  /* Normalización (quitar acentos para que "Indagación" o "indagatoria" coincidan) */
+  try{stage=stage.normalize('NFD').replace(/[̀-ͯ]/g,'');}catch{}
+  if(!stage)return 'indagatoria_inicial'; /* default: caso recién creado */
+  if(stage.includes('indagat'))   return 'indagatoria_inicial';
+  if(stage.includes('cargo'))     return 'termino_indagatoria';
+  if(stage.includes('descargo'))  return 'discusion_prueba';
+  if(stage.includes('prueba'))    return 'discusion_prueba';
+  if(stage.includes('vista'))     return 'preparacion_vista';
+  if(stage.includes('resol'))     return 'decision';
+  if(stage.includes('final'))     return 'finalizacion';
+  return 'indagatoria_inicial';
 };
 
-/* ── Casos activos: solo genero, no_genero, cargos, finalizacion ── */
-const ACTIVE_CATS=new Set(['genero','no_genero','cargos','probatorio','finalizacion']);
+/* getCaseCat asignada a window para permitir override por mod-auto-subdivision.
+   Lógica: terminado > categoria nueva válida en BD > derivar desde estado_procedimiento. */
+window.getCaseCat=function(c){
+  // 1) status terminado tiene prioridad
+  if(c.status==='terminado'||c.status==='archived'||c.status==='cerrado') return 'terminado';
+  // 2) Categoría nueva válida explícitamente seteada en BD
+  if(c.categoria && VALID_CATS.has(c.categoria)) return c.categoria;
+  // 3) Derivar desde estado_procedimiento / etapas
+  return window.deriveCatFromStage(c);
+};
+
+/* ── Casos activos: todo menos 'terminado' ── */
+const ACTIVE_CATS=new Set(['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion']);
 window.getActiveCases=function(){
   return (typeof allCases!=='undefined'?allCases:[]).filter(c=>ACTIVE_CATS.has(getCaseCat(c)));
 };
@@ -2171,7 +2212,7 @@ window.getActiveCases=function(){
 window.buildCaseSelectorHTML=function(onchangeFn, selectedId){
   const cases=getActiveCases();
   if(!cases.length) return '<span style="color:var(--red);font-size:11px">No hay expedientes activos</span>';
-  const catIcons={genero:'👥',no_genero:'📋',cargos:'⚖️',probatorio:'📋',finalizacion:'✅'};
+  const catIcons={indagatoria_inicial:'🔍',termino_indagatoria:'⚖️',decision:'📜',discusion_prueba:'🛡️',preparacion_vista:'👁️',finalizacion:'✅'};
   const opts=cases.map(c=>{
     const cat=getCaseCat(c);
     const icon=catIcons[cat]||'📁';
@@ -2209,7 +2250,7 @@ window.fnShowCaseSelector=function(){
 };
 
 function updateCatCounts(){
-  ['genero','no_genero','cargos','probatorio','finalizacion','terminado'].forEach(cat=>{
+  ['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado'].forEach(cat=>{
     const el=document.getElementById('cnt-'+cat);
     if(el)el.textContent=allCases.filter(c=>getCaseCat(c)===cat).length;
   });
@@ -2446,10 +2487,23 @@ async function moveCase(caseId,newCat){
     nuevaRes=input.trim()||null;
   }
 
+  /* Mapeo cat → estado_procedimiento (lo que el xlsx export y getCaseCat usan
+     para clasificar). Cambiar de pestaña actualiza la etapa procesal del caso. */
+  const CAT_TO_ESTADO={
+    indagatoria_inicial:'Indagatoria',
+    termino_indagatoria:'Cargos',
+    discusion_prueba:'Descargos',
+    preparacion_vista:'Vista Fiscal',
+    decision:'Resolución',
+    finalizacion:'Finalización',
+    terminado:'Finalización'
+  };
+  const nuevoEstado=CAT_TO_ESTADO[newCat]||null;
+
   const payload={categoria:newCat,status:newCat==='terminado'?'terminado':'active',updated_at:new Date().toISOString()};
+  if(nuevoEstado)payload.estado_procedimiento=nuevoEstado;
   if(newCat==='terminado'){
     payload.nueva_resolucion=nuevaRes;
-    payload.estado_procedimiento='Finalización';
   }
 
   const{error}=await sb.from('cases').update(payload).eq('id',caseId);
@@ -2457,7 +2511,8 @@ async function moveCase(caseId,newCat){
   const idx=allCases.findIndex(x=>x.id===caseId);
   if(idx>=0){
     allCases[idx].categoria=newCat;
-    if(newCat==='terminado'){allCases[idx].status='terminado';allCases[idx].nueva_resolucion=nuevaRes;allCases[idx].estado_procedimiento='Finalización';}
+    if(nuevoEstado)allCases[idx].estado_procedimiento=nuevoEstado;
+    if(newCat==='terminado'){allCases[idx].status='terminado';allCases[idx].nueva_resolucion=nuevaRes;}
   }
   updateCatCounts();setCatTab(activeCatTab);showToast('✓ Caso movido a '+CAT_LABELS[newCat]);
 }

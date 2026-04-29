@@ -6,19 +6,41 @@
 (function(){
 'use strict';
 
-/* ── Constantes de etapas ── */
-const FINALIZATION_STAGES = new Set([
-  'vista','vista fiscal','resolución','resolucion','finalización','finalizacion','término','termino','cerrado'
-]);
-const CARGOS_STAGES = new Set([
-  'cargos','descargos','discusión','discusion'
-]);
-const PROBATORIO_STAGES = new Set([
-  'prueba','probatorio','término probatorio','termino probatorio','periodo probatorio','apertura probatorio'
-]);
+/* ── Mapeo etapa procesal → cat key (alineado con mod-export-casos-xlsx.js).
+   Las cat-tabs ahora reflejan la etapa procesal del caso, no su materia. */
+const STAGE_TO_CAT = {
+  indagatoria:           'indagatoria_inicial',
+  cargos:                'termino_indagatoria',
+  descargos:             'discusion_prueba',
+  prueba:                'discusion_prueba',
+  probatorio:            'discusion_prueba',
+  vista:                 'preparacion_vista',
+  'vista fiscal':        'preparacion_vista',
+  resolucion:            'decision',
+  'resolución':          'decision',
+  finalizacion:          'finalizacion',
+  'finalización':        'finalizacion',
+  termino:               'finalizacion',
+  'término':             'finalizacion',
+  cerrado:               'terminado'
+};
 
-/* Regex para detectar caso de género por nombre/rol (ej: "56 G", "123-G", "45G") */
-const GENDER_REGEX = /\d+\s*[-]?\s*G(?:\s|$|[^a-záéíóúñA-ZÁÉÍÓÚÑ])/i;
+function _stageToCat(stage){
+  if(!stage) return null;
+  let s = String(stage).toLowerCase().trim();
+  try{ s = s.normalize('NFD').replace(/[̀-ͯ]/g,''); }catch{}
+  if(STAGE_TO_CAT[s]) return STAGE_TO_CAT[s];
+  if(s.includes('indagat'))   return 'indagatoria_inicial';
+  if(s.includes('cargo'))     return 'termino_indagatoria';
+  if(s.includes('descargo'))  return 'discusion_prueba';
+  if(s.includes('prueba'))    return 'discusion_prueba';
+  if(s.includes('vista'))     return 'preparacion_vista';
+  if(s.includes('resol'))     return 'decision';
+  if(s.includes('final'))     return 'finalizacion';
+  if(s.includes('termin'))    return 'finalizacion';
+  if(s.includes('cerrado'))   return 'terminado';
+  return null;
+}
 
 /* ── Cache de datos auxiliares ── */
 let etapasMap = {};      // case_id → current_stage
