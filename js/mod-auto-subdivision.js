@@ -128,14 +128,22 @@ function enhanceTabs(){
   const tabsContainer = document.getElementById('casosTabs');
   if(!tabsContainer) return;
 
-  // Añadir pestaña Compartidos si no existe
+  // Añadir pestaña Compartidos si no existe.
+  // Se inserta ANTES de #tab-terminado para que Terminados quede como la última
+  // pestaña visible (Terminados representa "casos cerrados", debe ir al final).
+  // Si #tab-terminado no existe (carga temprana), se hace fallback a appendChild.
   if(!document.getElementById('tab-compartidos')){
     const sharedTab = document.createElement('div');
     sharedTab.id = 'tab-compartidos';
     sharedTab.className = 'cat-tab';
     sharedTab.onclick = () => setCatTab('compartidos');
     sharedTab.innerHTML = '🔗 Compartidos <span class="tab-count" id="cnt-compartidos">0</span>';
-    tabsContainer.appendChild(sharedTab);
+    const terminadoTab = document.getElementById('tab-terminado');
+    if(terminadoTab){
+      tabsContainer.insertBefore(sharedTab, terminadoTab);
+    } else {
+      tabsContainer.appendChild(sharedTab);
+    }
   }
 
   // Añadir filtro de etapa si no existe
