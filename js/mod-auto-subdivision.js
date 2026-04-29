@@ -44,7 +44,11 @@ function _stageToCat(stage){
 
 /* ── Cache de datos auxiliares ── */
 let etapasMap = {};      // case_id → current_stage
-let metadataMap = {};    // case_id → { manual_category, ... }
+let metadataMap = {};    // case_id → manual_category (string, legacy)
+/* Workspace flags: case_id → true cuando la fiscal marca el caso para trabajar
+   en él en la pestaña Finalización (vía case_metadata.key='workspace'). NO altera
+   status/categoria — el caso sigue siendo Terminado en estadísticas. */
+let finalizacionWorkspaceIds = new Set();
 let sharesMap = {};      // case_id → { shared_by, role }
 let sharedCaseIds = new Set();
 
@@ -54,10 +58,11 @@ async function loadSubdivisionData(){
   if(!_sb || !session) return;
 
   try {
-    // Cargar en paralelo: etapas, metadata manual_category, y shares
-    const [etapasRes, metaRes, sharesRes] = await Promise.all([
+    // Cargar en paralelo: etapas, metadata (manual_category + workspace), y shares
+    const [etapasRes, metaRes, wsRes, sharesRes] = await Promise.all([
       _sb.from('etapas').select('case_id,current_stage'),
       _sb.from('case_metadata').select('case_id,key,value').eq('key','manual_category'),
+      _sb.from('case_metadata').select('case_id,value').eq('key','workspace'),
       _sb.from('case_shares').select('case_id,shared_by,role')
     ]);
 
@@ -67,11 +72,19 @@ async function loadSubdivisionData(){
       etapasRes.data.forEach(e => { etapasMap[e.case_id] = (e.current_stage||'').toLowerCase().trim(); });
     }
 
-    // Mapear metadata de categoría manual
+    // Mapear metadata de categoría manual (legacy)
     metadataMap = {};
     if(metaRes.data){
       metaRes.data.forEach(m => { metadataMap[m.case_id] = m.value; });
     }
+
+    // Mapear flags de workspace (finalización u otros workspaces futuros)
+    finalizacionWorkspaceIds = new Set();
+    if(wsRes.data){
+      wsRes.data.forEach(w => { if(w.value === 'finalizacion') finalizacionWorkspaceIds.add(w.case_id); });
+    }
+    /* Exponer globalmente para que index.html y el redactor puedan consultarlo */
+    window.finalizacionWorkspaceIds = finalizacionWorkspaceIds;
 
     // Mapear shares
     sharesMap = {};
