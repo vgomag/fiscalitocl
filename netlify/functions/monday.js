@@ -53,10 +53,36 @@ async function _validateUid(token){
   return uid;
 }
 
+/* ── Cache del token (TTL 5 min) para no martillar Supabase en cada call ── */
+let _cachedToken = null, _cachedTokenAt = 0;
+
+/* ── Lee el MONDAY_API_TOKEN desde la tabla system_secrets de Supabase.
+   Se hace así porque las env vars de Netlify llegaron al límite de 4KB de
+   AWS Lambda (sumadas todas pasaban el cap). La tabla está bloqueada por
+   RLS para usuarios; solo el service_role la puede leer. */
+async function _getMondayToken(){
+  const now = Date.now();
+  if(_cachedToken && (now - _cachedTokenAt < 300000)) return _cachedToken;
+  const sbUrl = Netlify.env.get('SUPABASE_URL') || Netlify.env.get('VITE_SUPABASE_URL');
+  const sbKey = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if(!sbUrl || !sbKey) throw new Error('Supabase no configurado para leer secretos');
+  const r = await fetch(`${sbUrl}/rest/v1/system_secrets?key=eq.monday_api_token&select=value`, {
+    headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` }
+  });
+  if(!r.ok) throw new Error('Error leyendo secreto de Supabase: HTTP ' + r.status);
+  const rows = await r.json();
+  const token = rows?.[0]?.value;
+  if(!token || token === 'PLACEHOLDER_PEGAR_TOKEN_AQUI'){
+    throw new Error('MONDAY_API_TOKEN no está configurado · pídele al admin que ejecute el INSERT en system_secrets');
+  }
+  _cachedToken = token;
+  _cachedTokenAt = now;
+  return token;
+}
+
 /* ── Llamada al API de Monday ── */
 async function _mondayCall(query, variables){
-  const token = Netlify.env.get('MONDAY_API_TOKEN');
-  if(!token) throw new Error('MONDAY_API_TOKEN no configurado en Netlify env vars');
+  const token = await _getMondayToken();
   const ac = new AbortController();
   const to = setTimeout(()=>ac.abort(), 25000);
   try {
@@ -190,11 +216,6 @@ export default async (req) => {
   if(!authToken) return _json({ error: 'No autorizado — sesión requerida' }, 401, CORS);
   const uid = await _validateUid(authToken);
   if(!uid) return _json({ error: 'Token inválido o expirado' }, 401, CORS);
-
-  /* Token de Monday configurado */
-  if(!Netlify.env.get('MONDAY_API_TOKEN')){
-    return _json({ error: 'MONDAY_API_TOKEN no está configurado en Netlify · pídele al admin que lo agregue' }, 500, CORS);
-  }
 
   let body;
   try { body = await req.json(); }
