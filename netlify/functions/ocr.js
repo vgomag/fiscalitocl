@@ -102,7 +102,7 @@ function driveText(path, token) {
 function callClaude(apiKey, model, system, userContent, maxTokens) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ model, max_tokens: maxTokens || CLAUDE_MAX_TOKENS, system, messages: [{ role: 'user', content: userContent }] });
-    const _to = setTimeout(() => req.destroy(), CLAUDE_TIMEOUT_MS);
+    let _to;
     const req = https.request('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       timeout: CLAUDE_TIMEOUT_MS
