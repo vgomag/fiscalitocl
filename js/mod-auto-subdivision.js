@@ -188,18 +188,30 @@ window.updateCatCounts = function(){
   const isOwn = c => !(userId && c.user_id !== userId && sharedCaseIds.has(c.id));
   const ACTIVE_KEYS = ['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion'];
   const _isPendRes = c => typeof window.isTerminadoPendienteResolucion === 'function' && window.isTerminadoPendienteResolucion(c);
+  /* Flag de workspace marcado por la fiscal vía dropdown "Mover a Finalización".
+     El caso aparece en Finalización SIN cambiar status (sigue siendo Terminado). */
+  const _isWS = c => finalizacionWorkspaceIds && finalizacionWorkspaceIds.has(c.id);
 
   /* Total de casos ACTIVOS propios (denominador del %) */
   const totalActivos = allCases.filter(c => isOwn(c) && ACTIVE_KEYS.includes(getCaseCat(c))).length;
 
   /* Pestañas activas: "N · X%" donde X% = N / totalActivos.
-     Finalización suma además los terminados pendientes de resolución de término. */
+     Finalización suma además: (1) terminados pendientes de resolución de término,
+     y (2) casos marcados manualmente como workspace='finalizacion' por la fiscal. */
   ACTIVE_KEYS.forEach(cat => {
     const el = document.getElementById('cnt-' + cat);
     if(!el) return;
     let n = allCases.filter(c => isOwn(c) && getCaseCat(c) === cat).length;
     if(cat === 'finalizacion'){
-      n += allCases.filter(c => isOwn(c) && _isPendRes(c)).length;
+      /* Set para evitar duplicados si un caso cumple varias condiciones */
+      const setFinal = new Set();
+      allCases.forEach(c => {
+        if(!isOwn(c)) return;
+        if(getCaseCat(c) === 'finalizacion') setFinal.add(c.id);
+        if(_isPendRes(c)) setFinal.add(c.id);
+        if(_isWS(c)) setFinal.add(c.id);
+      });
+      n = setFinal.size;
     }
     const pct = totalActivos > 0 ? Math.round((n / totalActivos) * 100) : 0;
     el.textContent = n + (totalActivos > 0 ? ` · ${pct}%` : '');
