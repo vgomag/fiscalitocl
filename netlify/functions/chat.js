@@ -260,13 +260,21 @@ export default async (req) => {
         return json({ error: 'No audio (ni audioBase64 ni signedUrl)' }, 400);
       }
 
+      /* Idioma opcional desde el body — default español. Permite transcribir
+         audios en otros idiomas sin tener que tocar este código. */
+      const lang = (body.language && /^[a-z]{2,3}$/i.test(body.language)) ? body.language : 'es';
+      const elevenLang = lang === 'es' ? 'spa' : (lang === 'en' ? 'eng' : lang);
+
       let transcript = null, provider = null;
+      /* Acumular errores de cada proveedor para reportarlos al cliente si AMBOS fallan
+         (antes solo se decía "Transcripción falló" sin contexto). */
+      const failures = [];
       if (openaiKey) {
         try {
           const boundary = '----B' + Date.now();
           const parts = [];
           addField(parts, boundary, 'model', 'whisper-1');
-          addField(parts, boundary, 'language', 'es');
+          addField(parts, boundary, 'language', lang);
           addField(parts, boundary, 'response_format', 'text');
           addFile(parts, boundary, 'file', fileName || 'audio.wav', mimeType || 'audio/wav', audioBytes);
           parts.push(Buffer.from('--' + boundary + '--\r\n'));
@@ -278,18 +286,29 @@ export default async (req) => {
             });
             clearTimeout(_to);
             if (r.ok) { transcript = await r.text(); provider = 'whisper'; }
+            else {
+              /* Intentar leer mensaje de error específico del API */
+              let detail = `HTTP ${r.status}`;
+              try { const ej = await r.json(); detail = ej.error?.message || ej.error || detail; }
+              catch(e){ try { detail = (await r.text()).substring(0,150) || detail; } catch{} }
+              failures.push('Whisper: ' + detail);
+            }
           } catch (fetchErr) {
             clearTimeout(_to);
             throw fetchErr;
           }
-        } catch (e) { console.log('Whisper:', e.message); }
+        } catch (e) {
+          const msg = e.name === 'AbortError' ? 'Whisper: timeout (30s)' : 'Whisper: ' + e.message;
+          console.log(msg);
+          failures.push(msg);
+        }
       }
       if (elevenKey && !transcript) {
         try {
           const boundary = '----B' + Date.now();
           const parts = [];
           addField(parts, boundary, 'model_id', 'scribe_v1');
-          addField(parts, boundary, 'language_code', 'spa');
+          addField(parts, boundary, 'language_code', elevenLang);
           addFile(parts, boundary, 'file', fileName || 'audio.wav', mimeType || 'audio/wav', audioBytes);
           parts.push(Buffer.from('--' + boundary + '--\r\n'));
           const _ac = new AbortController();
@@ -300,13 +319,28 @@ export default async (req) => {
             });
             clearTimeout(_to);
             if (r.ok) { const d = await r.json(); transcript = d.text || ''; provider = 'elevenlabs'; }
+            else {
+              let detail = `HTTP ${r.status}`;
+              try { const ej = await r.json(); detail = ej.detail?.message || ej.detail || ej.error || detail; }
+              catch(e){ try { detail = (await r.text()).substring(0,150) || detail; } catch{} }
+              failures.push('ElevenLabs: ' + detail);
+            }
           } catch (fetchErr) {
             clearTimeout(_to);
             throw fetchErr;
           }
-        } catch (e) { console.log('ElevenLabs:', e.message); }
+        } catch (e) {
+          const msg = e.name === 'AbortError' ? 'ElevenLabs: timeout (30s)' : 'ElevenLabs: ' + e.message;
+          console.log(msg);
+          failures.push(msg);
+        }
       }
-      if (!transcript) return json({ error: 'Transcripción falló' }, 500);
+      if (!transcript) {
+        /* Detectar audio sin habla → string vacío, no es error real */
+        if (transcript === '') return json({ transcript: '', provider, warning: 'No se detectó habla en el audio' });
+        const errMsg = failures.length ? 'Transcripción falló — ' + failures.join(' | ') : 'Transcripción falló';
+        return json({ error: errMsg }, 500);
+      }
       return json({ transcript, provider });
     }
 
