@@ -1204,14 +1204,26 @@ const CLAUDE_HAIKU = 'claude-haiku-4-5-20251001';
 const CASE_COLUMNS = 'id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento,user_id,caratula,description,resolucion_termino,propuesta,judicializada,medida_cautelar,deleted_at';
 
 /** Fetch autenticado — envía token de Supabase en cada request al chat.
- *  Si recibe 401, intenta refrescar el token y reintentar una vez. (#8) */
+ *  Si recibe 401, intenta refrescar el token y reintentar una vez. (#8)
+ *  SEC FIX: mutex (_refreshPromise) para serializar refresh y evitar que múltiples
+ *  401 simultáneos disparen refresh en paralelo (lo que invalida el refresh token
+ *  en Supabase y desconecta al usuario). */
+let _refreshPromise = null;
 async function authFetch(url, options = {}) {
   const token = session?.access_token || '';
   const headers = { ...(options.headers || {}), 'x-auth-token': token };
   const res = await fetch(url, { ...options, headers });
   if(res.status === 401 && session){
     try{
-      const{data}=await sb.auth.refreshSession();
+      /* Reusar el refresh en curso si ya hay uno; si no, iniciar uno nuevo */
+      if(!_refreshPromise){
+        _refreshPromise = sb.auth.refreshSession()
+          .finally(()=>{ /* liberar el mutex en next tick para que las llamadas
+                            que se esperaban resuelvan con el resultado */
+            setTimeout(()=>{ _refreshPromise = null; }, 0);
+          });
+      }
+      const {data} = await _refreshPromise;
       /* SEC-12 FIX: Validar que el token renovado tenga access_token y user_id válidos */
       if(data?.session?.access_token && data?.session?.user?.id){
         session=data.session;
@@ -4727,7 +4739,7 @@ function renderResoluciones(data){
         ${r.fiscal_designado?`<div class="res-fiscal">⚖️ Fiscal: ${esc(r.fiscal_designado)}</div>`:''}
         ${r.authority?`<div class="res-fiscal">🏛 Autoridad: ${esc(r.authority)}</div>`:''}
         <div class="card-actions" style="margin-top:6px">
-          <button class="btn-del" onclick="deleteResolucion('${r.id}')">Eliminar</button>
+          <button class="btn-del" onclick="deleteResolucion('${esc(r.id)}')">Eliminar</button>
           <button class="btn-edit" data-res="${esc(JSON.stringify(r))}" onclick="editResolucion(JSON.parse(this.dataset.res))">Editar</button>
         </div>
       </div>`).join('')}
