@@ -170,21 +170,32 @@ window.applyStageFilter = function(val){
   if(typeof renderTabla === 'function') renderTabla();
 };
 
-/* ── Patchear updateCatCounts para incluir compartidos ── */
+/* ── Patchear updateCatCounts para incluir compartidos + % de avance ── */
 window.updateCatCounts = function(){
   const userId = session?.user?.id;
-  // Counts por categoría (nuevas etapas procesales)
-  ['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado'].forEach(cat => {
+  /* Filtra casos propios (excluye los compartidos por terceros) */
+  const isOwn = c => !(userId && c.user_id !== userId && sharedCaseIds.has(c.id));
+  const ACTIVE_KEYS = ['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion'];
+
+  /* Total de casos ACTIVOS propios (denominador del %) */
+  const totalActivos = allCases.filter(c => isOwn(c) && ACTIVE_KEYS.includes(getCaseCat(c))).length;
+
+  /* Pestañas activas: "N · X%" donde X% = N / totalActivos */
+  ACTIVE_KEYS.forEach(cat => {
     const el = document.getElementById('cnt-' + cat);
-    if(el) el.textContent = allCases.filter(c => {
-      if(userId && c.user_id !== userId && sharedCaseIds.has(c.id)) return false;
-      return getCaseCat(c) === cat;
-    }).length;
+    if(!el) return;
+    const n = allCases.filter(c => isOwn(c) && getCaseCat(c) === cat).length;
+    const pct = totalActivos > 0 ? Math.round((n / totalActivos) * 100) : 0;
+    el.textContent = n + (totalActivos > 0 ? ` · ${pct}%` : '');
   });
-  // Count compartidos
+
+  /* Terminados: solo conteo (no aplica % de avance) */
+  const elT = document.getElementById('cnt-terminado');
+  if(elT) elT.textContent = allCases.filter(c => isOwn(c) && getCaseCat(c) === 'terminado').length;
+
+  /* Count compartidos */
   const sharedEl = document.getElementById('cnt-compartidos');
   if(sharedEl){
-    const userId = session?.user?.id;
     sharedEl.textContent = allCases.filter(c => userId && c.user_id !== userId && sharedCaseIds.has(c.id)).length;
   }
 };

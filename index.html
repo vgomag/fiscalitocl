@@ -2251,10 +2251,24 @@ window.fnShowCaseSelector=function(){
 };
 
 function updateCatCounts(){
-  ['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado'].forEach(cat=>{
+  /* Total de casos ACTIVOS (excluye terminados) — base para el % de avance procesal.
+     Cada pestaña activa muestra "N · X%": N casos en esa etapa, X% del total activo.
+     La pestaña Terminados solo muestra el conteo (no aplica % de avance). */
+  const ACTIVE_KEYS=['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion'];
+  const totalActivos=allCases.filter(c=>{
+    const cat=getCaseCat(c);
+    return cat!=='terminado' && ACTIVE_KEYS.includes(cat);
+  }).length;
+  ACTIVE_KEYS.forEach(cat=>{
     const el=document.getElementById('cnt-'+cat);
-    if(el)el.textContent=allCases.filter(c=>getCaseCat(c)===cat).length;
+    if(!el)return;
+    const n=allCases.filter(c=>getCaseCat(c)===cat).length;
+    const pct=totalActivos>0?Math.round((n/totalActivos)*100):0;
+    el.textContent=n+(totalActivos>0?` · ${pct}%`:'');
   });
+  /* Terminados: solo conteo */
+  const elT=document.getElementById('cnt-terminado');
+  if(elT)elT.textContent=allCases.filter(c=>getCaseCat(c)==='terminado').length;
 }
 function setCatTab(cat){
   activeCatTab=cat;
