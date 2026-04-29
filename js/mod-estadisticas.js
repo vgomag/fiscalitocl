@@ -703,7 +703,6 @@ ${dataSummary}`,
         return;
       }
       const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')||'Sin respuesta.';
-      _statsChatHistory.push({role:'assistant',content:reply});
 
       /* Parsear bloque [CASOS_REFERENCIADOS] para habilitar exportación a Excel */
       let visibleReply=reply;
@@ -726,12 +725,13 @@ ${dataSummary}`,
           }
         }catch(e){console.warn('[stats-chat] no se pudo parsear CASOS_REFERENCIADOS:',e.message);}
       }
+      /* Guardar en el historial el texto visible (sin el bloque oculto), para no contaminar turnos siguientes */
+      _statsChatHistory.push({role:'assistant',content:visibleReply});
 
       const msgId=_statsChatNextMsgId++;
       let exportBtnHtml='';
       if(refMeta){
         _statsChatRefs[msgId]=refMeta;
-        const safeTitle=esc(refMeta.titulo);
         exportBtnHtml=`<div style="margin-top:6px;display:flex;justify-content:flex-start">
           <button class="btn-sm" onclick="exportChatXLSX(${msgId})" title="Descargar estos ${refMeta.resoluciones.length} caso(s) en Excel"
             style="background:#107C41;color:#fff;font-size:10.5px;padding:4px 10px;border-radius:6px;font-weight:600;border:none;cursor:pointer">
@@ -777,6 +777,302 @@ async function exportStatsCSV(){
   showToast('✅ CSV descargado');
 }
 
+/* ═══════════════════════════════════════════════════════════
+   EXPORTACIÓN A EXCEL (XLSX)
+   - exportStatsXLSX()       → workbook completo (snapshot)
+   - exportChatXLSX(msgId)   → solo casos referenciados por una respuesta del chat IA
+   Usa la librería SheetJS (XLSX) ya cargada en index.html.
+   ═══════════════════════════════════════════════════════════ */
+
+function _xlsxLib(){return (typeof window!=='undefined'&&window.XLSX)?window.XLSX:null;}
+
+function _xlsxFmtArr(v){
+  if(v===null||v===undefined||v==='')return'';
+  if(Array.isArray(v))return v.filter(Boolean).join(', ');
+  try{const a=JSON.parse(v);return Array.isArray(a)?a.filter(Boolean).join(', '):String(v);}
+  catch{return String(v);}
+}
+function _xlsxFmtFecha(v){
+  if(!v)return'';
+  const iso=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(iso)return`${iso[3]}-${iso[2]}-${iso[1]}`;
+  return String(v);
+}
+function _xlsxUserSlug(){
+  try{
+    const u=session?.user?.email||'';
+    const slug=u.split('@')[0]||'usuario';
+    return slug.replace(/[^a-z0-9_-]/gi,'_');
+  }catch{return'usuario';}
+}
+function _xlsxSheetName(name){
+  /* Excel: máx 31 chars, sin []:*?/\ */
+  return String(name||'Hoja').replace(/[\[\]:*?\/\\]/g,'').substring(0,31)||'Hoja';
+}
+
+/* Columnas estándar para hojas detalladas de casos */
+const _XLSX_CASE_HEADERS_ACTIVOS=[
+  'Resolución','Nombre','Categoría','Tipo Procedimiento','Materia','Protocolo',
+  'Estado Procedimiento','Fecha Denuncia','Fecha Recepción Fiscalía',
+  'Denunciante(s)','Estamento Dte.','Carrera Dte.',
+  'Denunciado/a(s)','Estamento Ddo.','Carrera Ddo.',
+  'Días para Prescripción','Estado Prescripción','Drive'
+];
+const _XLSX_CASE_HEADERS_TERMINADOS=[
+  'Resolución','Nombre','Tipo Procedimiento','Materia','Protocolo','Resultado',
+  'Fecha Denuncia','Fecha Recepción Fiscalía','Fecha Vista',
+  'Duración (días hábiles)','Duración (meses)',
+  'Denunciante(s)','Estamento Dte.','Carrera Dte.',
+  'Denunciado/a(s)','Estamento Ddo.','Carrera Ddo.',
+  'Con Informe Final','Drive'
+];
+
+function _xlsxRowActivo(c){
+  const presc=calcPrescripcion(c.fecha_denuncia,c.tipo_procedimiento);
+  return [
+    c.nueva_resolucion||'',
+    c.name||'',
+    (typeof getCaseCat==='function')?getCaseCat(c):(c.categoria||''),
+    c.tipo_procedimiento||'',
+    c.materia||'',
+    c.protocolo||'',
+    c.estado_procedimiento||'',
+    _xlsxFmtFecha(c.fecha_denuncia),
+    _xlsxFmtFecha(c.fecha_recepcion_fiscalia),
+    _xlsxFmtArr(c.denunciantes),
+    _xlsxFmtArr(c.estamentos_denunciante),
+    c.carrera_denunciante||'',
+    _xlsxFmtArr(c.denunciados),
+    _xlsxFmtArr(c.estamentos_denunciado),
+    c.carrera_denunciado||'',
+    presc?presc.days:'',
+    presc?presc.label:'',
+    c.drive_folder_url?'Sí':'No'
+  ];
+}
+function _xlsxRowTerminado(c){
+  const days=c.duracion_dias||countBusinessDays(c.fecha_recepcion_fiscalia||c.created_at,c.fecha_vista)||'';
+  const months=(typeof days==='number'&&days>0)?+(days/21).toFixed(1):'';
+  return [
+    c.nueva_resolucion||'',
+    c.name||'',
+    c.tipo_procedimiento||'',
+    c.materia||'',
+    c.protocolo||'',
+    RESULTADO_LABELS[c.resultado]||c.resultado||'',
+    _xlsxFmtFecha(c.fecha_denuncia),
+    _xlsxFmtFecha(c.fecha_recepcion_fiscalia),
+    _xlsxFmtFecha(c.fecha_vista),
+    days,
+    months,
+    _xlsxFmtArr(c.denunciantes),
+    _xlsxFmtArr(c.estamentos_denunciante),
+    c.carrera_denunciante||'',
+    _xlsxFmtArr(c.denunciados),
+    _xlsxFmtArr(c.estamentos_denunciado),
+    c.carrera_denunciado||'',
+    (c.informe_final&&c.informe_final.length>100)?'Sí':'No',
+    c.drive_folder_url?'Sí':'No'
+  ];
+}
+
+/* Hoja "Resumen": KPIs + tablas de distribución */
+function _xlsxBuildResumenSheet(d){
+  const xx=_xlsxLib();
+  const aoa=[];
+  aoa.push(['ESTADÍSTICAS FISCALITO — RESUMEN']);
+  aoa.push(['Generado',new Date().toLocaleString('es-CL')]);
+  aoa.push(['Usuario',session?.user?.email||'']);
+  aoa.push([]);
+  aoa.push(['INDICADORES GENERALES']);
+  aoa.push(['Métrica','Valor']);
+  aoa.push(['Total casos',d.cases.length]);
+  aoa.push(['Casos activos',d.activos.length]);
+  aoa.push(['Casos terminados',d.terminados.length]);
+  aoa.push(['Duración promedio (días hábiles, terminados)',d.avgDuration||0]);
+  aoa.push(['Alertas de prescripción (urgente/prescrito)',d.prescAlerts.length]);
+  aoa.push(['Total diligencias',d.dils.length]);
+  aoa.push(['Total participantes',d.parts.length]);
+  aoa.push([]);
+  aoa.push(['DISTRIBUCIÓN POR CATEGORÍA (ACTIVOS)']);
+  aoa.push(['Categoría','N° casos']);
+  aoa.push(['Género',d.catGroups.genero.length]);
+  aoa.push(['No Género',d.catGroups.no_genero.length]);
+  aoa.push(['Cargos',d.catGroups.cargos.length]);
+  aoa.push(['Probatorio',d.catGroups.probatorio.length]);
+  aoa.push(['Finalización',d.catGroups.finalizacion.length]);
+  aoa.push([]);
+  aoa.push(['DISTRIBUCIÓN POR TIPO DE PROCEDIMIENTO (TODOS)']);
+  aoa.push(['Tipo','N° casos']);
+  Object.entries(d.dist.tipoProc).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>aoa.push([k,v]));
+  aoa.push([]);
+  aoa.push(['DISTRIBUCIÓN POR MATERIA (TODOS)']);
+  aoa.push(['Materia','N° casos']);
+  Object.entries(d.dist.materias).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>aoa.push([k,v]));
+  aoa.push([]);
+  aoa.push(['DISTRIBUCIÓN POR PROTOCOLO (TODOS)']);
+  aoa.push(['Protocolo','N° casos']);
+  Object.entries(d.dist.protocolos).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>aoa.push([k,v]));
+  aoa.push([]);
+  aoa.push(['DISTRIBUCIÓN POR RESULTADO (TERMINADOS)']);
+  aoa.push(['Resultado','N° casos']);
+  Object.entries(d.dist.resultados).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>aoa.push([k,v]));
+  aoa.push([]);
+  aoa.push(['DILIGENCIAS POR TIPO']);
+  aoa.push(['Tipo','N° diligencias']);
+  Object.entries(d.dilTypes).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>aoa.push([k,v]));
+  aoa.push([]);
+  aoa.push(['CASOS CREADOS POR MES (ÚLTIMOS 12)']);
+  aoa.push(['Mes','N° casos']);
+  Object.keys(d.dist.monthly).sort().slice(-12).forEach(m=>aoa.push([m,d.dist.monthly[m]||0]));
+
+  const ws=xx.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:48},{wch:18}];
+  return ws;
+}
+
+/* Hoja de prescripciones (alertas urgentes/prescrito) */
+function _xlsxBuildPrescSheet(d){
+  const xx=_xlsxLib();
+  const headers=['Resolución','Nombre','Tipo Procedimiento','Fecha Denuncia','Días para Prescripción','Estado'];
+  const rows=d.prescAlerts.map(a=>[
+    a.case.nueva_resolucion||'',
+    a.case.name||'',
+    a.case.tipo_procedimiento||'',
+    _xlsxFmtFecha(a.case.fecha_denuncia),
+    a.presc.days,
+    a.presc.label
+  ]);
+  const ws=xx.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=[{wch:18},{wch:32},{wch:24},{wch:14},{wch:18},{wch:14}];
+  if(rows.length)ws['!autofilter']={ref:xx.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:headers.length-1}})};
+  return ws;
+}
+
+/* Hoja de detalle de casos (activos o terminados) */
+function _xlsxBuildCasosSheet(casos,headers,rowFn){
+  const xx=_xlsxLib();
+  const rows=(casos||[]).map(rowFn);
+  const ws=xx.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=headers.map(h=>({wch:Math.max(12,Math.min(40,h.length+4))}));
+  if(rows.length)ws['!autofilter']={ref:xx.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:headers.length-1}})};
+  return ws;
+}
+
+/* ── EXPORT 1: Excel completo (snapshot del dashboard) ── */
+async function exportStatsXLSX(){
+  const xx=_xlsxLib();
+  if(!xx||!xx.utils||typeof xx.writeFile!=='function'){
+    const m='La librería XLSX no está disponible. Recarga la página.';
+    if(typeof showToast==='function')showToast('⚠ '+m);else alert(m);return;
+  }
+  if(!_statsData){
+    if(typeof showToast==='function')showToast('⚠ Carga primero las estadísticas');else alert('Sin datos');
+    try{await loadStats();}catch{}
+    if(!_statsData)return;
+  }
+  if(typeof showToast==='function')showToast('📊 Generando Excel completo…');
+
+  try{
+    const d=_statsData;
+    const wb=xx.utils.book_new();
+    xx.utils.book_append_sheet(wb,_xlsxBuildResumenSheet(d),_xlsxSheetName('Resumen'));
+    xx.utils.book_append_sheet(wb,_xlsxBuildCasosSheet(d.activos,_XLSX_CASE_HEADERS_ACTIVOS,_xlsxRowActivo),_xlsxSheetName('Casos Activos'));
+    xx.utils.book_append_sheet(wb,_xlsxBuildCasosSheet(d.terminados,_XLSX_CASE_HEADERS_TERMINADOS,_xlsxRowTerminado),_xlsxSheetName('Casos Terminados'));
+    if(d.prescAlerts.length)
+      xx.utils.book_append_sheet(wb,_xlsxBuildPrescSheet(d),_xlsxSheetName('Prescripciones'));
+
+    const fecha=new Date().toISOString().slice(0,10);
+    const filename=`Estadisticas-Fiscalito_${_xlsxUserSlug()}_${fecha}.xlsx`;
+    xx.writeFile(wb,filename);
+    if(typeof showToast==='function')showToast('✓ '+filename+' descargado');
+  }catch(e){
+    console.error('[exportStatsXLSX] error:',e);
+    if(typeof showToast==='function')showToast('⚠ Error: '+e.message);else alert('Error: '+e.message);
+  }
+}
+
+/* ── EXPORT 2: Excel de la consulta del chat IA ── */
+async function exportChatXLSX(msgId){
+  const xx=_xlsxLib();
+  if(!xx||!xx.utils||typeof xx.writeFile!=='function'){
+    const m='La librería XLSX no está disponible. Recarga la página.';
+    if(typeof showToast==='function')showToast('⚠ '+m);else alert(m);return;
+  }
+  const meta=_statsChatRefs[msgId];
+  if(!meta||!_statsData){
+    if(typeof showToast==='function')showToast('⚠ Sin datos para esta consulta');return;
+  }
+
+  /* Resolver: emparejar resoluciones devueltas por la IA con los casos reales en _statsData */
+  const norm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const wanted=new Set(meta.resoluciones.map(norm));
+  const matched=_statsData.cases.filter(c=>{
+    const r=norm(c.nueva_resolucion);
+    const n=norm(c.name);
+    return (r&&wanted.has(r))||(n&&wanted.has(n));
+  });
+
+  if(!matched.length){
+    if(typeof showToast==='function')showToast('⚠ No encontré los casos referenciados por la IA en tus datos');
+    console.warn('[exportChatXLSX] resoluciones IA:',meta.resoluciones,'· no matched');
+    return;
+  }
+
+  /* Separar activos/terminados según scope y según el clasificador real */
+  const isTerm=c=>{
+    const cat=(typeof getCaseCat==='function')?getCaseCat(c):(c.categoria||'');
+    return cat==='terminado';
+  };
+  const activos=matched.filter(c=>!isTerm(c));
+  const terminados=matched.filter(isTerm);
+
+  if(typeof showToast==='function')showToast('📊 Generando Excel de la consulta…');
+
+  try{
+    const wb=xx.utils.book_new();
+
+    /* Hoja "Consulta": pregunta + respuesta + metadata */
+    const consultaAoa=[
+      ['CONSULTA AL CHAT IA — FISCALITO'],
+      ['Generado',new Date().toLocaleString('es-CL')],
+      ['Usuario',session?.user?.email||''],
+      ['Título',meta.titulo||''],
+      ['Alcance (scope)',meta.scope||''],
+      ['Casos referenciados',matched.length+' de '+meta.resoluciones.length+' solicitados'],
+      [],
+      ['PREGUNTA'],
+      [meta.query||''],
+      [],
+      ['RESPUESTA (texto plano)'],
+      [(meta.reply||'').replace(/\r/g,'').split('\n').slice(0,200).join('\n')]
+    ];
+    const wsC=xx.utils.aoa_to_sheet(consultaAoa);
+    wsC['!cols']=[{wch:120}];
+    xx.utils.book_append_sheet(wb,wsC,_xlsxSheetName('Consulta'));
+
+    /* Hojas de detalle según scope */
+    if(meta.scope!=='terminados'&&activos.length)
+      xx.utils.book_append_sheet(wb,_xlsxBuildCasosSheet(activos,_XLSX_CASE_HEADERS_ACTIVOS,_xlsxRowActivo),_xlsxSheetName('Activos'));
+    if(meta.scope!=='activos'&&terminados.length)
+      xx.utils.book_append_sheet(wb,_xlsxBuildCasosSheet(terminados,_XLSX_CASE_HEADERS_TERMINADOS,_xlsxRowTerminado),_xlsxSheetName('Terminados'));
+
+    /* Si scope no calzó con la realidad, asegurar al menos una hoja con todos los casos */
+    if(wb.SheetNames.length===1){
+      xx.utils.book_append_sheet(wb,_xlsxBuildCasosSheet(matched,_XLSX_CASE_HEADERS_ACTIVOS,_xlsxRowActivo),_xlsxSheetName('Casos'));
+    }
+
+    const stamp=new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+    const titleSlug=(meta.titulo||'consulta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').substring(0,40)||'consulta';
+    const filename=`Consulta-IA_${titleSlug}_${stamp}.xlsx`;
+    xx.writeFile(wb,filename);
+    if(typeof showToast==='function')showToast('✓ '+filename+' descargado');
+  }catch(e){
+    console.error('[exportChatXLSX] error:',e);
+    if(typeof showToast==='function')showToast('⚠ Error: '+e.message);else alert('Error: '+e.message);
+  }
+}
+
 console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:#4f46e5;font-weight:bold');
 
 
@@ -788,6 +1084,8 @@ console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:
   window.renderStatsChat = renderStatsChat;
   window.statsChatSend = statsChatSend;
   window.exportStatsCSV = exportStatsCSV;
+  window.exportStatsXLSX = exportStatsXLSX;
+  window.exportChatXLSX = exportChatXLSX;
   window.calcPrescripcion = calcPrescripcion;
   /* Setter para cambiar pestaña desde onclick inline (la variable es local al IIFE) */
   window.setStatsTab = function(tab) { _statsActiveTab = tab; renderDashboard(); };
