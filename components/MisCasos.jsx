@@ -7,6 +7,19 @@ export default function MisCasos() {
   const [selectedCase, setSelectedCase] = useState(null);
   const [driveUrl, setDriveUrl] = useState('');
 
+  /* SEC FIX: Solo permitir URLs https de drive.google.com en hrefs.
+     Previene XSS via javascript:/data: URIs si la columna en DB se manipulara. */
+  const safeDriveUrl = (url) => {
+    if (!url || typeof url !== 'string') return null;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'https:') return null;
+      if (!/(^|\.)drive\.google\.com$/i.test(u.hostname) &&
+          !/(^|\.)docs\.google\.com$/i.test(u.hostname)) return null;
+      return url;
+    } catch { return null; }
+  };
+
   useEffect(() => {
     loadCases();
   }, []);
@@ -75,8 +88,8 @@ export default function MisCasos() {
                 <td className="px-4 py-2">{caso.materia}</td>
                 <td className="px-4 py-2 text-sm">{caso.protocolo}</td>
                 <td className="px-4 py-2 text-center">
-                  {caso.drive_folder_url ? (
-                    <a href={caso.drive_folder_url} target="_blank" rel="noopener noreferrer" 
+                  {safeDriveUrl(caso.drive_folder_url) ? (
+                    <a href={safeDriveUrl(caso.drive_folder_url)} target="_blank" rel="noopener noreferrer"
                        className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm font-semibold">
                       ✓ Vinculado
                     </a>
@@ -123,8 +136,8 @@ export default function MisCasos() {
               </div>
             </div>
 
-            {selectedCase.drive_folder_url && (
-              <a href={selectedCase.drive_folder_url} target="_blank" rel="noopener noreferrer"
+            {safeDriveUrl(selectedCase.drive_folder_url) && (
+              <a href={safeDriveUrl(selectedCase.drive_folder_url)} target="_blank" rel="noopener noreferrer"
                 className="block w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-center font-semibold">
                 Abrir en Google Drive →
               </a>
