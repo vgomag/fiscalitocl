@@ -256,6 +256,13 @@ window.renderTabla = function(searchOverride){
       }
       return getCaseCat(c) === activeCatTab;
     });
+    /* Diagnóstico: log cuando se filtra Finalización */
+    if(activeCatTab === 'finalizacion'){
+      const wsCount = (finalizacionWorkspaceIds||new Set()).size;
+      console.log('[renderTabla] Finalización · cases filtrados:', cases.length,
+        '· workspace ids en memoria:', wsCount,
+        '· total allCases:', allCases.length);
+    }
   }
 
   // Aplicar filtro de búsqueda
