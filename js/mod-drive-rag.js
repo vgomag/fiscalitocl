@@ -72,7 +72,10 @@ function scoreDocument(doc, keywords) {
 
   /* Word matches */
   keywords.words.forEach(w => {
-    const regex = new RegExp(w, 'gi');
+    /* Escape regex metacharacters from user input to prevent SyntaxError / ReDoS */
+    const safeW = String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!safeW) return;
+    const regex = new RegExp(safeW, 'gi');
     const matches = (text.match(regex) || []).length;
     if (matches > 0) score += Math.min(matches, 5); /* Cap at 5 per word */
   });
