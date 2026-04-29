@@ -2560,21 +2560,45 @@ async function moveCase(caseId,newCat){
   /* ════════════════════════════════════════════════════════════════════
      CASO ESPECIAL: Finalización es WORKSPACE, no estado.
      Si el caso YA está terminado y la fiscal lo "mueve" a Finalización,
-     NO se cambia ni status ni categoria — solo aparece en la pestaña
-     Finalización (vía isTerminadoPendienteResolucion) como espacio de
-     trabajo para redactar la resolución de término. Los Terminados deben
-     seguir contando en estadísticas como tal.
+     NO se cambia ni status ni categoria. Lo que se hace es agregar una
+     marca en case_metadata (key='workspace', value='finalizacion') para
+     que aparezca en esa pestaña como espacio de trabajo. Los Terminados
+     siguen contando en estadísticas como Terminados.
      ════════════════════════════════════════════════════════════════════ */
   if(newCat==='finalizacion' && c.status==='terminado'){
-    /* Ya aparece automáticamente en Finalización si tiene resolucion_termino vacía.
-       Si tiene resolucion ya redactada, mostrarle al usuario el porqué. */
-    const tieneResol=(c.resolucion_termino||'').toString().trim().length>10;
-    if(tieneResol){
-      showToast('ℹ️ Este caso ya tiene resolución de término redactada. Si quieres re-redactarla, abre el redactor desde el botón 📋',6000);
-    } else {
-      showToast('ℹ️ Los terminados sin resolución de término ya aparecen automáticamente en Finalización para que redactes la resolución que afina el procedimiento. No se altera el estado.',6500);
+    try{
+      /* UPSERT del flag — si ya existía la marca, no duplicar */
+      const{error:wsErr}=await sb.from('case_metadata').upsert({
+        case_id:caseId,
+        user_id:c.user_id||session.user.id,
+        key:'workspace',
+        value:'finalizacion',
+        updated_at:new Date().toISOString()
+      },{onConflict:'case_id,key'});
+      if(wsErr)throw wsErr;
+      /* Sincronizar el set en memoria para que se refleje sin recargar */
+      if(typeof window.finalizacionWorkspaceIds==='undefined'||!window.finalizacionWorkspaceIds){
+        window.finalizacionWorkspaceIds=new Set();
+      }
+      window.finalizacionWorkspaceIds.add(caseId);
+      updateCatCounts();
+      setCatTab(activeCatTab);
+      showToast('✅ Caso agregado al workspace de Finalización (sigue contando como Terminado en estadísticas)',5500);
+    }catch(e){
+      console.warn('[moveCase→finalizacion workspace]',e);
+      showToast('⚠ Error marcando workspace: '+e.message);
     }
-    return; /* sin cambios en BD */
+    return; /* no se altera status/categoria */
+  }
+
+  /* Reciprocidad: si la fiscal mueve un caso QUE ESTABA en workspace de
+     Finalización a otra cat, quitamos el flag para no dejarlo doblemente
+     marcado. */
+  if(window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(caseId) && newCat!=='finalizacion'){
+    try{
+      await sb.from('case_metadata').delete().eq('case_id',caseId).eq('key','workspace');
+      window.finalizacionWorkspaceIds.delete(caseId);
+    }catch(e){console.warn('[moveCase clear workspace]',e);}
   }
 
   /* Si se mueve A terminado, pedir resolución que instruye */
