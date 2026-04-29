@@ -46,17 +46,22 @@
     },
     {
       id: 'formato_genero',
-      label: 'ROL de género correcto',
+      label: 'ROL de género correcto (nombre vs. materia)',
       category: 'Formato',
       check: function(c){
+        /* Tras la migración a taxonomía por etapa, `c.categoria` ya NO indica
+           si un caso es de género (eso ahora está en `materia`). Se valida
+           contra la materia: si el nombre tiene sufijo -G la materia debe
+           contener "género/acoso/violencia"; si no, no debería ser de género. */
         const name = c.name || '';
-        const isGender = /\d+\s*[-]?\s*G(?:\s|$|[^a-záéíóúñ])/i.test(name);
-        const cat = c.categoria;
-        if(isGender && cat && cat !== 'genero'){
-          return { ok:false, issues:['Nombre sugiere caso de género (tiene -G) pero categoría es "'+cat+'"'] };
+        const isGenderName = /\d+\s*[-]?\s*G(?:\s|$|[^a-záéíóúñ])/i.test(name);
+        const materia = (c.materia || '').toLowerCase();
+        const isGenderMateria = /género|genero|acoso|violencia|hostigamiento|karin/.test(materia);
+        if(isGenderName && materia && !isGenderMateria){
+          return { ok:false, issues:['Nombre sugiere caso de género (tiene -G) pero materia no menciona género/acoso/violencia: "'+c.materia+'"'] };
         }
-        if(!isGender && cat === 'genero'){
-          return { ok:false, issues:['Categoría es "género" pero el nombre no tiene sufijo -G'] };
+        if(!isGenderName && isGenderMateria){
+          return { ok:false, issues:['Materia indica género/acoso/violencia pero el nombre no tiene sufijo -G'] };
         }
         return { ok:true };
       }

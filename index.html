@@ -1024,14 +1024,13 @@ html,body{height:100%;background:var(--bg, #f5f5f7);color:var(--text, #111827);f
             <tr>
               <th onclick="sortTabla('name')">Exp. ↕</th>
               <th onclick="sortTabla('tipo_procedimiento')">Procedimiento ↕</th>
-              <th onclick="sortTabla('estado_procedimiento')">Etapa ↕</th>
+              <th onclick="sortTabla('estado_procedimiento')" title="Etapa procesal actual · cambia el valor para mover el caso">Etapa ↕</th>
               <th onclick="sortTabla('materia')">Materia ↕</th>
               <th onclick="sortTabla('protocolo')">Normativa ↕</th>
               <th onclick="sortTabla('judicializada')">Judicializada ↕</th>
               <th onclick="sortTabla('medida_cautelar')">M. Cautelar ↕</th>
               <th onclick="sortTabla('propuesta')">Propuesta ↕</th>
               <th onclick="sortTabla('fecha_vista')">Vista ↕</th>
-              <th>Mover a</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -2409,7 +2408,7 @@ function renderTabla(searchOverride){
       thead.innerHTML=`
         <th onclick="sortTabla('name')">Exp. ↕</th>
         <th onclick="sortTabla('tipo_procedimiento')">Procedimiento ↕</th>
-        <th onclick="sortTabla('estado_procedimiento')">Etapa ↕</th>
+        <th onclick="sortTabla('estado_procedimiento')" title="Etapa procesal actual · cambia el valor para mover el caso">Etapa ↕</th>
         <th onclick="sortTabla('materia')">Materia ↕</th>
         <th onclick="sortTabla('protocolo')">Normativa ↕</th>
         <th onclick="sortTabla('_dilCount')" title="Cantidad de piezas/diligencias en el expediente">Piezas ↕</th>
@@ -2417,14 +2416,13 @@ function renderTabla(searchOverride){
         <th onclick="sortTabla('medida_cautelar')">M. Cautelar ↕</th>
         <th onclick="sortTabla('propuesta')">Propuesta ↕</th>
         <th onclick="sortTabla('fecha_vista')">Vista ↕</th>
-        <th>Mover a</th>
         <th>Acciones</th>`;
     }
   }
 
   const tbody=document.getElementById('tablaBody');
   if(!tbody)return;
-  const colSpan=isTerminado?11:12;
+  const colSpan=isTerminado?11:11;
   if(!cases.length){tbody.innerHTML=`<tr><td colspan="${colSpan}" class="empty-state">Sin expedientes en esta categoría</td></tr>`;return;}
   const procMap={'Investigación Sumaria':'is','Sumario Administrativo':'sa','Procedimiento Disciplinario':'pd'};
 
@@ -2461,14 +2459,18 @@ function renderTabla(searchOverride){
       </tr>`;
     }).join('');
   } else {
-    /* ══ VISTA NORMAL (otras categorías) ══ */
+    /* ══ VISTA NORMAL (otras categorías) ══
+       La columna "Etapa" fusiona el indicador de etapa procesal con el control
+       "Mover a": el dropdown muestra la etapa actual seleccionada y al cambiarla
+       mueve el caso a esa etapa (vía moveCase → estado_procedimiento). */
     tbody.innerHTML=cases.map(c=>{
       const procClass=procMap[c.tipo_procedimiento]||'';
-      const catLink=Object.entries(CAT_LABELS).map(([k,v])=>`<option value="${k}"${getCaseCat(c)===k?' selected':''}>${v}</option>`).join('');
+      const currentCat=getCaseCat(c);
+      const catLink=Object.entries(CAT_LABELS).map(([k,v])=>`<option value="${k}"${currentCat===k?' selected':''}>${v}</option>`).join('');
       return `<tr class="tr-clickable" data-caseid="${esc(c.id)}" onclick="pickCaseById('${esc(c.id)}')">
         <td><div class="exp-cell"><span class="exp-num">${esc(c.name||'—')}</span>${c.nueva_resolucion?`<span class="exp-rol">${esc(c.nueva_resolucion)}</span>`:''}</div></td>
         <td><span class="proc-badge proc-${procClass}">${esc(c.tipo_procedimiento||'—')}</span></td>
-        <td><span style="font-size:11px;color:var(--text-dim)">${esc(c.estado_procedimiento||'—')}</span></td>
+        <td><select class="move-select" onchange="moveCase('${esc(c.id)}',this.value)" onclick="event.stopPropagation()" title="Etapa procesal actual · cambia el valor para mover el caso">${catLink}</select></td>
         <td><div class="materia-cell">${esc(c.materia||'—')}</div></td>
         <td><span class="proto-cell">${c.protocolo?'Protocolo '+esc(c.protocolo):'—'}</span></td>
         <td style="text-align:center"><span style="font-weight:600;font-size:12px;color:${(_dilCountMap[c.id]||0)>0?'var(--gold)':'var(--text-muted)'}" title="${(_dilCountMap[c.id]||0)} diligencias en el expediente">${_dilCountMap[c.id]||'—'}</span></td>
@@ -2476,9 +2478,6 @@ function renderTabla(searchOverride){
         <td>${c.medida_cautelar?'<span class="mc-badge">Sí</span>':'<span class="no-badge">No</span>'}</td>
         <td>${(c.resultado||c.propuesta)?`<span class="proc-badge ${(c.resultado||c.propuesta)==='Sanción'?'proc-is':(c.resultado||c.propuesta)==='Sobreseimiento'?'proc-sa':'proc-pd'}">${esc(c.resultado||c.propuesta)}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
         <td><span class="fecha-cell">${c.fecha_vista||'—'}</span></td>
-        <td><select class="move-select" onchange="moveCase('${esc(c.id)}',this.value)" onclick="event.stopPropagation()">
-          <option value="">Mover a…</option>${catLink}
-        </select></td>
         <td><div class="acciones-cell">
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
           <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>

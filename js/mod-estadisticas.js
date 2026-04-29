@@ -33,7 +33,8 @@ const ESTAMENTO_LABELS={
   docente_honorario:'Doc. Honorario',otro:'Otro',
 };
 
-const CAT_LABELS_STAT={genero:'Género',no_genero:'No Género',cargos:'Cargos',probatorio:'Probatorio',finalizacion:'Finalización',terminado:'Terminado'};
+const CAT_LABELS_STAT={indagatoria_inicial:'Indagatoria inicial',termino_indagatoria:'Término Indagatoria',decision:'Decisión',discusion_prueba:'Discusión y Prueba',preparacion_vista:'Preparación de Vista',finalizacion:'Finalización',terminado:'Terminado'};
+const ACTIVE_CAT_KEYS=['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion'];
 
 /* ═══ DÍAS HÁBILES UMAG ═══ */
 function countBusinessDays(startDate,endDate){
@@ -160,14 +161,14 @@ async function loadStats(){
     const parts=(rParts.data||[]).filter(p=>myCaseIds.has(p.case_id));
 
     /* Classify — getCaseCat() usa etapasMap (cargado arriba) + c.estado_procedimiento como fallback */
-    const catGroups={genero:[],no_genero:[],cargos:[],probatorio:[],finalizacion:[],terminado:[]};
+    const catGroups={indagatoria_inicial:[],termino_indagatoria:[],decision:[],discusion_prueba:[],preparacion_vista:[],finalizacion:[],terminado:[]};
     cases.forEach(c=>{
-      const cat=(typeof getCaseCat==='function')?getCaseCat(c):(c.categoria||'no_genero');
+      const cat=(typeof getCaseCat==='function')?getCaseCat(c):'indagatoria_inicial';
       if(catGroups[cat])catGroups[cat].push(c);
-      else catGroups.no_genero.push(c);
+      else catGroups.indagatoria_inicial.push(c);
     });
 
-    const activos=[...catGroups.genero,...catGroups.no_genero,...catGroups.cargos,...catGroups.probatorio,...catGroups.finalizacion];
+    const activos=ACTIVE_CAT_KEYS.flatMap(k=>catGroups[k]||[]);
     const terminados=catGroups.terminado;
 
     /* Orden cronológico ascendente: priorizar FECHA DE TÉRMINO/ENTREGA
@@ -336,7 +337,7 @@ function renderActivosTab(){
     <!-- Lista por categoría -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:16px">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">📋 Detalle por Categoría</div>
-      ${['genero','no_genero','cargos','probatorio','finalizacion'].map(cat=>{
+      ${ACTIVE_CAT_KEYS.map(cat=>{
         const list=cg[cat]||[];
         if(!list.length)return'';
         return`<details style="margin-bottom:8px">
@@ -359,9 +360,10 @@ function renderActivosTab(){
     const matAct={};d.activos.forEach(c=>{const m=c.materia||'Sin definir';matAct[m]=(matAct[m]||0)+1;});
     if(Object.keys(matAct).length)makePie('chartActMateria',Object.keys(matAct),Object.values(matAct));
 
-    /* Categoría */
-    const catData=['genero','no_genero','cargos','probatorio','finalizacion'].map(k=>d.catGroups[k]?.length||0);
-    makePie('chartActCategoria',['Género','No Género','Cargos','Probatorio','Finalización'],catData);
+    /* Etapa procesal — antes era "Género/No Género/Cargos…", ahora refleja la nueva taxonomía por etapa */
+    const catData=ACTIVE_CAT_KEYS.map(k=>d.catGroups[k]?.length||0);
+    const catLabels=ACTIVE_CAT_KEYS.map(k=>CAT_LABELS_STAT[k]||k);
+    makePie('chartActCategoria',catLabels,catData);
 
     /* Protocolo */
     const protAct={};d.activos.forEach(c=>{if(c.protocolo)protAct[c.protocolo]=(protAct[c.protocolo]||0)+1;});
@@ -635,11 +637,12 @@ async function statsChatSend(quickQ){
   const _termList=d.terminados.slice(0,_maxCases).map(c=>`- ${c.nueva_resolucion||c.name} | Tipo: ${c.tipo_procedimiento||'—'} | Resultado: ${RESULTADO_LABELS[c.resultado]||c.resultado||'—'} | Duración: ${c.duracion_dias||'—'} días | Materia: ${c.materia||'—'} | Carrera Dte: ${c.carrera_denunciante||'—'} | Carrera Ddo: ${c.carrera_denunciado||'—'}`).join('\n');
   const dataSummary=`DATOS DE CASOS FISCALITO (${d.cases.length} casos totales):
 
-DISTRIBUCIÓN POR CATEGORÍA:
-- Género: ${d.catGroups.genero.length} casos
-- No Género: ${d.catGroups.no_genero.length} casos
-- Cargos: ${d.catGroups.cargos.length} casos
-- Probatorio: ${d.catGroups.probatorio.length} casos
+DISTRIBUCIÓN POR ETAPA PROCESAL:
+- Indagatoria inicial: ${d.catGroups.indagatoria_inicial.length} casos
+- Término Indagatoria: ${d.catGroups.termino_indagatoria.length} casos
+- Decisión: ${d.catGroups.decision.length} casos
+- Discusión y Prueba: ${d.catGroups.discusion_prueba.length} casos
+- Preparación de Vista: ${d.catGroups.preparacion_vista.length} casos
 - Finalización: ${d.catGroups.finalizacion.length} casos
 - Terminados: ${d.terminados.length} casos
 

@@ -87,6 +87,11 @@ async function loadSubdivisionData(){
   }
 }
 
+/* ── Set local de cat-keys válidos (espejo del de index.html). Se duplica acá
+   porque index.html lo declara con `const`, no en window, y este módulo IIFE
+   no tiene acceso al scope léxico del bloque inline. */
+const _LOCAL_VALID_CATS = new Set(['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado']);
+
 /* ── getCaseCat mejorada (categorización por ETAPA PROCESAL) ──
    Las pestañas ahora reflejan dónde está cada caso en el procedimiento,
    no su materia. Misma lógica que mod-export-casos-xlsx.js. */
@@ -97,11 +102,11 @@ function getCaseCatEnhanced(c){
 
   // Prioridad 2: Categoría nueva válida explícitamente seteada en BD (ej. drag&drop manual)
   const dbCat = (c.categoria || '').toLowerCase().trim();
-  if(dbCat && VALID_CATS.has(dbCat)) return dbCat;
+  if(dbCat && _LOCAL_VALID_CATS.has(dbCat)) return dbCat;
 
   // Prioridad 3: Categoría manual desde case_metadata (solo si es key nueva)
   const metaCat = (metadataMap[c.id] || '').toLowerCase().trim();
-  if(metaCat && VALID_CATS.has(metaCat)) return metaCat;
+  if(metaCat && _LOCAL_VALID_CATS.has(metaCat)) return metaCat;
 
   // Prioridad 4: Derivar desde etapa procesal (tabla etapas tiene prioridad sobre cases.estado_procedimiento)
   const stage = etapasMap[c.id] || c.estado_procedimiento || '';
@@ -114,9 +119,6 @@ function getCaseCatEnhanced(c){
 
 /* ── Reemplazar getCaseCat global ── */
 window.getCaseCat = getCaseCatEnhanced;
-
-/* ── Exponer helpers globalmente ── */
-window.isGenderCase = isGenderCase;
 window.etapasMap = etapasMap;
 window.sharedCaseIds = sharedCaseIds;
 window.loadSubdivisionData = loadSubdivisionData;
@@ -355,15 +357,17 @@ function enableDragDrop(){
   if(tbody) observer.observe(tbody, { childList: true });
 }
 
-/* ── Patchear loadCases para cargar datos auxiliares EN PARALELO ── */
+/* ── Patchear loadCases: cargar datos de subdivisión PRIMERO, luego los casos ──
+   FIX race condition: si _origLoadCases corre antes de que termine
+   loadSubdivisionData(), etapasMap está vacío y getCaseCat() categoriza mal
+   todos los casos, dejándolos en la pestaña incorrecta hasta el próximo refresh. */
 const _origLoadCases = typeof loadCases === 'function' ? loadCases : null;
 window.loadCases = async function(){
-  // Cargar datos de subdivisión en paralelo con los casos
-  await Promise.all([
-    loadSubdivisionData(),
-    _origLoadCases ? _origLoadCases.call(window) : Promise.resolve()
-  ]);
-  // Actualizar contadores con la nueva lógica (después de que ambos terminan)
+  // 1) Cargar etapas/metadata/shares primero (rápido, una sola query batch)
+  await loadSubdivisionData();
+  // 2) Luego cargar los casos (renderiza con etapasMap ya disponible)
+  if(_origLoadCases) await _origLoadCases.call(window);
+  // 3) Actualizar contadores con la lógica enhanced
   updateCatCounts();
 };
 

@@ -48,7 +48,15 @@ function pendGetFiltered() {
   }
   return list;
 }
-function pendCatCnt(cat) { return cat==='all'?pend.acciones.length:pend.acciones.filter(a=>pend.cases[a.case_id]?.categoria===cat).length; }
+function pendCatCnt(cat) {
+  if(cat==='all') return pend.acciones.length;
+  /* Usar getCaseCat (taxonomía nueva por etapa) en vez de comparar `categoria` directo */
+  return pend.acciones.filter(a=>{
+    const c=pend.cases[a.case_id]; if(!c) return false;
+    const cc=(typeof getCaseCat==='function')?getCaseCat(c):c.categoria;
+    return cc===cat;
+  }).length;
+}
 function pendFmt(d) { if(!d)return''; try{return new Date(d.includes('T')?d:d+'T12:00:00').toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'2-digit'});}catch{return d;} }
 function pendOvd(a) { return a.due_date&&a.status!=='completado'&&new Date(a.due_date)<new Date(); }
 
@@ -59,8 +67,23 @@ function pendRender() {
 
   const filtered = pendGetFiltered();
   const caseCount = new Set(filtered.map(a=>a.case_id)).size;
-  const catBase = pend.catTab==='all' ? pend.acciones : pend.acciones.filter(a=>pend.cases[a.case_id]?.categoria===pend.catTab);
-  const CATS=[{id:'all',l:'Todos',i:'📋'},{id:'genero',l:'Género',i:'👥'},{id:'no_genero',l:'No Género',i:'📂'},{id:'cargos',l:'Cargos',i:'⚖️'},{id:'probatorio',l:'Probatorio',i:'🔍'},{id:'finalizacion',l:'Finalización',i:'✅'}];
+  /* Filtrar por etapa procesal: usa getCaseCat() para coincidir con la nueva taxonomía
+     (no compara directo `categoria` porque ese campo puede tener valores legacy). */
+  const _caseCat = cid => {
+    const c = pend.cases[cid];
+    if(!c) return null;
+    return (typeof getCaseCat==='function') ? getCaseCat(c) : c.categoria;
+  };
+  const catBase = pend.catTab==='all' ? pend.acciones : pend.acciones.filter(a=>_caseCat(a.case_id)===pend.catTab);
+  const CATS=[
+    {id:'all',l:'Todos',i:'📋'},
+    {id:'indagatoria_inicial',l:'Indagatoria',i:'🔍'},
+    {id:'termino_indagatoria',l:'Término Indag.',i:'⚖️'},
+    {id:'decision',l:'Decisión',i:'📜'},
+    {id:'discusion_prueba',l:'Discusión y Prueba',i:'🛡️'},
+    {id:'preparacion_vista',l:'Prep. Vista',i:'👁️'},
+    {id:'finalizacion',l:'Finalización',i:'✅'}
+  ];
   const STATS=[{id:'all',l:'Todos'},{id:'pendiente',l:'Pendientes'},{id:'en_progreso',l:'En progreso'},{id:'completado',l:'Completadas'}];
 
   main.innerHTML = `
@@ -151,7 +174,7 @@ function pendRenderLista(filtered) {
     const cmp=av.localeCompare(bv,'es',{numeric:true,sensitivity:'base'});
     return pend.sortDir==='asc'?cmp:-cmp;
   });
-  const CAT_CLR={genero:'#db2777',no_genero:'#d97706',cargos:'#4f46e5',probatorio:'#7c3aed',finalizacion:'#059669',terminado:'#6b7280'};
+  const CAT_CLR={indagatoria_inicial:'#3b82f6',termino_indagatoria:'#f59e0b',decision:'#6366f1',discusion_prueba:'#8b5cf6',preparacion_vista:'#06b6d4',finalizacion:'#10b981',terminado:'#6b7280'};
   return sorted.map(([cid,items])=>{
     const c=pend.cases[cid]||{};
     const isOpen=!pend.collapsed.has(cid);
@@ -161,7 +184,7 @@ function pendRenderLista(filtered) {
   <div class="pt-gh" onclick="pendToggleCase('${cid}')">
     <div style="display:flex;align-items:center;gap:7px;flex:1;min-width:0">
       <svg style="flex-shrink:0;transition:transform .18s;transform:${isOpen?'rotate(0deg)':'rotate(-90deg)'};color:#9ca3af" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="2,4 6,8 10,4"/></svg>
-      ${c.categoria?`<span style="width:7px;height:7px;border-radius:50%;background:${CAT_CLR[c.categoria]||'#9ca3af'};flex-shrink:0;display:inline-block"></span>`:''}
+      ${(()=>{const cc=(typeof getCaseCat==='function')?getCaseCat(c):c.categoria;return cc?`<span style="width:7px;height:7px;border-radius:50%;background:${CAT_CLR[cc]||'#9ca3af'};flex-shrink:0;display:inline-block" title="${esc(cc)}"></span>`:'';})()}
       <span style="font-size:13px;font-weight:600;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name||'—')}</span>
       ${c.rol?`<span style="font-size:10.5px;color:#9ca3af;font-family:var(--font-mono,'DM Mono',monospace);flex-shrink:0">${esc(c.rol)}</span>`:''}
     </div>
