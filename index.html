@@ -2302,7 +2302,11 @@ function setCatTab(cat){
   });
   renderTabla();
 }
-function filterTabla(q){renderTabla(q);}
+function filterTabla(q){
+  renderTabla(q);
+  /* Mostrar/ocultar el botón "✕ Limpiar filtros" si hay texto en el buscador */
+  if(typeof window.ensureClearFilterButton === 'function') window.ensureClearFilterButton();
+}
 function sortTabla(field){
   if(sortField===field)sortDir=sortDir==='asc'?'desc':'asc';
   else{sortField=field;sortDir='asc';}
