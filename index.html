@@ -2457,6 +2457,7 @@ function renderTabla(searchOverride){
   }
 
   const tbody=document.getElementById('tablaBody');
+  console.log('[origRenderTabla] activeCatTab=',activeCatTab,'· isTerminado=',isTerminado,'· cases.length=',cases.length,'· tbody encontrado=',!!tbody,'· activeView=',(typeof activeView!=='undefined'?activeView:'no-def'));
   if(!tbody)return;
   const colSpan=isTerminado?11:11;
   if(!cases.length){tbody.innerHTML=`<tr><td colspan="${colSpan}" class="empty-state">Sin expedientes en esta categoría</td></tr>`;return;}
