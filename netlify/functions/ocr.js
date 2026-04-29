@@ -46,6 +46,7 @@ async function getAccessToken(sa) {
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d).access_token); } catch(e) { reject(new Error('Token error')); } });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, OAUTH_TIMEOUT_MS);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
