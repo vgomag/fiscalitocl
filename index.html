@@ -2494,11 +2494,17 @@ function renderTabla(searchOverride){
       const procClass=procMap[c.tipo_procedimiento]||'';
       const currentCat=getCaseCat(c);
       const catLink=Object.entries(CAT_LABELS).map(([k,v])=>`<option value="${k}"${currentCat===k?' selected':''}>${v}</option>`).join('');
-      /* Si el caso terminado está apareciendo en Finalización porque le falta la
-         resolución de término, marcarlo visualmente para que la fiscal sepa que
-         es un caso "técnicamente terminado pero pendiente de redactar resolución". */
+      /* Marcador visual para casos TERMINADOS pendientes de resolución (siguen
+         contando en Terminados pero también aparecen en Finalización). */
       const _isPendRes = (typeof isTerminadoPendienteResolucion==='function' && isTerminadoPendienteResolucion(c)) && activeCatTab==='finalizacion';
       const _pendBadge = _isPendRes ? `<span style="display:inline-block;background:rgba(245,158,11,.15);color:#b45309;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle" title="Caso terminado pendiente de redactar la resolución de término">⏳ pendiente resolución</span>` : '';
+      /* El botón 📋/📝 (Redactor de Resolución de Término) debe aparecer en TODOS
+         los casos de la pestaña Finalización — tanto los terminados pendientes
+         como los activos en etapa de finalización (que también necesitan que
+         redactes la resolución de la autoridad). Bug previo: solo aparecía en
+         terminados pendientes, así que al mover un caso a Finalización el botón
+         desaparecía y no había manera obvia de abrir el redactor. */
+      const _showRedactorBtn = activeCatTab==='finalizacion';
       return `<tr class="tr-clickable" data-caseid="${esc(c.id)}" onclick="pickCaseById('${esc(c.id)}')">
         <td><div class="exp-cell"><span class="exp-num">${esc(c.name||'—')}${_pendBadge}</span>${c.nueva_resolucion?`<span class="exp-rol">${esc(c.nueva_resolucion)}</span>`:''}</div></td>
         <td><span class="proc-badge proc-${procClass}">${esc(c.tipo_procedimiento||'—')}</span></td>
@@ -2511,7 +2517,7 @@ function renderTabla(searchOverride){
         <td>${(c.resultado||c.propuesta)?`<span class="proc-badge ${(c.resultado||c.propuesta)==='Sanción'?'proc-is':(c.resultado||c.propuesta)==='Sobreseimiento'?'proc-sa':'proc-pd'}">${esc(c.resultado||c.propuesta)}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
         <td><span class="fecha-cell">${c.fecha_vista||'—'}</span></td>
         <td><div class="acciones-cell">
-          ${_isPendRes?`<button class="btn-action" title="Abrir Redactor de Resolución de Término (con IA, modelos, versiones y exportación)" onclick="event.stopPropagation();(typeof openResolucionRedactor==='function'?openResolucionRedactor('${esc(c.id)}'):redactarResolucionTermino('${esc(c.id)}'))" style="color:#b45309">📝</button>`:''}
+          ${_showRedactorBtn?`<button class="btn-action" title="Abrir Redactor de Resolución de Término (auto-detecta memo Drive · IA · modelos · versionado · exportar Word)" onclick="event.stopPropagation();(typeof openResolucionRedactor==='function'?openResolucionRedactor('${esc(c.id)}'):redactarResolucionTermino('${esc(c.id)}'))" style="color:#7c3aed;font-weight:700">📋</button>`:''}
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
           <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>
           <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
