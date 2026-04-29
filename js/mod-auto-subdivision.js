@@ -235,6 +235,7 @@ window.renderTabla = function(searchOverride){
   const userId = session?.user?.id;
 
   const _isPendRes = c => typeof window.isTerminadoPendienteResolucion === 'function' && window.isTerminadoPendienteResolucion(c);
+  const _isWS = c => finalizacionWorkspaceIds && finalizacionWorkspaceIds.has(c.id);
 
   let cases;
   if(activeCatTab === 'compartidos'){
@@ -244,10 +245,13 @@ window.renderTabla = function(searchOverride){
     cases = allCases.filter(c => {
       // Excluir compartidos de las pestañas normales
       if(userId && c.user_id !== userId && sharedCaseIds.has(c.id)) return false;
-      // Finalización agrupa: (a) casos cuya cat es 'finalizacion' y (b) terminados
-      // pendientes de resolución de término. Ambos requieren trabajo activo.
+      // Finalización agrupa:
+      //  (a) casos activos en etapa 'finalizacion'
+      //  (b) terminados sin resolución de término redactada (auto)
+      //  (c) cualquier caso marcado manualmente como workspace=finalizacion
+      // Ningún caso ALTERA su status por aparecer aquí — Finalización es un workspace.
       if(activeCatTab === 'finalizacion'){
-        return getCaseCat(c) === 'finalizacion' || _isPendRes(c);
+        return getCaseCat(c) === 'finalizacion' || _isPendRes(c) || _isWS(c);
       }
       return getCaseCat(c) === activeCatTab;
     });
