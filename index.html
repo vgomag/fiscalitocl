@@ -3238,6 +3238,99 @@ async function sendMessage(){
       ]);
     };
     let caseContext='';
+
+    /* ── ÍNDICE GLOBAL DE TODOS LOS CASOS DEL USUARIO ──
+       Se inyecta SIEMPRE (haya o no caso activo) para que el chat IA pueda
+       responder consultas sobre el conjunto: "cuántos casos tengo", "qué
+       casos terminados no tienen vista fiscal", "qué casos de género están
+       en cargos", etc. Usa allCases (ya en memoria) y _dilCountMap — sin
+       queries adicionales a Supabase.
+       Para F7/F8 (vista fiscal / informe en derecho) se usa una versión
+       condensada porque el contexto del caso activo ya es muy pesado. */
+    try{
+      if(typeof allCases!=='undefined' && Array.isArray(allCases) && allCases.length>0){
+        const _fmtArrLen=v=>{
+          if(!v)return 0;
+          if(Array.isArray(v))return v.length;
+          try{const a=JSON.parse(v);return Array.isArray(a)?a.length:(v?1:0);}catch{return v?1:0;}
+        };
+        const _dilN=cid=>(typeof _dilCountMap!=='undefined' && _dilCountMap && _dilCountMap[cid])||0;
+        const _hasVista=c=>(c.informe_final && c.informe_final.length>100);
+        const _byStatus={active:[],terminado:[],archived:[]};
+        allCases.forEach(c=>{
+          const k=c.status==='terminado'?'terminado':c.status==='archived'?'archived':'active';
+          _byStatus[k].push(c);
+        });
+        const totA=_byStatus.active.length;
+        const totT=_byStatus.terminado.length;
+        const totAr=_byStatus.archived.length;
+        const termSinVista=_byStatus.terminado.filter(c=>!_hasVista(c)).length;
+        const termConVista=totT-termSinVista;
+
+        /* Conteos por categoría (género, no_genero, cargos, probatorio, finalización) */
+        const _catCounts={};
+        if(typeof getCaseCat==='function'){
+          allCases.forEach(c=>{
+            const cat=getCaseCat(c)||'sin_categoria';
+            _catCounts[cat]=(_catCounts[cat]||0)+1;
+          });
+        }
+        const _catSummary=Object.keys(_catCounts).length
+          ? Object.entries(_catCounts).map(([k,v])=>`${k}:${v}`).join(' · ')
+          : '';
+
+        /* Detectar si la pregunta del usuario implica visión global (heurística suave).
+           Si la pregunta menciona "todos", "cuántos", "casos terminados", "qué casos",
+           "lista", "estadística", "cuántas", etc. → forzar índice completo aunque sea F7. */
+        const _qLow=(text||'').toLowerCase();
+        const _isGlobalQuery=/\b(todos|todas|cu[aá]ntos|cu[aá]ntas|cu[aá]les|qu[eé]\s+casos|listar|lista|todos\s+mis|de\s+mis\s+casos|en\s+cuantos|en\s+cuántos|estad[ií]stic|terminad|sin\s+vista|sin\s+informe|por\s+materia|categor[ií]a|porcentaje)\b/.test(_qLow);
+
+        /* Para F7/F8 con caso activo y consulta NO global, usar índice condensado
+           (solo contadores agregados) para no saturar el contexto. */
+        const _isHeavy=(activeFn==='F7'||activeFn==='F8')&&_caseSnapshot&&!_isGlobalQuery;
+
+        caseContext+=`\n\n## ÍNDICE GLOBAL DE MIS CASOS (${allCases.length} en total)`;
+        caseContext+=`\nResumen general: ${totA} activo(s) · ${totT} terminado(s)${totAr?' · '+totAr+' archivado(s)':''}`;
+        if(_catSummary)caseContext+=`\nPor categoría: ${_catSummary}`;
+        caseContext+=`\nVistas fiscales: ${termConVista} terminados CON vista fiscal · ${termSinVista} terminados SIN vista fiscal registrada`;
+
+        if(_isHeavy){
+          caseContext+=`\n\n[Índice detallado omitido por tamaño del contexto del caso activo. Si necesitas listar casos específicos, vuelve a preguntar desde la vista general o pide explícitamente "lista todos los casos".]`;
+        } else {
+          /* Orden: activos primero (por fecha desc), terminados después (por fecha vista desc) */
+          const _sortFn=(a,b)=>{
+            const da=new Date(a.fecha_recepcion_fiscalia||a.created_at||0).getTime();
+            const db=new Date(b.fecha_recepcion_fiscalia||b.created_at||0).getTime();
+            return db-da;
+          };
+          const _ordered=[
+            ..._byStatus.active.sort(_sortFn),
+            ..._byStatus.terminado.sort(_sortFn),
+            ..._byStatus.archived.sort(_sortFn),
+          ];
+
+          caseContext+=`\n\nTABLA DE TODOS LOS CASOS (formato: ROL | EST | MATERIA | TIPO | rec→vista | dil:N | vista_fiscal:SÍ/NO | resultado | partes):\n`;
+          _ordered.forEach(c=>{
+            const rol=(c.nueva_resolucion||c.numero_exp_interno||c.protocolo||c.name||'?').toString().substring(0,40);
+            const est=c.status==='terminado'?'TERM':c.status==='archived'?'ARCH':'ACT';
+            const mat=(c.materia||'—').substring(0,32);
+            const tipo=(c.tipo_procedimiento||'—').substring(0,18);
+            const fRec=(c.fecha_recepcion_fiscalia||'—').substring(0,10);
+            const fVist=(c.fecha_vista||'—').substring(0,10);
+            const dil=_dilN(c.id);
+            const hv=_hasVista(c)?'SÍ':'NO';
+            const res=(c.resultado||(c.status==='terminado'?'?':'pendiente')).toString().substring(0,30);
+            const dn=_fmtArrLen(c.denunciantes), dd=_fmtArrLen(c.denunciados);
+            const partes=(dn||dd)?`${dn}D/${dd}d`:'—';
+            const desc=c.description?` "${c.description.toString().replace(/\s+/g,' ').substring(0,70)}"`:'';
+            caseContext+=`\n- [${rol}] ${est} | ${mat} | ${tipo} | ${fRec}→${fVist} | dil:${dil} | vista_fiscal:${hv} | ${res} | ${partes}${desc}`;
+          });
+          caseContext+=`\n\n--- FIN ÍNDICE GLOBAL ---`;
+          caseContext+=`\n\n💡 INSTRUCCIÓN PARA EL ASISTENTE: Si el usuario te pregunta sobre el CONJUNTO de sus casos (cuántos hay, cuáles tienen X, qué casos terminados no tienen vista fiscal, comparar materias, listar pendientes globales, etc.), USA ESTE ÍNDICE GLOBAL como fuente primaria — la información está arriba. NUNCA respondas que "no tienes acceso" a los casos: SÍ tienes acceso al índice de los ${allCases.length} casos. Si necesitas el detalle interno de un caso específico (diligencias, participantes, resoluciones), indícale al usuario que lo seleccione para que entres en su contexto completo.`;
+        }
+      }
+    }catch(idxErr){console.warn('Error construyendo índice global de casos:',idxErr);}
+
     if(_caseSnapshot){
       const fmtArrCtx=v=>{if(!v)return'—';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
       caseContext=`\n\n## EXPEDIENTE ACTIVO\n- Nombre: ${_caseSnapshot.name}\n- Resolución que instruye: ${_caseSnapshot.nueva_resolucion||'—'}\n- Carátula: ${_caseSnapshot.caratula||'—'}\n- Descripción: ${_caseSnapshot.description||'—'}\n- Estado: ${_caseSnapshot.status}\n- Tipo: ${_caseSnapshot.tipo_procedimiento||'—'}\n- Materia: ${_caseSnapshot.materia||'—'}\n- Protocolo: ${_caseSnapshot.protocolo||'—'}\n- Denunciante(s): ${fmtArrCtx(_caseSnapshot.denunciantes)}\n- Estamento denunciante: ${fmtArrCtx(_caseSnapshot.estamentos_denunciante)}\n- Carrera/Dep. denunciante: ${_caseSnapshot.carrera_denunciante||'—'}\n- Denunciado/a(s): ${fmtArrCtx(_caseSnapshot.denunciados)}\n- Estamento denunciado: ${fmtArrCtx(_caseSnapshot.estamentos_denunciado)}\n- Carrera/Dep. denunciado: ${_caseSnapshot.carrera_denunciado||'—'}\n- Resultado: ${_caseSnapshot.resultado||'Pendiente'}\n- Fecha recepción: ${_caseSnapshot.fecha_recepcion_fiscalia||'—'}\n- Fecha vista: ${_caseSnapshot.fecha_vista||'—'}\n- Carpeta Drive: ${_caseSnapshot.drive_folder_url||'No vinculada'}`;
