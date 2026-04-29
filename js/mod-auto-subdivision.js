@@ -87,60 +87,29 @@ async function loadSubdivisionData(){
   }
 }
 
-/* ── Función de detección de género mejorada ── */
-function isGenderCase(c){
-  const name = (c.name || '').toUpperCase();
-  const rol = (c.rol || '').toUpperCase();
-  // 1) Regex sobre nombre y rol
-  if(GENDER_REGEX.test(c.name || '') || GENDER_REGEX.test(c.rol || ''))
-    return true;
-  // 2) Sufijo -G explícito
-  if(name.includes('-G') || rol.includes('-G'))
-    return true;
-  // 3) Materia con keywords de género
-  const m = (c.materia || '').toLowerCase();
-  if(m.includes('acoso') || m.includes('género') || m.includes('genero') || m.includes('violencia') || m.includes('hostigamiento'))
-    return true;
-  // 4) Protocolo de género
-  const proto = (c.protocolo || '').toLowerCase();
-  if(proto.includes('karin') || proto === '2020' || proto === '2022')
-    return true;
-  return false;
-}
-
-/* ── getCaseCat mejorada ── */
+/* ── getCaseCat mejorada (categorización por ETAPA PROCESAL) ──
+   Las pestañas ahora reflejan dónde está cada caso en el procedimiento,
+   no su materia. Misma lógica que mod-export-casos-xlsx.js. */
 function getCaseCatEnhanced(c){
-  const userId = session?.user?.id;
+  // Prioridad 1: Status terminado/archivado/cerrado
+  const st = (c.status || '').toLowerCase();
+  if(st === 'terminado' || st === 'archived' || st === 'cerrado') return 'terminado';
 
-  // Prioridad 0: ¿Es un caso compartido conmigo (no soy el dueño)?
-  // No afecta la categorización directa, se maneja en el filtro de tabs
-
-  // Prioridad 1: Categoría manual desde campo 'categoria' en BD
+  // Prioridad 2: Categoría nueva válida explícitamente seteada en BD (ej. drag&drop manual)
   const dbCat = (c.categoria || '').toLowerCase().trim();
   if(dbCat && VALID_CATS.has(dbCat)) return dbCat;
 
-  // Prioridad 2: Categoría manual desde case_metadata
+  // Prioridad 3: Categoría manual desde case_metadata (solo si es key nueva)
   const metaCat = (metadataMap[c.id] || '').toLowerCase().trim();
   if(metaCat && VALID_CATS.has(metaCat)) return metaCat;
 
-  // Prioridad 3: Status archivado/cerrado
-  const st = (c.status || '').toLowerCase();
-  if(st === 'archived' || st === 'cerrado') return 'terminado';
-  if(st === 'terminado') return 'terminado';
+  // Prioridad 4: Derivar desde etapa procesal (tabla etapas tiene prioridad sobre cases.estado_procedimiento)
+  const stage = etapasMap[c.id] || c.estado_procedimiento || '';
+  const fromStage = _stageToCat(stage);
+  if(fromStage) return fromStage;
 
-  // Prioridad 4: Basado en etapa procesal (tabla etapas)
-  const stage = etapasMap[c.id] || (c.estado_procedimiento || '').toLowerCase().trim();
-  if(stage){
-    if(FINALIZATION_STAGES.has(stage)) return 'finalizacion';
-    if(PROBATORIO_STAGES.has(stage)) return 'probatorio';
-    if(CARGOS_STAGES.has(stage)) return 'cargos';
-  }
-
-  // Prioridad 5: Detección de género por nombre/materia/protocolo
-  if(isGenderCase(c)) return 'genero';
-
-  // Default: No género
-  return 'no_genero';
+  // Default: caso recién creado sin etapa asignada → Indagatoria inicial
+  return 'indagatoria_inicial';
 }
 
 /* ── Reemplazar getCaseCat global ── */
@@ -204,8 +173,8 @@ window.applyStageFilter = function(val){
 /* ── Patchear updateCatCounts para incluir compartidos ── */
 window.updateCatCounts = function(){
   const userId = session?.user?.id;
-  // Counts por categoría
-  ['genero','no_genero','cargos','probatorio','finalizacion','terminado'].forEach(cat => {
+  // Counts por categoría (nuevas etapas procesales)
+  ['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion','terminado'].forEach(cat => {
     const el = document.getElementById('cnt-' + cat);
     if(el) el.textContent = allCases.filter(c => {
       if(userId && c.user_id !== userId && sharedCaseIds.has(c.id)) return false;
