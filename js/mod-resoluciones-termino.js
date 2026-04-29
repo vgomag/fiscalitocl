@@ -687,6 +687,7 @@ async function open(caseId){
   state.open = true;
   state.caseId = caseId;
   state.caseObj = c;
+  state.memoJuridico = null;
   state.modelos = await loadModelos();
   state.drafts = await loadDrafts(caseId);
   /* Si ya hay un borrador previo, cargar el último (mayor versión, no descartado) */
@@ -695,6 +696,8 @@ async function open(caseId){
   state.selectedModeloId = state.currentDraft?.modelo_id || null;
   _renderModal();
   setupAutosave();
+  /* Auto-detectar memo en Drive en background — no bloquea la UI */
+  autoDetectMemo();
 }
 
 function close(){
