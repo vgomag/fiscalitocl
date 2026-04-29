@@ -2374,7 +2374,23 @@ function toggleInforme(caseId){
 
 function renderTabla(searchOverride){
   const q=(searchOverride!==undefined?searchOverride:document.getElementById('tablaSearch')?.value||'').toLowerCase();
-  let cases=allCases.filter(c=>getCaseCat(c)===activeCatTab);
+  /* Filtro por cat-tab con caso especial de Finalización (workspace).
+     CRÍTICO: este filtro debe respetar `window.finalizacionWorkspaceIds`
+     (set poblado por mod-auto-subdivision) para incluir los casos terminados
+     que la fiscal marcó manualmente como workspace. Si no se hace acá, el
+     contador toolbar dice "5 casos" pero la tabla queda vacía porque
+     getCaseCat() retorna 'terminado' (status takes priority) y el filtro
+     simple `===activeCatTab` los excluye. */
+  const _isWS=c=>(window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(c.id));
+  let cases;
+  if(activeCatTab==='finalizacion'){
+    cases=allCases.filter(c=>getCaseCat(c)==='finalizacion'||_isWS(c));
+  } else if(activeCatTab==='compartidos'){
+    const userId=session?.user?.id;
+    cases=allCases.filter(c=>userId && c.user_id!==userId && window.sharedCaseIds && window.sharedCaseIds.has(c.id));
+  } else {
+    cases=allCases.filter(c=>getCaseCat(c)===activeCatTab);
+  }
   if(q)cases=cases.filter(c=>{
     const fArr=v=>{if(!v)return'';if(Array.isArray(v))return v.join(' ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(' '):String(v);}catch{return String(v);}};
     return (c.name||'').toLowerCase().includes(q)||(c.nueva_resolucion||'').toLowerCase().includes(q)||(c.caratula||'').toLowerCase().includes(q)||(c.materia||'').toLowerCase().includes(q)||fArr(c.denunciantes).toLowerCase().includes(q)||fArr(c.denunciados).toLowerCase().includes(q);
@@ -2457,8 +2473,22 @@ function renderTabla(searchOverride){
   }
 
   const tbody=document.getElementById('tablaBody');
-  console.log('[origRenderTabla] activeCatTab=',activeCatTab,'· isTerminado=',isTerminado,'· cases.length=',cases.length,'· tbody encontrado=',!!tbody,'· activeView=',(typeof activeView!=='undefined'?activeView:'no-def'));
+  console.log('[origRenderTabla] activeCatTab=',activeCatTab,'· isTerminado=',isTerminado,'· cases.length=',cases.length,'· tbody encontrado=',!!tbody);
   if(!tbody)return;
+  /* CRÍTICO: asegurar que el wrapper de la tabla esté visible. Si la fiscal pasó
+     por una vista Kanban/Cards anteriormente, el style.display de .tabla-wrap
+     puede haber quedado en 'none' y los casos filtrados (correctos) no se ven
+     porque el contenedor está oculto. */
+  const _tablaWrap=document.querySelector('.tabla-wrap');
+  if(_tablaWrap && _tablaWrap.style.display==='none'){
+    _tablaWrap.style.display='';
+    console.log('[origRenderTabla] tabla-wrap estaba oculto · forzando visibilidad');
+  }
+  /* También ocultar contenedores Kanban/Cards si quedaron visibles */
+  const _kEl=document.getElementById('kanbanContainer');
+  if(_kEl && _kEl.style.display!=='none'){_kEl.style.display='none';}
+  const _cEl=document.getElementById('cardsContainer');
+  if(_cEl && _cEl.style.display!=='none'){_cEl.style.display='none';}
   const colSpan=isTerminado?11:11;
   if(!cases.length){tbody.innerHTML=`<tr><td colspan="${colSpan}" class="empty-state">Sin expedientes en esta categoría</td></tr>`;return;}
   const procMap={'Investigación Sumaria':'is','Sumario Administrativo':'sa','Procedimiento Disciplinario':'pd'};

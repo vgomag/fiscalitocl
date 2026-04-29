@@ -282,36 +282,15 @@ window.renderTabla = function(searchOverride){
     );
   }
 
-  // Filtro de etapa LEGACY removido — la clasificación por etapa ahora la
-  // hacen las cat-tabs vía getCaseCat(c). Mantener cualquier filtrado adicional
-  // aquí causaba que casos quedaran ocultos sin botón visible para resetear.
-
-  // Delegar al render original si existe
+  // Delegar al render original. Ahora el orig de index.html YA tiene la
+  // lógica del workspace y compartidos directamente, así que no hace falta
+  // el monkey-patching de allCases (que era frágil porque `let allCases` no
+  // está en window y la reasignación no afectaba al filtro real).
   if(_origRenderTabla){
-    // Guardar referencias ANTES de cualquier modificación
-    const _backup = window.allCases;
-    const _backupCat = window.activeCatTab;
-    const _enhancedGetCat = window.getCaseCat; // Guardar la versión enhanced
-
-    // Temporalmente: poner los cases ya filtrados en allCases con flag
-    window.allCases = cases.map(c => {
-      const clone = Object.assign({}, c);
-      clone._forceCategory = activeCatTab;
-      return clone;
-    });
-
-    // Hacer que getCaseCat devuelva activeCatTab para los clones
-    window.getCaseCat = c => c._forceCategory || _enhancedGetCat(c);
-
     _origRenderTabla.call(window, searchOverride);
-
-    // Restaurar TODO correctamente
-    window.allCases = _backup;
-    window.activeCatTab = _backupCat;
-    window.getCaseCat = _enhancedGetCat; // Restaurar la versión enhanced, no la temp
   }
 
-  // Actualizar contador
+  // Actualizar contador con la cuenta correcta (incluye workspace flag)
   const cnt = document.getElementById('casosCount');
   if(cnt) cnt.textContent = cases.length + ' casos';
 };
