@@ -104,6 +104,15 @@ function makeLine(id,labels,data,color){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#e2e8f015'}}}}
   });
 }
+/* Polar area: gráfico circular donde cada segmento crece radialmente según su valor.
+   Útil para mostrar distribución temporal (meses) o rankings — más visual que un bar
+   chart y mantiene la idea de "círculo completo" que recorre los 12 meses. */
+function makePolar(id,labels,data,colors){
+  return createChart(id,{type:'polarArea',
+    data:{labels,datasets:[{data,backgroundColor:colors||STAT_COLORS.chartPalette.slice(0,labels.length),borderWidth:1,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,padding:6,font:{size:10}}}},scales:{r:{beginAtZero:true,ticks:{display:false}}}}
+  });
+}
 
 /* ═══ UI HELPERS ═══ */
 function kpiCard(label,value,icon,color){
@@ -479,10 +488,19 @@ function renderTerminadosTab(){
       </div>
     </div>
 
-    <!-- 2. Terminados por mes y año -->
+    <!-- 2. Terminados por mes y año — dos vistas circulares complementarias -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">📅 Terminados por Mes y Año</div>
-      <div style="height:220px"><canvas id="chartTermByMonth"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">Total por año (cuántos cerraste cada año)</div>
+          <div style="height:240px"><canvas id="chartTermByYear"></canvas></div>
+        </div>
+        <div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">Distribución por mes (acumulado de todos los años)</div>
+          <div style="height:240px"><canvas id="chartTermByMonthPolar"></canvas></div>
+        </div>
+      </div>
     </div>
 
     <!-- Grid 2x2: Protocolo + Materia + Tipo Procedimiento + Resultado -->
@@ -501,9 +519,25 @@ function renderTerminadosTab(){
       ${chartBox('chartTermCarreraDdo','🎓 Carrera Denunciado/a','')}
     </div>
 
-    <!-- Top casos más largos -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px">🏆 Top 15 Casos por Duración</div>
+    <!-- ⭐ Top 15 — Casos cerrados con MAYOR EFICIENCIA (los resueltos en menos tiempo).
+         Antes este bloque listaba los casos MÁS LARGOS (refuerza lo negativo); ahora
+         celebra los cierres rápidos como evidencia de avance. -->
+    <div style="background:linear-gradient(135deg,var(--surface),rgba(34,197,94,.04));border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:13px;font-weight:600">⭐ Top 15 · Casos cerrados con mayor eficiencia</div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">Tu mejor desempeño · cerrados por debajo del promedio (${avgDays} días)</div>
+        </div>
+        ${(() => {
+          /* Métrica destacada: cuántos casos se cerraron MEJOR que el promedio */
+          const bajoPromedio = durations.filter(x => x.days < avgDays).length;
+          const pctBajo = durations.length > 0 ? Math.round((bajoPromedio/durations.length)*100) : 0;
+          return `<div style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:6px 12px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:${STAT_COLORS.green};line-height:1">${bajoPromedio}</div>
+            <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px">casos bajo promedio (${pctBajo}%)</div>
+          </div>`;
+        })()}
+      </div>
       <div style="max-height:300px;overflow-y:auto;font-size:11px">
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:2px solid var(--border);text-align:left">
@@ -513,19 +547,27 @@ function renderTerminadosTab(){
             <th style="padding:4px 6px;font-size:10px">Materia</th>
             <th style="padding:4px 6px;font-size:10px">Resultado</th>
             <th style="padding:4px 6px;font-size:10px;text-align:right">Días</th>
-            <th style="padding:4px 6px;font-size:10px;text-align:right">Meses</th>
+            <th style="padding:4px 6px;font-size:10px;text-align:right">vs prom.</th>
           </tr></thead>
           <tbody>
-            ${durations.slice(-15).reverse().map((x,i)=>`
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:3px 6px;font-weight:600;color:var(--text-muted)">${i+1}</td>
+            ${durations.slice(0,15).map((x,i)=>{
+              /* `durations` ya viene ordenado ascendente por días → los primeros 15 son
+                 los más eficientes. Mostramos también cuántos días por debajo del
+                 promedio (avgDays) para celebrar el ahorro. */
+              const ahorrados = avgDays - x.days;
+              const ahorroLabel = ahorrados > 0 ? `−${ahorrados}d` : (ahorrados < 0 ? `+${Math.abs(ahorrados)}d` : '0d');
+              const ahorroColor = ahorrados >= 30 ? STAT_COLORS.green : ahorrados > 0 ? STAT_COLORS.teal : 'var(--text-muted)';
+              const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:3px 6px;font-weight:600;color:var(--text-muted);text-align:center;font-size:${i<3?'14px':'11px'}">${medal}</td>
                 <td style="padding:3px 6px">${esc(x.case.nueva_resolucion||x.case.name)}</td>
                 <td style="padding:3px 6px;color:var(--text-dim);font-size:10px">${esc(x.case.tipo_procedimiento||'—')}</td>
                 <td style="padding:3px 6px;color:var(--text-dim);font-size:10px">${esc(x.case.materia||'—')}</td>
                 <td style="padding:3px 6px;color:var(--text-dim);font-size:10px">${esc(RESULTADO_LABELS[x.case.resultado]||x.case.resultado||'—')}</td>
-                <td style="padding:3px 6px;text-align:right;font-weight:600;color:${x.days>252?STAT_COLORS.red:x.days>126?STAT_COLORS.gold:STAT_COLORS.green}">${x.days}</td>
-                <td style="padding:3px 6px;text-align:right;color:var(--text-dim)">${x.months}</td>
-              </tr>`).join('')}
+                <td style="padding:3px 6px;text-align:right;font-weight:600;color:${STAT_COLORS.green}">${x.days}</td>
+                <td style="padding:3px 6px;text-align:right;font-weight:600;color:${ahorroColor}">${ahorroLabel}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
