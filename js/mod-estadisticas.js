@@ -170,6 +170,15 @@ async function loadStats(){
     const activos=[...catGroups.genero,...catGroups.no_genero,...catGroups.cargos,...catGroups.probatorio,...catGroups.finalizacion];
     const terminados=catGroups.terminado;
 
+    /* Orden cronológico ascendente: priorizar fecha de vista fiscal,
+       luego fecha de resolución de término (informe) y, por último,
+       fecha de resolución / creación. Del más antiguo al más nuevo. */
+    terminados.sort((a,b)=>{
+      const da=a.fecha_vista||a.fecha_resolucion_termino||a.fecha_resolucion||a.created_at||'';
+      const db=b.fecha_vista||b.fecha_resolucion_termino||b.fecha_resolucion||b.created_at||'';
+      return String(da).localeCompare(String(db));
+    });
+
     /* Maps */
     const dilMap={};dils.forEach(d=>{(dilMap[d.case_id]=dilMap[d.case_id]||[]).push(d);});
     const partMap={};parts.forEach(p=>{(partMap[p.case_id]=partMap[p.case_id]||[]).push(p);});
@@ -1147,9 +1156,11 @@ function _xlsxBuildPlantillaTerminadosSheet(terminados){
   const headers=['Name','Profesional','Resolución Inicio','Fecha Res. Inicio','Fecha Recepción Fiscalia','Resolución término','Fecha Res. Término','Fecha de entrega expediente','Norma','Materia','Propuesta','Días de tramitación','Cumplimiento','Año','Observaciones'];
   const profesional=_profesionalNombre();
 
+  /* Orden cronológico ascendente por fecha de vista fiscal (campo `fecha_vista`),
+     con fallback a fecha de resolución de término (informe de investigadora). */
   const sorted=(terminados||[]).slice().sort((a,b)=>{
-    const da=a.fecha_resolucion_termino||a.fecha_vista||a.created_at||'';
-    const db=b.fecha_resolucion_termino||b.fecha_vista||b.created_at||'';
+    const da=a.fecha_vista||a.fecha_resolucion_termino||a.fecha_resolucion||a.created_at||'';
+    const db=b.fecha_vista||b.fecha_resolucion_termino||b.fecha_resolucion||b.created_at||'';
     return String(da).localeCompare(String(db));
   });
 
