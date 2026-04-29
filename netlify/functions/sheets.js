@@ -38,7 +38,7 @@ async function getAccessToken(sa) {
   const jwt = header + '.' + payload + '.' + sig;
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
   return new Promise((resolve, reject) => {
-    const _to = setTimeout(() => req.destroy(), 30000);
+    let _to;
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
@@ -55,6 +55,7 @@ async function getAccessToken(sa) {
         } catch (e) { reject(new Error('Token parse error: ' + d)); }
       });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, 30000);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
@@ -85,7 +86,7 @@ function sheetsRequest(method, path, token, body) {
       },
       timeout: 30000
     };
-    const _to = setTimeout(() => req.destroy(), 30000);
+    let _to;
     const req = https.request(options, (res) => {
       clearTimeout(_to);
       let d = '';
@@ -95,6 +96,7 @@ function sheetsRequest(method, path, token, body) {
         catch (e) { resolve({ status: res.statusCode, data: d }); }
       });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, 30000);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);

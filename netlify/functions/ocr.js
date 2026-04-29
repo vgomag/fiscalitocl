@@ -114,6 +114,7 @@ function callClaude(apiKey, model, system, userContent, maxTokens) {
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(new Error('Parse error')); } });
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, CLAUDE_TIMEOUT_MS);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
