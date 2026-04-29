@@ -586,10 +586,24 @@ function renderTerminadosTab(){
       top20.map(x=>x.months),
       STAT_COLORS.gold+'cc',true);
 
-    /* 3. Terminados por mes y año */
-    const tbmKeys=Object.keys(termByMonth).sort();
-    const tbmLabels=tbmKeys.map(m=>{const[y,mon]=m.split('-');return['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(mon)-1]+' '+y.slice(2);});
-    if(tbmKeys.length)makeBar('chartTermByMonth',tbmLabels,tbmKeys.map(k=>termByMonth[k]),STAT_COLORS.green+'cc');
+    /* 3a. Terminados por AÑO — doughnut (cuántos casos cerraste cada año).
+       Agrupar termByMonth (que tiene formato "YYYY-MM") por año. */
+    const tbyMap={};
+    Object.entries(termByMonth).forEach(([m,n])=>{
+      const y=m.split('-')[0]; tbyMap[y]=(tbyMap[y]||0)+n;
+    });
+    const tbyYears=Object.keys(tbyMap).sort();
+    if(tbyYears.length)makePie('chartTermByYear',tbyYears,tbyYears.map(y=>tbyMap[y]));
+
+    /* 3b. Terminados por MES (acumulado de todos los años) — polar area circular.
+       Cada segmento es un mes (Ene-Dic) y el radio refleja el conteo total. */
+    const _MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const tbmAcc=Array(12).fill(0);
+    Object.entries(termByMonth).forEach(([m,n])=>{
+      const idx=parseInt(m.split('-')[1],10)-1;
+      if(idx>=0&&idx<12)tbmAcc[idx]+=n;
+    });
+    if(tbmAcc.some(v=>v>0))makePolar('chartTermByMonthPolar',_MESES,tbmAcc);
 
     /* 4. Protocolo */
     if(Object.keys(protocolos).length)makePie('chartTermProtocolo',Object.keys(protocolos),Object.values(protocolos));
