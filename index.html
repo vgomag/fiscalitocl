@@ -2584,7 +2584,17 @@ async function moveCase(caseId,newCat){
   if(idx>=0){
     allCases[idx].categoria=newCat;
     if(nuevoEstado)allCases[idx].estado_procedimiento=nuevoEstado;
-    if(newCat==='terminado'){allCases[idx].status='terminado';allCases[idx].nueva_resolucion=nuevaRes;}
+    /* CRÍTICO: sincronizar el status local con el payload, no sólo cuando se
+       mueve A terminado, sino TAMBIÉN cuando se mueve DE terminado a una etapa
+       activa. Sin esto, `allCases[idx].status` queda en 'terminado' y getCaseCat()
+       sigue clasificando el caso como terminado en memoria, aunque la BD ya lo
+       marcó como 'active'. Bug observado con caso 536-2024-VRAC. */
+    if(newCat==='terminado'){
+      allCases[idx].status='terminado';
+      allCases[idx].nueva_resolucion=nuevaRes;
+    } else {
+      allCases[idx].status='active';
+    }
   }
   updateCatCounts();setCatTab(activeCatTab);showToast('✓ Caso movido a '+CAT_LABELS[newCat]);
 }
