@@ -69,6 +69,7 @@ function driveGet(path, token, binary) {
       if (binary) { const c = []; res.on('data', d => c.push(d)); res.on('end', () => resolve({ status: res.statusCode, data: Buffer.concat(c) })); }
       else { let d = ''; res.on('data', c => d += c); res.on('end', () => { try { resolve({ status: res.statusCode, data: res.statusCode < 300 ? JSON.parse(d) : d }); } catch(e) { resolve({ status: res.statusCode, data: d }); } }); }
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, DRIVE_TIMEOUT_MS);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
@@ -88,6 +89,7 @@ function driveText(path, token) {
       clearTimeout(_to);
       let d = ''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, data: d }));
     });
+    _to = setTimeout(() => { try { req.destroy(); } catch(_) {} }, DRIVE_TIMEOUT_MS);
     req.on('error', (e) => {
       clearTimeout(_to);
       reject(e);
