@@ -2490,8 +2490,13 @@ function renderTabla(searchOverride){
       const procClass=procMap[c.tipo_procedimiento]||'';
       const currentCat=getCaseCat(c);
       const catLink=Object.entries(CAT_LABELS).map(([k,v])=>`<option value="${k}"${currentCat===k?' selected':''}>${v}</option>`).join('');
+      /* Si el caso terminado está apareciendo en Finalización porque le falta la
+         resolución de término, marcarlo visualmente para que la fiscal sepa que
+         es un caso "técnicamente terminado pero pendiente de redactar resolución". */
+      const _isPendRes = (typeof isTerminadoPendienteResolucion==='function' && isTerminadoPendienteResolucion(c)) && activeCatTab==='finalizacion';
+      const _pendBadge = _isPendRes ? `<span style="display:inline-block;background:rgba(245,158,11,.15);color:#b45309;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle" title="Caso terminado pendiente de redactar la resolución de término">⏳ pendiente resolución</span>` : '';
       return `<tr class="tr-clickable" data-caseid="${esc(c.id)}" onclick="pickCaseById('${esc(c.id)}')">
-        <td><div class="exp-cell"><span class="exp-num">${esc(c.name||'—')}</span>${c.nueva_resolucion?`<span class="exp-rol">${esc(c.nueva_resolucion)}</span>`:''}</div></td>
+        <td><div class="exp-cell"><span class="exp-num">${esc(c.name||'—')}${_pendBadge}</span>${c.nueva_resolucion?`<span class="exp-rol">${esc(c.nueva_resolucion)}</span>`:''}</div></td>
         <td><span class="proc-badge proc-${procClass}">${esc(c.tipo_procedimiento||'—')}</span></td>
         <td><select class="move-select" onchange="moveCase('${esc(c.id)}',this.value)" onclick="event.stopPropagation()" title="Etapa procesal actual · cambia el valor para mover el caso">${catLink}</select></td>
         <td><div class="materia-cell">${esc(c.materia||'—')}</div></td>
@@ -2502,6 +2507,7 @@ function renderTabla(searchOverride){
         <td>${(c.resultado||c.propuesta)?`<span class="proc-badge ${(c.resultado||c.propuesta)==='Sanción'?'proc-is':(c.resultado||c.propuesta)==='Sobreseimiento'?'proc-sa':'proc-pd'}">${esc(c.resultado||c.propuesta)}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
         <td><span class="fecha-cell">${c.fecha_vista||'—'}</span></td>
         <td><div class="acciones-cell">
+          ${_isPendRes?`<button class="btn-action" title="Redactar resolución de término con IA (acceso a antecedentes)" onclick="event.stopPropagation();redactarResolucionTermino('${esc(c.id)}')" style="color:#b45309">📝</button>`:''}
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
           <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>
           <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
@@ -2510,6 +2516,31 @@ function renderTabla(searchOverride){
     }).join('');
   }
 }
+
+/* ── Acción rápida: Redactar resolución de término con IA ──
+   Abre el caso, va al chat y deja preparado un prompt que pide a Fiscalito
+   redactar la resolución de término del caso usando todos los antecedentes
+   (vista fiscal, propuesta, hechos, sanción, etc. ya están en el contexto
+   del chat porque pickCaseById carga todo). */
+window.redactarResolucionTermino=async function(caseId){
+  if(!caseId)return;
+  await pickCaseById(caseId);
+  setTimeout(()=>{
+    if(typeof showTab==='function')showTab('tabChat');
+    /* Activar función F0 (consulta general) para tener máximo presupuesto de tokens */
+    if(typeof pickFn==='function')pickFn('F0');
+    setTimeout(()=>{
+      const inp=document.getElementById('inputBox');
+      if(!inp)return;
+      const propuesta=currentCase?.resultado||currentCase?.propuesta||'(no especificada)';
+      inp.value='Redacta la **resolución de término** que debe dictar la autoridad para este expediente. Usa TODOS los antecedentes del caso (vista fiscal, hechos acreditados, propuesta, normativa aplicable, plazos). La propuesta del fiscal fue: '+propuesta+'.\n\nEstructura: VISTOS · CONSIDERANDOS (cita las piezas del expediente con foja) · RESUELVO. Tono institucional, formal, en español jurídico chileno.';
+      inp.focus();
+      inp.style.height='auto';
+      inp.style.height=Math.min(inp.scrollHeight,200)+'px';
+      if(typeof showToast==='function')showToast('📝 Prompt cargado · revisa y envía para redactar la resolución de término');
+    },350);
+  },200);
+};
 
 async function moveCase(caseId,newCat){
   if(!newCat)return;
