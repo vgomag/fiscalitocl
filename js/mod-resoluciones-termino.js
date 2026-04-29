@@ -68,6 +68,12 @@ const state = {
   currentDraft: null,   // draft activo en el editor
   selectedTipo: null,   // tipo elegido manualmente o auto-detectado
   selectedModeloId: null,
+  /* Memo Jurídico — pieza CRÍTICA del prompt. Puede venir:
+     (a) auto-detectado desde la carpeta Drive del caso
+     (b) subido manualmente por la fiscal vía la zona de upload
+     Almacenamos: el nombre, la fuente, y el texto extraído. */
+  memoJuridico: null,   // { source: 'drive'|'upload', fileName, text, fileId? }
+  memoLoading: false,
   saving: false,
   generating: false,
   autosaveTimer: null
