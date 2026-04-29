@@ -204,6 +204,198 @@ async function buildCaseContext(c){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   MEMO JURÍDICO — DETECCIÓN AUTOMÁTICA EN DRIVE + UPLOAD MANUAL
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Identifica si un nombre de archivo parece "memo jurídico". Patrones observados:
+   - "Memo 9-536-2024.pdf"
+   - "Memo 15- R.E. 1611-2022.pdf"
+   - "memorandum N°X/DJ/2026"
+   - "Memo Jurídico …"
+   Adicional: si tenemos la nueva_resolucion del caso, priorizamos archivos que la contengan. */
+function _isMemoFileName(fileName, rolCaso){
+  if(!fileName) return 0;
+  const fn = String(fileName).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  let score = 0;
+  if(/^memo[\s\d_\-]/.test(fn) || fn.startsWith('memo ') || fn.startsWith('memo-')) score += 50;
+  if(/memorand[ou]m/i.test(fn)) score += 40;
+  if(/memo.*juridico/.test(fn)) score += 30;
+  if(/memo/.test(fn)) score += 10;
+  if(/\/dj\/|direccion.*juridica/.test(fn)) score += 15;
+  /* Boost si contiene el ROL del caso (ej. "536-2024", "626-2025") */
+  if(rolCaso){
+    const rolNum = String(rolCaso).match(/\d{2,4}[-\/]?\d{2,4}/);
+    if(rolNum && fn.includes(rolNum[0].replace(/[\/]/g,'-').toLowerCase())) score += 30;
+  }
+  /* Solo PDFs cuentan */
+  if(!fn.endsWith('.pdf')) score = Math.max(0, score - 20);
+  return score;
+}
+
+/* Extrae el folder ID desde la URL de Drive del caso. */
+function _getCaseDriveFolderId(c){
+  if(!c) return null;
+  if(c.drive_folder_id) return c.drive_folder_id;
+  if(c.drive_folder_url){
+    const m = c.drive_folder_url.match(/folders\/([^?&\/]+)/);
+    if(m) return m[1];
+  }
+  return null;
+}
+
+/* Busca el memo jurídico en la carpeta Drive del caso. Devuelve {fileId, fileName, score} o null. */
+async function findMemoInDrive(caseObj){
+  const folderId = _getCaseDriveFolderId(caseObj);
+  if(!folderId) return null;
+  const _doFetch = (typeof authFetch === 'function') ? authFetch : fetch;
+  try {
+    const res = await _doFetch('/.netlify/functions/drive', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'list', folderId, recursive:true, maxDepth:3 })
+    });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(!data?.ok) return null;
+    const files = data.files || [];
+    /* Scoring por archivo, quedarse con el de mayor score */
+    let best = null;
+    files.forEach(f => {
+      const sc = _isMemoFileName(f.name, caseObj.nueva_resolucion);
+      if(sc >= 30 && (!best || sc > best.score)){
+        best = { fileId: f.id, fileName: f.name, mimeType: f.mimeType, score: sc };
+      }
+    });
+    return best;
+  } catch(e){
+    console.warn('[resol] findMemoInDrive error:', e);
+    return null;
+  }
+}
+
+/* Descarga un PDF de Drive y extrae texto (vía /api/ocr o pdf.js global). */
+async function extractMemoText(memoInfo){
+  if(!memoInfo?.fileId) return '';
+  const _doFetch = (typeof authFetch === 'function') ? authFetch : fetch;
+  /* Estrategia: usar /.netlify/functions/ocr action='extract' que ya maneja PDFs y OCR */
+  try {
+    const r = await _doFetch('/.netlify/functions/ocr', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'extract', fileId: memoInfo.fileId, fileName: memoInfo.fileName })
+    });
+    if(!r.ok) return '';
+    const data = await r.json();
+    if(data?.ok && data.text) return data.text;
+    if(data?.ok && data.extractedText) return data.extractedText;
+    return '';
+  } catch(e){
+    console.warn('[resol] extractMemoText error:', e);
+    return '';
+  }
+}
+
+/* Extrae texto de un PDF subido manualmente por la fiscal (Blob o File). */
+async function extractMemoTextFromUpload(file){
+  if(!file) return '';
+  /* Intentar pdf.js si está disponible globalmente */
+  try {
+    if(typeof pdfjsLib !== 'undefined' && pdfjsLib.getDocument){
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      let txt = '';
+      const maxPages = Math.min(pdf.numPages, 30);
+      for(let i = 1; i <= maxPages; i++){
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        txt += content.items.map(it => it.str || '').join(' ') + '\n\n';
+      }
+      return txt.trim();
+    }
+  } catch(e){ console.warn('[resol] pdf.js falló, fallback a OCR servidor:', e); }
+  /* Fallback: convertir a base64 y mandar a /api/ocr — pero esa función espera fileId.
+     Para PDFs locales no hay shortcut: subir temporalmente al Storage o usar Claude
+     vision con el PDF como documento adjunto (más simple). Hacemos eso último. */
+  try {
+    const _doFetch = (typeof authFetch === 'function') ? authFetch : fetch;
+    const buf = await file.arrayBuffer();
+    /* Codificar base64 en chunks para no agotar memoria */
+    const u8 = new Uint8Array(buf);
+    const CHUNK = 0x8000; let raw = '';
+    for(let i = 0; i < u8.length; i += CHUNK){
+      raw += String.fromCharCode.apply(null, u8.subarray(i, Math.min(i + CHUNK, u8.length)));
+    }
+    const b64 = btoa(raw);
+    const r = await _doFetch((typeof CHAT_ENDPOINT!=='undefined'?CHAT_ENDPOINT:'/.netlify/functions/chat'), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: (typeof CLAUDE_SONNET!=='undefined'?CLAUDE_SONNET:'claude-sonnet-4-20250514'),
+        max_tokens: 4000,
+        messages: [{
+          role:'user',
+          content:[
+            { type:'document', source:{ type:'base64', media_type:'application/pdf', data: b64 } },
+            { type:'text', text:'Extrae el texto completo de este memorándum jurídico. Devuelve SOLO el texto, sin comentarios. Conserva la estructura (encabezado, considerandos, conclusión).' }
+          ]
+        }]
+      })
+    });
+    if(!r.ok) return '';
+    const data = await r.json();
+    return (data?.content||[]).map(b => b.text || '').join('\n').trim();
+  } catch(e){ console.warn('[resol] fallback Claude vision falló:', e); return ''; }
+}
+
+/* Auto-detectar memo al abrir el modal */
+async function autoDetectMemo(){
+  if(state.memoJuridico) return; // ya hay uno cargado (manual o anterior)
+  state.memoLoading = true;
+  _renderMemoSection();
+  try {
+    const found = await findMemoInDrive(state.caseObj);
+    if(found){
+      _toast('🔍 Memo encontrado en Drive: ' + found.fileName);
+      const txt = await extractMemoText(found);
+      if(txt && txt.length > 50){
+        state.memoJuridico = { source:'drive', fileName: found.fileName, fileId: found.fileId, text: txt };
+        _toast(`✅ Memo cargado · ${txt.length} caracteres`);
+      } else {
+        state.memoJuridico = { source:'drive', fileName: found.fileName, fileId: found.fileId, text: '', error:'No se pudo extraer texto' };
+        _toast('⚠ Memo encontrado pero sin texto extraíble — sube el PDF manualmente', 5000);
+      }
+    }
+  } catch(e){ console.warn('[resol] autoDetectMemo:', e); }
+  finally { state.memoLoading = false; _renderMemoSection(); }
+}
+
+/* Manejo del upload manual de memo PDF */
+async function handleMemoUpload(file){
+  if(!file) return;
+  if(file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
+    _toast('⚠ Solo se aceptan PDFs');
+    return;
+  }
+  if(file.size > 25*1024*1024){
+    _toast('⚠ PDF demasiado grande (máx 25 MB)');
+    return;
+  }
+  state.memoLoading = true;
+  _renderMemoSection();
+  try {
+    const txt = await extractMemoTextFromUpload(file);
+    if(txt && txt.length > 50){
+      state.memoJuridico = { source:'upload', fileName: file.name, text: txt };
+      _toast(`✅ Memo cargado · ${txt.length} caracteres extraídos`);
+    } else {
+      _toast('⚠ No se pudo extraer texto del PDF · prueba otro archivo o usa OCR previo');
+    }
+  } catch(e){ _toast('❌ Error procesando memo: ' + e.message); }
+  finally { state.memoLoading = false; _renderMemoSection(); }
+}
+
+window.resolMemoUpload = handleMemoUpload;
+window.resolMemoClear = function(){ state.memoJuridico = null; _renderMemoSection(); };
+window.resolMemoRedetect = function(){ state.memoJuridico = null; autoDetectMemo(); };
+
+/* ══════════════════════════════════════════════════════════════════════
    GENERACIÓN CON IA
    ══════════════════════════════════════════════════════════════════════ */
 async function generarBorradorIA(){
