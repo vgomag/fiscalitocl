@@ -129,18 +129,19 @@ function enhanceTabs(){
   if(!tabsContainer) return;
 
   // Añadir pestaña Compartidos si no existe.
-  // Se inserta ANTES de #tab-terminado para que Terminados quede como la última
-  // pestaña visible (Terminados representa "casos cerrados", debe ir al final).
-  // Si #tab-terminado no existe (carga temprana), se hace fallback a appendChild.
+  // Orden visual deseado: ...Preparación · Terminados · Compartidos · Finalización.
+  // Por eso Compartidos se inserta ANTES de #tab-finalizacion (que ahora es la
+  // última pestaña, donde la fiscal trabaja en la resolución de término).
+  // Si #tab-finalizacion no existe (carga temprana), se hace fallback a appendChild.
   if(!document.getElementById('tab-compartidos')){
     const sharedTab = document.createElement('div');
     sharedTab.id = 'tab-compartidos';
     sharedTab.className = 'cat-tab';
     sharedTab.onclick = () => setCatTab('compartidos');
     sharedTab.innerHTML = '🔗 Compartidos <span class="tab-count" id="cnt-compartidos">0</span>';
-    const terminadoTab = document.getElementById('tab-terminado');
-    if(terminadoTab){
-      tabsContainer.insertBefore(sharedTab, terminadoTab);
+    const finalizacionTab = document.getElementById('tab-finalizacion');
+    if(finalizacionTab){
+      tabsContainer.insertBefore(sharedTab, finalizacionTab);
     } else {
       tabsContainer.appendChild(sharedTab);
     }
