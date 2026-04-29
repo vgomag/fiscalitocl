@@ -158,8 +158,8 @@
        con fallback a fecha_resolucion_termino, fecha_resolucion y created_at.
        Del más antiguo al más nuevo — criterio canónico en toda la app. */
     terminados = terminados.slice().sort((a,b)=>{
-      const da=a.fecha_vista||a.fecha_resolucion_termino||a.fecha_resolucion||a.created_at||'';
-      const db=b.fecha_vista||b.fecha_resolucion_termino||b.fecha_resolucion||b.created_at||'';
+      const da=a.fecha_resolucion_termino||a.fecha_vista||a.fecha_resolucion||a.created_at||'';
+      const db=b.fecha_resolucion_termino||b.fecha_vista||b.fecha_resolucion||b.created_at||'';
       return String(da).localeCompare(String(db));
     });
     if (typeof showToast==='function') showToast('📋 Generando Procedimientos Terminados…');

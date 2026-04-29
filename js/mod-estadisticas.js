@@ -170,12 +170,14 @@ async function loadStats(){
     const activos=[...catGroups.genero,...catGroups.no_genero,...catGroups.cargos,...catGroups.probatorio,...catGroups.finalizacion];
     const terminados=catGroups.terminado;
 
-    /* Orden cronológico ascendente: priorizar fecha de vista fiscal,
-       luego fecha de resolución de término (informe) y, por último,
-       fecha de resolución / creación. Del más antiguo al más nuevo. */
+    /* Orden cronológico ascendente: priorizar FECHA DE TÉRMINO/ENTREGA
+       (fecha_resolucion_termino), luego fecha de vista fiscal y, por
+       último, fecha de resolución / creación. Del más antiguo al más
+       nuevo — como en la planilla del usuario, donde la última fila es
+       la entregada el día de hoy. */
     terminados.sort((a,b)=>{
-      const da=a.fecha_vista||a.fecha_resolucion_termino||a.fecha_resolucion||a.created_at||'';
-      const db=b.fecha_vista||b.fecha_resolucion_termino||b.fecha_resolucion||b.created_at||'';
+      const da=a.fecha_resolucion_termino||a.fecha_vista||a.fecha_resolucion||a.created_at||'';
+      const db=b.fecha_resolucion_termino||b.fecha_vista||b.fecha_resolucion||b.created_at||'';
       return String(da).localeCompare(String(db));
     });
 
@@ -1156,11 +1158,11 @@ function _xlsxBuildPlantillaTerminadosSheet(terminados){
   const headers=['Name','Profesional','Resolución Inicio','Fecha Res. Inicio','Fecha Recepción Fiscalia','Resolución término','Fecha Res. Término','Fecha de entrega expediente','Norma','Materia','Propuesta','Días de tramitación','Cumplimiento','Año','Observaciones'];
   const profesional=_profesionalNombre();
 
-  /* Orden cronológico ascendente por fecha de vista fiscal (campo `fecha_vista`),
-     con fallback a fecha de resolución de término (informe de investigadora). */
+  /* Orden cronológico ascendente por FECHA DE TÉRMINO/ENTREGA
+     (fecha_resolucion_termino), con fallback a fecha de vista fiscal. */
   const sorted=(terminados||[]).slice().sort((a,b)=>{
-    const da=a.fecha_vista||a.fecha_resolucion_termino||a.fecha_resolucion||a.created_at||'';
-    const db=b.fecha_vista||b.fecha_resolucion_termino||b.fecha_resolucion||b.created_at||'';
+    const da=a.fecha_resolucion_termino||a.fecha_vista||a.fecha_resolucion||a.created_at||'';
+    const db=b.fecha_resolucion_termino||b.fecha_vista||b.fecha_resolucion||b.created_at||'';
     return String(da).localeCompare(String(db));
   });
 
