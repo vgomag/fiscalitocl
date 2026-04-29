@@ -1989,8 +1989,10 @@ function loadCuestionariosTab(){
     cont.innerHTML='<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:12px">Selecciona un caso para ver los cuestionarios disponibles.</div>';
     return;
   }
-  /* Verificar que el módulo esté cargado */
-  const TPL=(typeof TEMPLATES!=='undefined'&&TEMPLATES)||(typeof window!=='undefined'&&window.FISCALITO_TEMPLATES)||null;
+  /* Verificar que el módulo esté cargado.
+     TEMPLATES vive dentro de una IIFE en mod-cuestionarios.js, así que sólo
+     es accesible vía window.FISCALITO_TEMPLATES.TEMPLATES. */
+  const TPL=(window.FISCALITO_TEMPLATES&&window.FISCALITO_TEMPLATES.TEMPLATES)||null;
   if(!TPL||typeof openCuestionarios!=='function'){
     cont.innerHTML='<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:12px">⚠ Módulo de cuestionarios no disponible. Recarga la página.</div>';
     return;

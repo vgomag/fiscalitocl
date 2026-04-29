@@ -864,6 +864,7 @@ function sendActaToChat(){
 
 window.openCuestionarios=openCuestionarios;
 window.selectTemplate=selectTemplate;
+window.switchCuestTab=switchCuestTab;
 window.cuestLinkCase=cuestLinkCase;
 window.cuestUnlinkCase=cuestUnlinkCase;
 window.wizNext=wizNext;
