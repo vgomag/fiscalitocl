@@ -2555,6 +2555,7 @@ function renderTabla(searchOverride){
         <td><span class="fecha-cell">${c.fecha_vista||'—'}</span></td>
         <td><div class="acciones-cell">
           ${_showRedactorBtn?`<button class="btn-action" title="Abrir Redactor de Resolución de Término (auto-detecta memo Drive · IA · modelos · versionado · exportar Word)" onclick="event.stopPropagation();(typeof openResolucionRedactor==='function'?openResolucionRedactor('${esc(c.id)}'):redactarResolucionTermino('${esc(c.id)}'))" style="color:#7c3aed;font-weight:700">📋</button>`:''}
+          <button class="btn-action" title="Enviar mensaje a la actuaria en Monday (con quick-fills de pendientes, gantt y próximos pasos)" onclick="event.stopPropagation();if(typeof openMondayBridge==='function')openMondayBridge('${esc(c.id)}');else showToast('Recarga la página para activar el bridge de Monday');" style="color:#ff3d57">📤</button>
           ${c.drive_folder_url?`<a href="${esc(c.drive_folder_url)}" target="_blank" class="btn-action" title="Abrir Drive" onclick="event.stopPropagation()">📁</a>`:''}
           <button class="btn-action" title="Editar" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>openEditCase(),300)">✎</button>
           <button class="btn-action" title="Chat IA" onclick="event.stopPropagation();pickCaseById('${esc(c.id)}');setTimeout(()=>showTab('tabChat'),300)">💬</button>
@@ -5686,6 +5687,7 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-escritos.js"></script>
 <script src="/js/mod-transcripcion.js"></script>
 <script src="/js/mod-resoluciones-termino.js"></script>
+<script src="/js/mod-monday-bridge.js"></script>
 <script>
 // Transcripción module moved to mod-transcripcion.js
 </script>
