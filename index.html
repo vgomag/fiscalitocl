@@ -1817,8 +1817,9 @@ async function loadDilCounts(){
       /* Re-renderizar tabla si estamos en pestaña que muestra conteo */
       renderTabla();
     } else {
-      /* Fallback: query manual por cada caso activo (menos eficiente) */
-      const activeCaseIds=allCases.filter(c=>['probatorio','finalizacion','cargos'].includes(getCaseCat(c))).map(c=>c.id);
+      /* Fallback: query manual por cada caso activo (menos eficiente). Solo casos
+         que NO están terminados — abarca todas las nuevas etapas activas. */
+      const activeCaseIds=allCases.filter(c=>getCaseCat(c)!=='terminado').map(c=>c.id);
       if(!activeCaseIds.length)return;
       const{data:dils}=await sb.from('diligencias').select('case_id').in('case_id',activeCaseIds);
       if(dils){
