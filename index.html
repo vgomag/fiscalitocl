@@ -2494,16 +2494,13 @@ function renderTabla(searchOverride){
       const procClass=procMap[c.tipo_procedimiento]||'';
       const currentCat=getCaseCat(c);
       const catLink=Object.entries(CAT_LABELS).map(([k,v])=>`<option value="${k}"${currentCat===k?' selected':''}>${v}</option>`).join('');
-      /* Marcador visual para casos TERMINADOS pendientes de resolución (siguen
-         contando en Terminados pero también aparecen en Finalización). */
-      const _isPendRes = (typeof isTerminadoPendienteResolucion==='function' && isTerminadoPendienteResolucion(c)) && activeCatTab==='finalizacion';
-      const _pendBadge = _isPendRes ? `<span style="display:inline-block;background:rgba(245,158,11,.15);color:#b45309;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle" title="Caso terminado pendiente de redactar la resolución de término">⏳ pendiente resolución</span>` : '';
-      /* El botón 📋/📝 (Redactor de Resolución de Término) debe aparecer en TODOS
-         los casos de la pestaña Finalización — tanto los terminados pendientes
-         como los activos en etapa de finalización (que también necesitan que
-         redactes la resolución de la autoridad). Bug previo: solo aparecía en
-         terminados pendientes, así que al mover un caso a Finalización el botón
-         desaparecía y no había manera obvia de abrir el redactor. */
+      /* Marcador visual para casos en el workspace de Finalización que provienen
+         de Terminados (siguen contando como Terminados pero están en el workspace
+         para redactar la resolución que afina el procedimiento). */
+      const _isInWorkspace = (window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(c.id));
+      const _isTerminadoEnWS = c.status==='terminado' && _isInWorkspace && activeCatTab==='finalizacion';
+      const _pendBadge = _isTerminadoEnWS ? `<span style="display:inline-block;background:rgba(245,158,11,.15);color:#b45309;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle" title="Caso terminado en workspace · pendiente de redactar la resolución de término">⏳ resolución pendiente</span>` : '';
+      /* Botón Redactor visible para todos los casos de la pestaña Finalización */
       const _showRedactorBtn = activeCatTab==='finalizacion';
       return `<tr class="tr-clickable" data-caseid="${esc(c.id)}" onclick="pickCaseById('${esc(c.id)}')">
         <td><div class="exp-cell"><span class="exp-num">${esc(c.name||'—')}${_pendBadge}</span>${c.nueva_resolucion?`<span class="exp-rol">${esc(c.nueva_resolucion)}</span>`:''}</div></td>
