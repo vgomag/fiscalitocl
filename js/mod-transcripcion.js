@@ -1254,6 +1254,8 @@ async function f11StartRecording(){
     _f11Recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
     _f11Recorder.onerror = e => {
       console.error('[F11] MediaRecorder error:', e);
+      /* Limpiar interval de auto-save para que no siga disparando tras el error */
+      if(_f11ChunkSaveInterval){ clearInterval(_f11ChunkSaveInterval); _f11ChunkSaveInterval = null; }
       /* Guardar lo que se haya grabado hasta ahora */
       if(chunks.length > 0){
         _f11SavePartialAudioToDB(chunks, selectedMime);
@@ -1261,6 +1263,9 @@ async function f11StartRecording(){
       } else {
         showToast('❌ Error en grabación: '+(e.error?.message||'desconocido'));
       }
+      /* Liberar stream explícitamente — onstop puede no dispararse en algunos
+         estados de error, dejando el micrófono capturado. */
+      try { stream.getTracks().forEach(t => { try { t.stop(); } catch(e2){} }); } catch(e3){}
       f11StopRecording();
     };
     _f11Recorder.onstop = () => {
