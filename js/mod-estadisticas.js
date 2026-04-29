@@ -1075,3 +1075,342 @@ async function exportChatXLSX(msgId){
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════
+   EXPORT 3: Plantilla "Repositorio de Procedimientos Finalizados"
+   Réplica del formato Excel proporcionado por la fiscal.
+   15 columnas + título + fila de totales.
+   ═══════════════════════════════════════════════════════════ */
+
+const _NORMA_LABELS={
+  '2020':'Protocolo 2020','2022':'Protocolo 2022',
+  '18834':'Estatuto Administrativo','laboral':'Protocolo laboral antiguo',
+  'ley karin':'Protocolo Ley Karin','ley_karin':'Protocolo Ley Karin',
+  '34-su':'Reglamento estudiantes','21-su-2025':'Reglamento estudiantes',
+  'reglamento estudiantes':'Reglamento estudiantes',
+  'estatuto administrativo':'Estatuto Administrativo'
+};
+function _normaLabel(v){
+  if(!v)return'';
+  const k=String(v).toLowerCase().trim();
+  return _NORMA_LABELS[k]||(/protocolo/i.test(v)?v:('Protocolo '+v));
+}
+function _propuestaLabel(c){
+  if(c.propuesta){
+    const p=String(c.propuesta).toLowerCase().trim();
+    if(/sancion|destituci|multa|censura|suspensi/.test(p))return'Sanción';
+    if(/sobresei/.test(p))return'Sobreseimiento';
+    if(/absuel/.test(p))return'Absuelto';
+    if(/inhabil/.test(p))return'Inhabilidad';
+    return c.propuesta;
+  }
+  const r=String(c.resultado||'').toLowerCase();
+  if(r.startsWith('sancion_')||r.startsWith('propuesta_sancion_'))return'Sanción';
+  if(r==='sobreseimiento')return'Sobreseimiento';
+  if(r==='absuelto')return'Absuelto';
+  if(r==='informe_inhabilidad')return'Inhabilidad';
+  if(r.startsWith('pendiente'))return'Pendiente';
+  return'';
+}
+function _cumplimientoLabel(diasHabiles){
+  if(typeof diasHabiles!=='number'||!isFinite(diasHabiles)||diasHabiles<=0)return'';
+  return diasHabiles<=126?'Cumplido':'Cumplido fuera de plazo';
+}
+function _yearOf(){
+  for(const v of arguments){
+    if(!v)continue;
+    const m=String(v).match(/^(\d{4})/);
+    if(m)return parseInt(m[1],10);
+    const d=new Date(v);
+    if(!isNaN(d))return d.getFullYear();
+  }
+  return'';
+}
+function _toExcelDate(v){
+  if(!v)return'';
+  if(v instanceof Date)return v;
+  const iso=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(iso)return new Date(parseInt(iso[1]),parseInt(iso[2])-1,parseInt(iso[3]));
+  const d=new Date(v);
+  return isNaN(d)?String(v):d;
+}
+function _profesionalNombre(){
+  try{
+    const u=session?.user||{};
+    const meta=u.user_metadata||{};
+    return meta.full_name||meta.name||meta.nombre||(u.email||'Fiscal').split('@')[0].replace(/[._-]/g,' ');
+  }catch{return'Fiscal';}
+}
+
+function _xlsxBuildPlantillaTerminadosSheet(terminados){
+  const xx=_xlsxLib();
+  const headers=['Name','Profesional','Resolución Inicio','Fecha Res. Inicio','Fecha Recepción Fiscalia','Resolución término','Fecha Res. Término','Fecha de entrega expediente','Norma','Materia','Propuesta','Días de tramitación','Cumplimiento','Año','Observaciones'];
+  const profesional=_profesionalNombre();
+
+  const sorted=(terminados||[]).slice().sort((a,b)=>{
+    const da=a.fecha_resolucion_termino||a.fecha_vista||a.created_at||'';
+    const db=b.fecha_resolucion_termino||b.fecha_vista||b.created_at||'';
+    return String(da).localeCompare(String(db));
+  });
+
+  const rows=sorted.map((c,i)=>{
+    const dias=c.duracion_dias||countBusinessDays(c.fecha_recepcion_fiscalia||c.created_at,c.fecha_resolucion_termino||c.fecha_vista)||'';
+    return [
+      'N°'+(i+1),
+      profesional,
+      c.nueva_resolucion||'',
+      _toExcelDate(c.fecha_resolucion),
+      _toExcelDate(c.fecha_recepcion_fiscalia),
+      c.resolucion_termino||'',
+      _toExcelDate(c.fecha_resolucion_termino),
+      _toExcelDate(c.fecha_vista),
+      _normaLabel(c.protocolo),
+      c.materia||'',
+      _propuestaLabel(c),
+      typeof dias==='number'?dias:'',
+      _cumplimientoLabel(typeof dias==='number'?dias:NaN),
+      _yearOf(c.fecha_denuncia,c.fecha_resolucion,c.created_at),
+      c.observaciones||''
+    ];
+  });
+
+  const totalDias=rows.reduce((s,r)=>s+(typeof r[11]==='number'?r[11]:0),0);
+  const totalRow=['','','','','','','','','','','',totalDias,'','',''];
+
+  const aoa=[
+    ['Repositorio Procedimientos finalizados'],
+    ['Título del Grupo'],
+    headers,
+    ...rows,
+    totalRow
+  ];
+
+  const ws=xx.utils.aoa_to_sheet(aoa,{cellDates:true});
+  ws['!cols']=[
+    {wch:8},{wch:22},{wch:24},{wch:14},{wch:18},{wch:24},{wch:14},{wch:18},
+    {wch:22},{wch:34},{wch:14},{wch:14},{wch:22},{wch:8},{wch:32}
+  ];
+  if(rows.length){
+    ws['!autofilter']={ref:xx.utils.encode_range({s:{r:2,c:0},e:{r:2+rows.length,c:headers.length-1}})};
+  }
+  const dateCols=[3,4,6,7];
+  for(let r=3;r<3+rows.length;r++){
+    for(const c of dateCols){
+      const ref=xx.utils.encode_cell({r,c});
+      if(ws[ref]&&ws[ref].v instanceof Date){
+        ws[ref].t='d';
+        ws[ref].z='dd-mm-yyyy';
+      }
+    }
+  }
+  return ws;
+}
+
+async function exportTerminadosTemplateXLSX(){
+  const xx=_xlsxLib();
+  if(!xx||!xx.utils||typeof xx.writeFile!=='function'){
+    const m='La librería XLSX no está disponible. Recarga la página.';
+    if(typeof showToast==='function')showToast('⚠ '+m);else alert(m);return;
+  }
+  if(!_statsData){
+    if(typeof showToast==='function')showToast('⚠ Carga primero las estadísticas');
+    try{await loadStats();}catch{}
+    if(!_statsData)return;
+  }
+  const t=_statsData.terminados||[];
+  if(!t.length){
+    if(typeof showToast==='function')showToast('⚠ No hay procedimientos terminados');return;
+  }
+  if(typeof showToast==='function')showToast('📋 Generando plantilla…');
+  try{
+    const wb=xx.utils.book_new();
+    xx.utils.book_append_sheet(wb,_xlsxBuildPlantillaTerminadosSheet(t),_xlsxSheetName('Repositorio Terminados'));
+    const fecha=new Date().toISOString().slice(0,10);
+    const filename='Repositorio-Procedimientos-Finalizados_'+_xlsxUserSlug()+'_'+fecha+'.xlsx';
+    xx.writeFile(wb,filename);
+    if(typeof showToast==='function')showToast('✓ '+filename+' descargado');
+    const incompletos=t.filter(c=>!c.resolucion_termino||!c.fecha_resolucion_termino).length;
+    if(incompletos>0&&typeof showToast==='function'){
+      setTimeout(()=>showToast('💡 '+incompletos+' terminados con campos vacíos. Usa "🔍 Completar desde Drive" para llenarlos.'),1200);
+    }
+  }catch(e){
+    console.error('[exportTerminadosTemplateXLSX] error:',e);
+    if(typeof showToast==='function')showToast('⚠ Error: '+e.message);else alert('Error: '+e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENRIQUECIMIENTO DESDE DRIVE
+   ═══════════════════════════════════════════════════════════ */
+
+function _extractFolderId(driveUrl){
+  if(!driveUrl)return null;
+  const m=String(driveUrl).match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if(m)return m[1];
+  const m2=String(driveUrl).match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if(m2)return m2[1];
+  if(/^[a-zA-Z0-9_-]{10,80}$/.test(driveUrl))return driveUrl;
+  return null;
+}
+
+function _isCandidateFile(name){
+  const n=String(name||'').toLowerCase();
+  return /(resoluci[oó]n.*(t[eé]rmino|final|cierre|sanci[oó]n|sobresei))|vista[\s_-]?fiscal|informe[\s_-]?final|propuesta[\s_-]?(sanci[oó]n|sobresei)|t[eé]rmino[\s_-]?(sumario|investigaci[oó]n)/.test(n);
+}
+
+async function _driveListFolder(folderId){
+  const r=await authFetch('/.netlify/functions/drive',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'list',folderId,recursive:true,maxDepth:3})
+  });
+  if(!r.ok)throw new Error('drive list HTTP '+r.status);
+  const j=await r.json();
+  return (j.files||[]).filter(f=>!f._isFolder&&f.id);
+}
+
+async function _driveExtractText(fileId){
+  const r=await authFetch('/.netlify/functions/drive-extract',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({fileId})
+  });
+  if(!r.ok){
+    let msg='HTTP '+r.status;
+    try{const e=await r.json();msg=e.error||msg;}catch{}
+    throw new Error(msg);
+  }
+  const j=await r.json();
+  return j.text||'';
+}
+
+async function _aiExtractCierreData(caseInfo,docsText){
+  const prompt='Analiza estos documentos del expediente disciplinario terminado y extrae los datos de cierre en JSON puro.\n\n'+
+    'CASO ACTUAL:\n'+
+    '- Resolución de inicio: '+(caseInfo.nueva_resolucion||'(no registrada)')+'\n'+
+    '- Materia: '+(caseInfo.materia||'(no registrada)')+'\n'+
+    '- Tipo procedimiento: '+(caseInfo.tipo_procedimiento||'(no registrado)')+'\n'+
+    '- Fecha denuncia: '+(caseInfo.fecha_denuncia||'(no registrada)')+'\n\n'+
+    'DOCUMENTOS:\n'+(docsText||'').substring(0,20000)+'\n\n'+
+    'DEVUELVE SOLO JSON SIN MARKDOWN:\n'+
+    '{\n'+
+    '  "resolucion_termino": "número/identificador de la resolución de término o null",\n'+
+    '  "fecha_resolucion_termino": "YYYY-MM-DD de la resolución de término o null",\n'+
+    '  "fecha_vista": "YYYY-MM-DD de la fecha de la vista fiscal / entrega del expediente o null",\n'+
+    '  "propuesta": "Sanción | Sobreseimiento | Absuelto | Inhabilidad | null",\n'+
+    '  "observaciones": "notas relevantes (designación de nuevo fiscal, reapertura, acumulación, número de tomos), máx 200 chars, o null"\n'+
+    '}';
+  const r=await authFetch(CHAT_ENDPOINT,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:typeof CLAUDE_SONNET!=='undefined'?CLAUDE_SONNET:'claude-sonnet-4-20250514',
+      max_tokens:800,
+      system:'Eres un extractor de datos de documentos jurídicos chilenos. Responde SOLO con JSON válido sin markdown. Si un dato no está, usa null.',
+      messages:[{role:'user',content:prompt}]
+    })
+  });
+  if(!r.ok){
+    let msg='HTTP '+r.status;
+    try{const e=await r.json();msg=e.error||msg;}catch{}
+    throw new Error('chat: '+msg);
+  }
+  const j=await r.json();
+  let txt=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+  txt=txt.replace(/^```(?:json)?\s*|\s*```$/g,'').trim();
+  return JSON.parse(txt);
+}
+
+async function enrichTerminadosFromDrive(){
+  if(!_statsData){
+    if(typeof showToast==='function')showToast('⚠ Carga primero las estadísticas');
+    try{await loadStats();}catch{}
+    if(!_statsData)return;
+  }
+  const t=(_statsData.terminados||[]).filter(c=>c.drive_folder_url&&(!c.resolucion_termino||!c.fecha_resolucion_termino||!c.observaciones||!c.propuesta));
+  if(!t.length){
+    if(typeof showToast==='function')showToast('✅ Todos los terminados con Drive tienen datos completos');return;
+  }
+  const proceed=confirm('Vas a completar datos de '+t.length+' caso'+(t.length===1?'':'s')+' consultando su Drive y la IA.\n\n· Toma ~20-40 s por caso.\n· Rate limit drive-extract: 30/hora.\n· Los datos se guardarán en la base.\n\n¿Continuar?');
+  if(!proceed)return;
+
+  const panelId='enrichDrivePanel';
+  let panel=document.getElementById(panelId);
+  if(panel)panel.remove();
+  panel=document.createElement('div');
+  panel.id=panelId;
+  panel.style.cssText='position:fixed;bottom:20px;right:20px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:9999;min-width:320px;max-width:420px;font-family:var(--font-body);font-size:12px';
+  panel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong>🔍 Completando desde Drive</strong><button onclick="document.getElementById(\''+panelId+'\').remove()" style="background:none;border:none;font-size:16px;cursor:pointer;color:#666">×</button></div><div id="'+panelId+'-status" style="color:#374151;margin-bottom:6px">Iniciando…</div><div style="background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px"><div id="'+panelId+'-bar" style="background:#7c3aed;height:100%;width:0%;transition:width .3s"></div></div><div id="'+panelId+'-log" style="max-height:160px;overflow-y:auto;font-size:11px;color:#6b7280;font-family:var(--font-mono)"></div>';
+  document.body.appendChild(panel);
+  const setStatus=function(s){const el=document.getElementById(panelId+'-status');if(el)el.textContent=s;};
+  const setBar=function(p){const el=document.getElementById(panelId+'-bar');if(el)el.style.width=Math.round(p)+'%';};
+  const log=function(msg){const el=document.getElementById(panelId+'-log');if(el){el.innerHTML+='<div>'+esc(msg)+'</div>';el.scrollTop=el.scrollHeight;}};
+
+  let done=0,ok=0,fail=0,skipped=0;
+  for(const c of t){
+    const label=c.nueva_resolucion||c.name||c.id;
+    setStatus('('+(done+1)+'/'+t.length+') '+label);
+    try{
+      const folderId=_extractFolderId(c.drive_folder_url);
+      if(!folderId){log('⚠ '+label+': URL Drive inválida');skipped++;done++;setBar(100*done/t.length);continue;}
+      const files=await _driveListFolder(folderId);
+      let candidates=files.filter(f=>_isCandidateFile(f.name));
+      if(!candidates.length){
+        candidates=files.filter(f=>/pdf|wordprocessingml|google-apps\.document|msword/.test(f.mimeType||'')).slice(0,2);
+      }
+      candidates=candidates.slice(0,3);
+      if(!candidates.length){log('⚠ '+label+': sin archivos legibles');skipped++;done++;setBar(100*done/t.length);continue;}
+      const docs=[];
+      for(const f of candidates){
+        try{
+          const txt=await _driveExtractText(f.id);
+          if(txt&&txt.length>50)docs.push('### '+f.name+'\n'+txt.substring(0,8000));
+        }catch(e){log('   ⚠ '+f.name+': '+(e.message||'').substring(0,60));}
+      }
+      if(!docs.length){log('⚠ '+label+': no se pudo extraer texto');skipped++;done++;setBar(100*done/t.length);continue;}
+      const data=await _aiExtractCierreData(c,docs.join('\n\n---\n\n'));
+      const update={updated_at:new Date().toISOString()};
+      const setIfEmpty=function(k,v){if(v!==null&&v!==undefined&&v!==''&&!c[k])update[k]=v;};
+      setIfEmpty('resolucion_termino',data.resolucion_termino);
+      setIfEmpty('fecha_resolucion_termino',data.fecha_resolucion_termino);
+      setIfEmpty('fecha_vista',data.fecha_vista);
+      setIfEmpty('propuesta',data.propuesta);
+      setIfEmpty('observaciones',data.observaciones);
+      const keysWritten=Object.keys(update).filter(k=>k!=='updated_at');
+      if(!keysWritten.length){log('· '+label+': nada nuevo');done++;setBar(100*done/t.length);continue;}
+      const r=await sb.from('cases').update(update).eq('id',c.id);
+      if(r.error){log('⚠ '+label+': update error '+r.error.message);fail++;}
+      else{log('✓ '+label+': '+keysWritten.join(', '));ok++;Object.assign(c,update);}
+    }catch(e){
+      log('⚠ '+label+': '+(e.message||'error'));
+      fail++;
+    }
+    done++;
+    setBar(100*done/t.length);
+  }
+  setStatus('Completado · '+ok+' actualizados · '+fail+' con error · '+skipped+' omitidos');
+  if(typeof showToast==='function')showToast('✓ '+ok+' casos enriquecidos');
+  setTimeout(function(){try{loadStats();}catch{}},500);
+}
+
+console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:#4f46e5;font-weight:bold');
+
+
+  /* ═══ EXPOSE PUBLIC API ═══ */
+  window.loadStats = loadStats;
+  window.renderDashboard = renderDashboard;
+  window.renderActivosTab = renderActivosTab;
+  window.renderTerminadosTab = renderTerminadosTab;
+  window.renderStatsChat = renderStatsChat;
+  window.statsChatSend = statsChatSend;
+  window.exportStatsCSV = exportStatsCSV;
+  window.exportStatsXLSX = exportStatsXLSX;
+  window.exportChatXLSX = exportChatXLSX;
+  window.exportTerminadosTemplateXLSX = exportTerminadosTemplateXLSX;
+  window.enrichTerminadosFromDrive = enrichTerminadosFromDrive;
+  window.calcPrescripcion = calcPrescripcion;
+  /* Setter para cambiar pestaña desde onclick inline (la variable es local al IIFE) */
+  window.setStatsTab = function(tab) { _statsActiveTab = tab; renderDashboard(); };
+
+  console.log('%c📊 Módulo Estadísticas v2 cargado — Tabs + Chat IA','color:#4f46e5;font-weight:bold');
+})();
