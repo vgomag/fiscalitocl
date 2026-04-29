@@ -85,32 +85,116 @@ function createChart(canvasId,config){
   return _statCharts[canvasId];
 }
 
+/* ── Helpers de % visibles en gráficos ──
+   Todos los charts (doughnut, polar, bar, line) muestran ahora porcentaje
+   tanto en tooltip como en leyenda (charts circulares) o como etiqueta
+   inline encima de cada barra. */
+
+/* Calcula el total del dataset para sacar % */
+function _statTotal(data){ return (Array.isArray(data)?data:[]).reduce((s,v)=>s+(Number(v)||0),0); }
+function _statPct(v,total){ return total>0?Math.round((Number(v)||0)/total*100):0; }
+
+/* Plugin Chart.js que dibuja el VALOR (y % opcional) encima de cada barra.
+   Compatible con barras verticales y horizontales. Se inyecta solo en makeBar. */
+const _statBarValuePlugin = {
+  id: 'statBarValue',
+  afterDatasetsDraw(chart, args, opts){
+    const {ctx, chartArea, scales, data} = chart;
+    const showPct = !!opts.showPct;
+    const horizontal = chart.options.indexAxis === 'y';
+    const total = _statTotal(data.datasets[0]?.data || []);
+    ctx.save();
+    ctx.font = '600 10px ' + (window.getComputedStyle(document.body).fontFamily || 'sans-serif');
+    ctx.fillStyle = '#475569';
+    chart.getDatasetMeta(0).data.forEach((bar, i) => {
+      const v = data.datasets[0].data[i];
+      if(v == null || v === 0) return;
+      const pct = _statPct(v, total);
+      const label = showPct ? `${v} · ${pct}%` : String(v);
+      if(horizontal){
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(label, bar.x + 4, bar.y);
+      } else {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(label, bar.x, bar.y - 4);
+      }
+    });
+    ctx.restore();
+  }
+};
+
+/* Doughnut con % en leyenda y tooltip */
 function makePie(id,labels,data){
   return createChart(id,{type:'doughnut',
     data:{labels,datasets:[{data,backgroundColor:STAT_COLORS.chartPalette.slice(0,labels.length),borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,padding:6,font:{size:10}}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{
+      legend:{position:'right',labels:{boxWidth:10,padding:6,font:{size:10},
+        generateLabels(chart){
+          const ds=chart.data.datasets[0]; const total=_statTotal(ds.data);
+          return chart.data.labels.map((l,i)=>{
+            const v=ds.data[i]||0; const pct=_statPct(v,total);
+            return {text:`${l}: ${v} · ${pct}%`, fillStyle:ds.backgroundColor[i], hidden:false, index:i};
+          });
+        }
+      }},
+      tooltip:{callbacks:{label(ctx){
+        const total=_statTotal(ctx.dataset.data); const v=ctx.parsed; const pct=_statPct(v,total);
+        return `${ctx.label}: ${v} (${pct}%)`;
+      }}}
+    }}
   });
 }
+
+/* Bar con % visible: etiqueta inline encima/al lado de cada barra + tooltip con % */
 function makeBar(id,labels,data,color,horiz){
   return createChart(id,{type:'bar',
     data:{labels,datasets:[{data,backgroundColor:color||STAT_COLORS.primary+'cc',borderRadius:4,maxBarThickness:40}]},
-    options:{responsive:true,maintainAspectRatio:false,indexAxis:horiz?'y':'x',plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false}},y:{grid:{display:false},beginAtZero:true}}}
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:horiz?'y':'x',
+      layout:{padding:{top:18,right:horiz?40:8}}, /* margen para que las labels no se corten */
+      plugins:{legend:{display:false},
+        statBarValue:{showPct:true},
+        tooltip:{callbacks:{label(ctx){
+          const total=_statTotal(ctx.dataset.data); const v=ctx.parsed[horiz?'x':'y']; const pct=_statPct(v,total);
+          return `${ctx.label}: ${v} (${pct}%)`;
+        }}}
+      },
+      scales:{x:{grid:{display:false}},y:{grid:{display:false},beginAtZero:true}}},
+    plugins:[_statBarValuePlugin]
   });
 }
+
 function makeLine(id,labels,data,color){
   return createChart(id,{type:'line',
     data:{labels,datasets:[{label:'Casos',data,borderColor:color||STAT_COLORS.primary,backgroundColor:(color||STAT_COLORS.primary)+'20',fill:true,tension:.3,pointRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#e2e8f015'}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label(ctx){
+        const total=_statTotal(ctx.dataset.data); const v=ctx.parsed.y; const pct=_statPct(v,total);
+        return `${ctx.label}: ${v} (${pct}%)`;
+      }}}
+    },scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#e2e8f015'}}}}
   });
 }
-/* Polar area: gráfico circular donde cada segmento crece radialmente según su valor.
-   Útil para mostrar distribución temporal (meses) o rankings — más visual que un bar
-   chart y mantiene la idea de "círculo completo" que recorre los 12 meses. */
+
+/* Polar area con % en leyenda y tooltip — para mostrar distribución circular
+   (ej. terminados por mes) con porcentaje a la vista. */
 function makePolar(id,labels,data,colors){
   return createChart(id,{type:'polarArea',
     data:{labels,datasets:[{data,backgroundColor:colors||STAT_COLORS.chartPalette.slice(0,labels.length),borderWidth:1,borderColor:'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,padding:6,font:{size:10}}}},scales:{r:{beginAtZero:true,ticks:{display:false}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{
+      legend:{position:'right',labels:{boxWidth:10,padding:6,font:{size:10},
+        generateLabels(chart){
+          const ds=chart.data.datasets[0]; const total=_statTotal(ds.data);
+          return chart.data.labels.map((l,i)=>{
+            const v=ds.data[i]||0; const pct=_statPct(v,total);
+            return {text:`${l}: ${v} · ${pct}%`, fillStyle:Array.isArray(ds.backgroundColor)?ds.backgroundColor[i]:ds.backgroundColor, hidden:false, index:i};
+          });
+        }
+      }},
+      tooltip:{callbacks:{label(ctx){
+        const total=_statTotal(ctx.dataset.data); const v=ctx.parsed.r||ctx.parsed; const pct=_statPct(v,total);
+        return `${ctx.label}: ${v} (${pct}%)`;
+      }}}
+    },scales:{r:{beginAtZero:true,ticks:{display:false}}}}
   });
 }
 
