@@ -912,13 +912,17 @@ function _xlsxBuildResumenSheet(d){
   aoa.push(['Total diligencias',d.dils.length]);
   aoa.push(['Total participantes',d.parts.length]);
   aoa.push([]);
-  aoa.push(['DISTRIBUCIÓN POR CATEGORÍA (ACTIVOS)']);
-  aoa.push(['Categoría','N° casos']);
-  aoa.push(['Género',d.catGroups.genero.length]);
-  aoa.push(['No Género',d.catGroups.no_genero.length]);
-  aoa.push(['Cargos',d.catGroups.cargos.length]);
-  aoa.push(['Probatorio',d.catGroups.probatorio.length]);
-  aoa.push(['Finalización',d.catGroups.finalizacion.length]);
+  aoa.push(['DISTRIBUCIÓN POR ETAPA PROCESAL (ACTIVOS)']);
+  aoa.push(['Etapa','N° casos']);
+  /* Cat-keys nuevas (etapas procesales). Acceso defensivo con `?.length||0`
+     porque catGroups solo contiene los keys actuales — referenciar uno viejo
+     (ej. d.catGroups.genero) lanzaría "Cannot read properties of undefined". */
+  aoa.push(['Indagatoria inicial', d.catGroups.indagatoria_inicial?.length||0]);
+  aoa.push(['Término Indagatoria', d.catGroups.termino_indagatoria?.length||0]);
+  aoa.push(['Decisión',            d.catGroups.decision?.length||0]);
+  aoa.push(['Discusión y Prueba',  d.catGroups.discusion_prueba?.length||0]);
+  aoa.push(['Preparación de Vista',d.catGroups.preparacion_vista?.length||0]);
+  aoa.push(['Finalización',        d.catGroups.finalizacion?.length||0]);
   aoa.push([]);
   aoa.push(['DISTRIBUCIÓN POR TIPO DE PROCEDIMIENTO (TODOS)']);
   aoa.push(['Tipo','N° casos']);
