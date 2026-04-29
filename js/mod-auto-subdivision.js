@@ -147,38 +147,25 @@ function enhanceTabs(){
     }
   }
 
-  // Añadir filtro de etapa si no existe
-  if(!document.getElementById('stageFilter')){
-    const toolbar = document.querySelector('.casos-toolbar');
-    if(toolbar){
-      const filterWrap = document.createElement('div');
-      filterWrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:8px;';
-      filterWrap.innerHTML = `
-        <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px">Etapa:</label>
-        <select id="stageFilter" class="move-select" style="min-width:140px;font-size:11px" onchange="applyStageFilter(this.value)">
-          <option value="all">Todas las etapas</option>
-          <option value="sin_etapa">Sin etapa asignada</option>
-          <option value="indagatoria">Indagatoria</option>
-          <option value="cargos">Cargos</option>
-          <option value="descargos">Descargos</option>
-          <option value="prueba">Prueba</option>
-          <option value="vista">Vista Fiscal</option>
-          <option value="resolucion">Resolución</option>
-          <option value="cerrado">Cerrado</option>
-        </select>`;
-      // Insertar después del search
-      const searchEl = toolbar.querySelector('.casos-search');
-      if(searchEl) searchEl.after(filterWrap);
-      else toolbar.prepend(filterWrap);
-    }
+  // El antiguo "stageFilter" select fue REMOVIDO porque era redundante con las
+  // cat-tabs (que ya clasifican por etapa procesal) y sus opciones eran de la
+  // taxonomía vieja (cargos/descargos/prueba) — causaba confusión y a veces
+  // quedaba pegado en un valor sin botón visible para limpiarlo.
+  // Si queda alguno residual en el DOM, lo eliminamos al cargar:
+  const oldFilter = document.getElementById('stageFilter');
+  if(oldFilter){
+    const wrap = oldFilter.closest('div');
+    if(wrap) wrap.remove();
   }
 }
 
-/* ── Filtro de etapa ── */
+/* ── Filtro de etapa (DEPRECADO: ahora se filtra vía cat-tabs por etapa procesal) ──
+   Se mantiene la variable y la función exportada para compatibilidad con código
+   antiguo, pero siempre vale 'all' (sin filtro extra) y no se aplica en renderTabla. */
 let activeStageFilter = 'all';
 window.applyStageFilter = function(val){
-  activeStageFilter = val;
-  if(typeof renderTabla === 'function') renderTabla();
+  /* No-op: el filtro de etapa se reemplazó por las cat-tabs */
+  activeStageFilter = 'all';
 };
 
 /* ── Patchear updateCatCounts para incluir compartidos + % de avance ── */
