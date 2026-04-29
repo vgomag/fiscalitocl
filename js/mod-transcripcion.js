@@ -1046,10 +1046,22 @@ function f11ClearDoc(){
   const _dp=document.getElementById('f11DocPreview');if(_dp)_dp.style.display = 'none';
 }
 
+/* Formatos que efectivamente acepta Whisper / ElevenLabs (intersección segura).
+   Si el usuario sube algo fuera de esta lista, el provider rechaza con error
+   poco descriptivo. Mejor avisar arriba antes de subir. */
+const _F11_PROVIDER_EXTS = new Set(['mp3','mp4','mpeg','mpga','m4a','m4v','wav','webm','ogg','oga','opus','flac','aac']);
+
 /* ══════════════════ AUDIO UPLOAD ══════════════════ */
 function f11HandleAudioUpload(file){
   if(!file)return;
   if(file.size > T_MAX_INPUT){ showToast('⚠ El audio excede '+T_MAX_INPUT_MB+' MB'); return; }
+
+  /* Validar formato contra lo que Whisper/ElevenLabs realmente aceptan. Avisar
+     pero NO bloquear: archivos como .wma o .amr a veces funcionan vía MIME genérico. */
+  const _ext = _f11Ext(file.name).toLowerCase();
+  if(_ext && !_F11_PROVIDER_EXTS.has(_ext)){
+    showToast('⚠ Formato .'+_ext+' puede no ser soportado por Whisper/ElevenLabs. Prefiere mp3/wav/m4a/ogg/webm.', 6000);
+  }
 
   _f11AudioBlob = file;
   if(_f11AudioUrl) URL.revokeObjectURL(_f11AudioUrl);
