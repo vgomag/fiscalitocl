@@ -18,10 +18,14 @@
 export default async (req) => {
   const MODEL_SONNET = Netlify.env.get('CLAUDE_MODEL_SONNET') || 'claude-sonnet-4-20250514';
 
-  /* #11: CORS dinámico en vez de wildcard */
+  /* #11: CORS dinámico en vez de wildcard.
+     SEC FIX: si ALLOWED_ORIGINS no está configurado, NO usar el origin del request
+     como fallback (eso permitiría cualquier origin). Usar whitelist hardcoded. */
   const _origin = req.headers.get('Origin') || '';
+  const _hardcodedAllowed = ['https://fiscalito.cl', 'https://www.fiscalito.cl'];
   const _allowedOrigins = (Netlify.env.get('ALLOWED_ORIGINS') || '').split(',').map(s=>s.trim()).filter(Boolean);
-  const _corsOrigin = _allowedOrigins.includes(_origin) ? _origin : (_allowedOrigins[0] || _origin || 'https://fiscalito.cl');
+  const _effectiveAllowed = _allowedOrigins.length ? _allowedOrigins : _hardcodedAllowed;
+  const _corsOrigin = _effectiveAllowed.includes(_origin) ? _origin : _effectiveAllowed[0];
   const CORS = {
     'Access-Control-Allow-Origin': _corsOrigin,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token',
