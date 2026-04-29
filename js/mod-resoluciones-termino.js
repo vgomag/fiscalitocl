@@ -607,22 +607,35 @@ async function marcarEstado(nuevoEstado){
     state.currentDraft = data;
     state.drafts = await loadDrafts(state.caseId);
 
-    /* Si se marca como FIRMADO, copiar el texto al campo resolucion_termino del caso
-       para que la pestaña Finalización deje de mostrarlo como pendiente. */
+    /* Si se marca como FIRMADO:
+       1. Copiar el texto al campo resolucion_termino del caso
+       2. QUITAR el flag workspace (ya no necesita aparecer en el workspace de Finalización)
+       3. Re-renderizar para reflejar los cambios sin recargar. */
     if(nuevoEstado === 'firmado'){
       try {
         await s.from('cases').update({
           resolucion_termino: data.content_text,
           fecha_resolucion_termino: new Date().toISOString().substring(0,10)
         }).eq('id', state.caseId);
+
         const idx = (typeof allCases!=='undefined') ? allCases.findIndex(c => c.id===state.caseId) : -1;
         if(idx >= 0){
           allCases[idx].resolucion_termino = data.content_text;
           allCases[idx].fecha_resolucion_termino = new Date().toISOString().substring(0,10);
         }
+
+        /* Quitar marca de workspace si la había (BD + memoria), sin bloquear si falla */
+        if(window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(state.caseId)){
+          try {
+            const { error: wsErr } = await s.from('case_metadata').delete()
+              .eq('case_id', state.caseId).eq('key', 'workspace');
+            if(!wsErr) window.finalizacionWorkspaceIds.delete(state.caseId);
+          } catch(e){ console.warn('[resol] no se pudo quitar workspace flag:', e); }
+        }
+
         if(typeof updateCatCounts==='function') updateCatCounts();
         if(typeof renderTabla==='function') renderTabla();
-        _toast('🔏 Marcada como firmada · el caso ya no aparece en Finalización');
+        _toast('🔏 Resolución firmada · caso archivado del workspace de Finalización');
       } catch(e){ console.warn('[resol] sync resolucion_termino:', e); }
     } else {
       _toast(`${STATUS_LABELS[nuevoEstado].icon} Marcada como ${STATUS_LABELS[nuevoEstado].label}`);
