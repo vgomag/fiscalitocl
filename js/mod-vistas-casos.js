@@ -275,7 +275,17 @@ function getDiasColor(dias){
 
 function getFilteredCases(){
   if(typeof allCases==='undefined' || typeof getCaseCat==='undefined' || typeof activeCatTab==='undefined') return [];
-  let cases = allCases.filter(c => getCaseCat(c) === activeCatTab);
+  /* Para Finalización: agrupar (a) genuinamente en etapa finalizacion + (b) casos
+     marcados manualmente como workspace (window.finalizacionWorkspaceIds). Sin esto
+     el casosCount toolbar y las vistas kanban/cards mostraban 0 cuando la tabla
+     mostraba los casos del workspace — inconsistencia que confundía a la fiscal. */
+  let cases;
+  if(activeCatTab === 'finalizacion'){
+    const _isWS = c => (window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(c.id));
+    cases = allCases.filter(c => getCaseCat(c) === 'finalizacion' || _isWS(c));
+  } else {
+    cases = allCases.filter(c => getCaseCat(c) === activeCatTab);
+  }
 
   // Text search
   const q = (document.getElementById('tablaSearch')?.value||'').toLowerCase();

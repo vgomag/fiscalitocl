@@ -2271,9 +2271,11 @@ function updateCatCounts(){
   /* Total de casos ACTIVOS (excluye terminados) — base para el % de avance procesal.
      Cada pestaña activa muestra "N · X%": N casos en esa etapa, X% del total activo.
      La pestaña Terminados solo muestra el conteo (no aplica % de avance).
-     Excepción: Finalización suma además los terminados pendientes de resolución
-     (siguen contándose en Terminados también, pero se trabajan desde Finalización). */
+     Finalización es WORKSPACE: agrupa los activos genuinamente en esa etapa + los
+     casos marcados manualmente como workspace=finalizacion (window.finalizacionWorkspaceIds).
+     Usamos un Set para evitar doble conteo si un caso cumple ambas condiciones. */
   const ACTIVE_KEYS=['indagatoria_inicial','termino_indagatoria','decision','discusion_prueba','preparacion_vista','finalizacion'];
+  const _isWS=c=>(window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(c.id));
   const totalActivos=allCases.filter(c=>{
     const cat=getCaseCat(c);
     return cat!=='terminado' && ACTIVE_KEYS.includes(cat);
@@ -2281,14 +2283,21 @@ function updateCatCounts(){
   ACTIVE_KEYS.forEach(cat=>{
     const el=document.getElementById('cnt-'+cat);
     if(!el)return;
-    let n=allCases.filter(c=>getCaseCat(c)===cat).length;
+    let n;
     if(cat==='finalizacion'){
-      n += allCases.filter(c=>isTerminadoPendienteResolucion(c)).length;
+      const setFinal=new Set();
+      allCases.forEach(c=>{
+        if(getCaseCat(c)==='finalizacion') setFinal.add(c.id);
+        if(_isWS(c)) setFinal.add(c.id);
+      });
+      n=setFinal.size;
+    } else {
+      n=allCases.filter(c=>getCaseCat(c)===cat).length;
     }
     const pct=totalActivos>0?Math.round((n/totalActivos)*100):0;
     el.textContent=n+(totalActivos>0?` · ${pct}%`:'');
   });
-  /* Terminados: conteo total (incluye los pendientes de resolución) */
+  /* Terminados: conteo total (los del workspace siguen contando aquí porque su status='terminado') */
   const elT=document.getElementById('cnt-terminado');
   if(elT)elT.textContent=allCases.filter(c=>getCaseCat(c)==='terminado').length;
 }
@@ -2590,12 +2599,18 @@ async function moveCase(caseId,newCat){
 
   /* Reciprocidad: si la fiscal mueve un caso QUE ESTABA en workspace de
      Finalización a otra cat, quitamos el flag para no dejarlo doblemente
-     marcado. */
+     marcado. CRÍTICO: validar el error de Supabase ANTES de mutar el Set en
+     memoria — supabase.delete() resuelve siempre con {data,error}, NO lanza,
+     entonces si la BD falla el Set quedaba inconsistente. */
   if(window.finalizacionWorkspaceIds && window.finalizacionWorkspaceIds.has(caseId) && newCat!=='finalizacion'){
     try{
-      await sb.from('case_metadata').delete().eq('case_id',caseId).eq('key','workspace');
+      const{error:wsDelErr}=await sb.from('case_metadata').delete().eq('case_id',caseId).eq('key','workspace');
+      if(wsDelErr) throw wsDelErr;
       window.finalizacionWorkspaceIds.delete(caseId);
-    }catch(e){console.warn('[moveCase clear workspace]',e);}
+    }catch(e){
+      console.warn('[moveCase clear workspace]',e);
+      showToast('⚠ Error removiendo el caso del workspace de Finalización: '+(e.message||e));
+    }
   }
 
   /* Si se mueve A terminado, pedir resolución que instruye */
