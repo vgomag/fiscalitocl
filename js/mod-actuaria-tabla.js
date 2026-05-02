@@ -283,7 +283,7 @@
   function injectResponsiveCSS() {
     if (document.getElementById('mod-actuaria-tabla-css')) return;
     const css = ''
-      + '#viewTabla{display:flex;flex-direction:column;min-width:0;}'
+      + '#viewTabla.active{display:flex;flex-direction:column;min-width:0;}'
       + '#viewTabla .tabla-wrap{flex:1 1 auto !important;width:100% !important;min-width:0 !important;overflow-x:auto;overflow-y:auto;}'
       + '#viewTabla .tabla-casos{width:100% !important;min-width:100% !important;table-layout:auto !important;}'
       + '#viewTabla .tabla-casos .materia-cell{max-width:none !important;white-space:normal !important;line-height:1.35;word-break:break-word;}'
