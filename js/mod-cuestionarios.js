@@ -542,9 +542,14 @@ function renderCuestionariosView(){
   const tplCount=Object.keys(TEMPLATES).length;
 
   el.innerHTML=`
-    <div style="padding:14px 20px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
-      <div style="font-family:var(--font-serif);font-size:22px;font-weight:400">📋 Plantillas y Actas</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Plantillas institucionales · Actas · Resoluciones de mero trámite · Consentimientos</div>
+    <div style="padding:14px 20px 8px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:var(--font-serif);font-size:22px;font-weight:400">📋 Plantillas y Actas</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Plantillas institucionales · Actas · Resoluciones de mero trámite · Consentimientos</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-save" onclick="if(typeof openPlantillaExtractor==='function')openPlantillaExtractor();else showToast('Recarga la página para activar el extractor');" title="Genera plantillas reusables analizando con IA tus diligencias reales en casos terminados" style="font-size:11.5px;padding:6px 12px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600">🤖 Generar plantillas desde mis casos</button>
+      </div>
     </div>
 
     <!-- Pestañas -->
