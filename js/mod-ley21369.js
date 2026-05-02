@@ -259,10 +259,26 @@ async function loadData(){
 }
 
 // ── Seed: pre-poblar ítems desde template SES ──────────────────────────────
+let _seedingInFlight = null;
 async function seedFromTemplate(){
+  /* BUG-FIX (race): si dos pestañas/tabs llaman loadData() en paralelo, ambas
+     veían items.length===0 y disparaban seedFromTemplate(), generando ~52
+     ítems duplicados (26 × 2). Ahora: (1) flag _seedingInFlight evita doble
+     ejecución dentro del mismo tab; (2) verificación adicional en BD justo
+     antes del INSERT — si entre el check inicial y aquí otro flujo ya pobló,
+     reusamos esos ítems en vez de duplicar. */
+  if(_seedingInFlight) return _seedingInFlight;
+  _seedingInFlight = (async()=>{
   try{
     const user=await getUser();
     if(!user) return;
+    /* Re-check en BD justo antes del insert para defender contra concurrencia */
+    const{data:exist}=await sb.from("ley21369_items").select("id,area,requirement,description,verification_notes,status,sort_order,responsible,due_date").eq("user_id",user.id).limit(1);
+    if(exist && exist.length>0){
+      const{data:full}=await sb.from("ley21369_items").select("*").eq("user_id",user.id).order("sort_order",{ascending:true});
+      if(full) items=full;
+      return;
+    }
     const rows=ITEMS_SES.map(it=>({
       user_id:user.id, area:it.seccion, requirement:it.item_exigido,
       description:it.evidencia_ref, verification_notes:it.observacion_default,
