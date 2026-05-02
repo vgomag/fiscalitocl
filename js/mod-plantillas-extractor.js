@@ -41,7 +41,7 @@ const DIL_TYPES_FOR_EXTRACTION = [
 ];
 
 /* ── Estado del modal ── */
-let _state = { step:1, dilType:'oficio', sampleCount:6, tipoProc:'all', protocolo:'all', samples:[], extracted:null };
+let _state = { step:1, dilType:'oficio', sampleCount:6, tipoProc:'all', protocolo:'all', resultado:'all', searchText:'', samples:[], extracted:null };
 
 /* ── Cargar conteo por tipo (para mostrar en el selector) ──
    PostgREST no soporta funciones (`character_length`) en filtros, así que
