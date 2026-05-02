@@ -3579,14 +3579,13 @@ async function sendMessage(){
         );
         if(proceed){
           if(typeof analyzeAllPending === 'function'){
-            /* Validar que el caso vinculado siga siendo el mismo */
-            if(currentCase?.id !== _caseSnapshot.id){
-              showToast('⚠ Cambiaste de caso durante el procesamiento — operación cancelada');
-              setLoading(false); _sendingMessage=false; hideTyping(typingId);
-              return;
-            }
             try{
               await analyzeAllPending();
+              /* Validar que el caso vinculado siga siendo el mismo después del proceso largo */
+              if(currentCase?.id !== _caseSnapshot.id){
+                showToast('⚠ Cambiaste de caso durante el procesamiento — análisis cancelado');
+                return;
+              }
               showToast('✓ Diligencias procesadas — analizando con Fiscalito…');
             }catch(e){
               console.warn('analyzeAllPending error:', e);
