@@ -337,7 +337,6 @@ function _renderBody(){
       <div id="mondayMsgEditor"
         contenteditable="true"
         style="min-height:140px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;outline:none;color:var(--text)"
-        oninput="state_msg=this.innerHTML"
         placeholder="Escribe tu mensaje a la actuaria…"></div>
       <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Soporta HTML básico (negritas, listas). Los quick-fills insertan formato directo.</div>
     </div>

@@ -4692,8 +4692,13 @@ function editParticipante(p){
   openMiniModal();
 }
 async function deleteParticipante(id,name){
+  if(!session||!session.user)return showToast('⚠ Sesión requerida');
   if(!confirm('¿Eliminar a '+name+'?'))return;
-  await sb.from('case_participants').delete().eq('id',id);
+  /* SEC-05 FIX: Defense-in-depth — filtrar por user_id además de id (no depender solo de RLS).
+     Antes: solo .eq('id',id) — si RLS fallara, podría borrar participantes de otros usuarios.
+     Además ahora se reporta el error al usuario en vez de fallar silenciosamente. */
+  const{error}=await sb.from('case_participants').delete().eq('id',id).eq('user_id',session.user.id);
+  if(error)return showToast('⚠ Error: '+error.message);
   logAuditEvent('delete_participant',{case_id:currentCase?.id,participant_id:id,participant_name:name});
   await loadParticipantes();showToast('✓ Participante eliminado');
 }
@@ -5081,8 +5086,11 @@ async function editChecklistItem(id){
   openMiniModal();
 }
 async function deleteChecklistItem(id){
+  if(!session||!session.user)return showToast('⚠ Sesión requerida');
   if(!confirm('¿Eliminar este paso del checklist?'))return;
-  await sb.from('case_checklist_items').delete().eq('id',id);
+  /* SEC-05 FIX: Defense-in-depth — filtrar por user_id + reportar error al usuario. */
+  const{error}=await sb.from('case_checklist_items').delete().eq('id',id).eq('user_id',session.user.id);
+  if(error)return showToast('⚠ Error: '+error.message);
   logAuditEvent('delete_checklist_item',{case_id:currentCase?.id,item_id:id});
   await loadChecklist();showToast('✓ Paso eliminado');
 }
@@ -5209,8 +5217,11 @@ async function togglePendiente(id,done){
   await loadAcciones();
 }
 async function deletePendiente(id){
+  if(!session||!session.user)return showToast('⚠ Sesión requerida');
   if(!confirm('¿Eliminar este pendiente?'))return;
-  await sb.from('acciones_pendientes').delete().eq('id',id);
+  /* SEC-05 FIX: Defense-in-depth — filtrar por user_id + reportar error. */
+  const{error}=await sb.from('acciones_pendientes').delete().eq('id',id).eq('user_id',session.user.id);
+  if(error)return showToast('⚠ Error: '+error.message);
   logAuditEvent('delete_pendiente',{case_id:currentCase?.id,pendiente_id:id});
   await loadAcciones();showToast('✓ Pendiente eliminado');
 }
@@ -5326,8 +5337,11 @@ async function addNewNotaWithSource(prefillTitle,prefillContent,source){
   openMiniModal();
 }
 async function deleteNota(id){
+  if(!session||!session.user)return showToast('⚠ Sesión requerida');
   if(!confirm('¿Eliminar esta nota?'))return;
-  await sb.from('case_notes').delete().eq('id',id);
+  /* SEC-05 FIX: Defense-in-depth — filtrar por user_id + reportar error. */
+  const{error}=await sb.from('case_notes').delete().eq('id',id).eq('user_id',session.user.id);
+  if(error)return showToast('⚠ Error: '+error.message);
   logAuditEvent('delete_nota',{case_id:currentCase?.id,nota_id:id});
   await loadNotas();showToast('✓ Nota eliminada');
 }
@@ -5913,7 +5927,6 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-pdf-tools-patch.js"></script>
 <script src="/js/mod-cuestionarios.js"></script>
 <script src="/js/mod-actas-audio.js"></script>
-<!-- <script src="/js/mod-resoluciones-patch.js"></script> archivo no existe -->
 <script src="/js/mod-diligencias-extractos.js"></script>
 <script src="/js/mod-drive-rag.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
@@ -5928,23 +5941,16 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-actuaria-tabla.js"></script>
 <script src="/js/mod-actuaria-pendientes.js"></script>
 <script src="/js/mod-pendientes-monday.js"></script>
-<!-- mod-estadisticas-avanzadas.js removido: redundante con mod-estadisticas.js -->
 <script src="/js/logo-data.js"></script>
-<!-- mod-alertas-casos.js removido: monitoreo no utilizado -->
 <script src="/js/mod-auto-subdivision.js"></script>
 <script src="/js/mod-biblioteca-procedimientos.js"></script>
 <script src="/js/mod-branding.js"></script>
-<!-- mod-completitud-caso.js removido: monitoreo no utilizado -->
-<!-- mod-etapas-procesales.js removido: pestaña Etapas eliminada por solicitud de usuario -->
 <script src="/js/mod-importador-masivo.js"></script>
 <script src="/js/mod-vista-fiscal.js"></script>
 <script src="/js/mod-inteligencia.js"></script>
 <script src="/js/mod-automatizacion.js"></script>
-<!-- mod-modo-guiado.js removido: redundante con funciones F0-F12 del chat -->
 <script src="/js/mod-oficios.js"></script>
 <script src="/js/mod-plantillas-custom.js"></script>
 <script src="/js/mod-sync-monitor.js"></script>
-<!-- mod-timeline-caso.js removido: redundante con mod-etapas-procesales.js -->
-<!-- mod-validacion-consistencia.js removido: monitoreo no utilizado -->
 </body>
 </html>
