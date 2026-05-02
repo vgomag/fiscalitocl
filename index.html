@@ -5253,8 +5253,8 @@ function loadModelos(){
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">
       ${modelos.map(m=>`
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:all .12s;display:flex;flex-direction:column;gap:4px" 
-           onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'" 
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:all .12s;display:flex;flex-direction:column;gap:4px"
+           onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'"
            onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
            onclick="useModelo(this)" data-prompt="${esc(m.prompt)}">
         <div style="display:flex;align-items:center;gap:8px">
@@ -5263,7 +5263,22 @@ function loadModelos(){
         </div>
         <div style="font-size:11px;color:var(--text-muted);line-height:1.4">${esc(m.desc)}</div>
       </div>`).join('')}
-    </div>`;
+    </div>
+    <!-- Plantillas extraídas / custom (se llena async; reusa renderExtractedTemplatesSection) -->
+    <div id="modelosCustomSection"></div>`;
+
+  /* Inyección async: carga las custom_templates del usuario, ordenadas por
+     compatibilidad con el caso actual (proc + protocolo). Reusa la misma
+     función global que usa la vista Plantillas y Actas para no duplicar UI. */
+  setTimeout(async ()=>{
+    try{
+      if(typeof window.renderExtractedTemplatesSection === 'function'){
+        const html = await window.renderExtractedTemplatesSection(currentCase);
+        const slot = document.getElementById('modelosCustomSection');
+        if(slot) slot.innerHTML = html || '';
+      }
+    }catch(e){ console.warn('[modelos] render plantillas extraídas:', e); }
+  }, 50);
 }
 
 function useModelo(el){
