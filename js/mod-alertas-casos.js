@@ -62,7 +62,14 @@ async function generateAlerts(){
       pendingMap[item.case_id] = (pendingMap[item.case_id] || 0) + 1;
     });
 
-    const newAlerts = [];
+    /* BUG-FIX: era `const`, pero línea 105 hacía `newAlerts = newAlerts.filter(...)`,
+       lo cual lanzaba TypeError ("Assignment to constant variable") cada vez que un
+       caso disparaba la consolidación de "urgencia crítica" (>=14d inactivo y >=3
+       tareas pendientes). El error caía al catch externo, abortaba el forEach y
+       dejaba en `newAlerts` las alertas individuales sin consolidar — provocando
+       que el panel de alertas mostrara 'no_activity' y 'pending_tasks' duplicadas
+       junto a la alerta crítica del mismo caso. */
+    let newAlerts = [];
 
     cases.forEach(c => {
       const daysInactive = daysSince(c.updated_at);
