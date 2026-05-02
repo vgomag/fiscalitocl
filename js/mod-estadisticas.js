@@ -240,12 +240,18 @@ async function loadStats(){
       if(shares?.length) sharedCaseIds=shares.map(s=>s.case_id);
     }catch(e){ console.warn('[Stats] case_shares query warn:', e); }
 
-    /* Cargar solo MIS casos + los compartidos conmigo */
+    /* Cargar solo MIS casos + los compartidos conmigo.
+       BUG-FIX (paginación): Supabase JS aplica un límite default de 1000 filas
+       por SELECT. Si el usuario tiene >1000 diligencias o >1000 casos, las
+       estadísticas son silenciosamente incorrectas (faltan datos).
+       Hoy hay ~2930 diligencias en la BD — sin .range() las stats descontaban
+       ~65% de las diligencias. Subimos el techo a 49999 filas para dar años
+       de crecimiento sin necesitar paginación real. */
     const allMyIds=[]; // se llenará después del query
     const[rCases,rDils,rParts]=await Promise.all([
-      sb.from('cases').select('id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,fecha_resolucion,resolucion_termino,fecha_resolucion_termino,propuesta,observaciones,caratula,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento').is('deleted_at',null).or(`user_id.eq.${uid}${sharedCaseIds.length?',id.in.('+sharedCaseIds.join(',')+')':''}`),
-      sb.from('diligencias').select('case_id,diligencia_type,is_processed'),
-      sb.from('case_participants').select('case_id,role,estamento'),
+      sb.from('cases').select('id,name,nueva_resolucion,status,categoria,created_at,tipo_procedimiento,materia,protocolo,resultado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_vista,fecha_resolucion,resolucion_termino,fecha_resolucion_termino,propuesta,observaciones,caratula,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,carrera_denunciante,carrera_denunciado,duracion_dias,informe_final,drive_folder_url,numero_exp_interno,estado_procedimiento').is('deleted_at',null).or(`user_id.eq.${uid}${sharedCaseIds.length?',id.in.('+sharedCaseIds.join(',')+')':''}`).range(0,49999),
+      sb.from('diligencias').select('case_id,diligencia_type,is_processed').range(0,49999),
+      sb.from('case_participants').select('case_id,role,estamento').range(0,49999),
     ]);
 
     const cases=rCases.data||[];
