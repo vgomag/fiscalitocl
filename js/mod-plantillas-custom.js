@@ -341,21 +341,24 @@ window.duplicateCustomTemplate = function(id){
 window.useTmplInWizard = function(id){
   const t = customTemplates.find(x => x.id === id);
   if(!t) return;
-  // Convertir a formato wizard
-  const blocks = [{
-    title: t.name,
-    description: t.description || 'Plantilla personalizada',
-    variables: (t.variables || []).map(v => ({
-      key: v.key,
-      label: v.label,
-      type: v.type || 'text',
-      required: !!v.required,
-      options: v.options,
-      placeholder: v.placeholder
-    }))
-  }];
-  const wizTemplate = { ...t, blocks };
-  if(typeof openWizard === 'function') openWizard(wizTemplate);
+  /* BUG-FIX: antes esto llamaba a `openWizard()` que NO existe en ningún
+     archivo del proyecto — la función era código muerto y los custom_templates
+     no se podían usar. Ahora redirige al filler universal de custom_templates
+     definido en mod-plantillas-extractor.js, con auto-fill desde el caso
+     vinculado actual. */
+  const caseObj = (typeof currentCase !== 'undefined') ? currentCase : null;
+  if(typeof window.openCustomTplWizard === 'function'){
+    window.openCustomTplWizard(t, caseObj);
+  } else if(typeof openWizard === 'function'){
+    /* Fallback al wizard antiguo si alguien lo restaurara en el futuro */
+    const blocks = [{
+      title: t.name, description: t.description || 'Plantilla personalizada',
+      variables: (t.variables||[]).map(v=>({key:v.key,label:v.label,type:v.type||'text',required:!!v.required,options:v.options,placeholder:v.placeholder}))
+    }];
+    openWizard({ ...t, blocks });
+  } else {
+    if(typeof showToast==='function') showToast('⚠ Recarga la página para activar el editor de plantillas');
+  }
 };
 window.toggleTmplCategory = function(catKey){
   const body = document.getElementById('tmpl-body-' + catKey);
