@@ -862,6 +862,13 @@ function bindUploadZone(){
 
 // ── AI-powered upload: extract text → classify → show modal ──
 async function uploadDocWithAI(file){
+  /* BUG-FIX: validar tamaño antes de gastar memoria/red.
+     Sin esto, un PDF de 1GB hacía colgar el navegador en FileReader o disparaba
+     timeouts silenciosos en la API. 50MB es el techo razonable para PDFs/Word. */
+  if(file.size > 50 * 1024 * 1024){
+    showToast(`⚠ Archivo muy grande (${(file.size/1048576).toFixed(1)} MB). Máximo 50 MB.`,"error");
+    return;
+  }
   classifyingDoc={file,fileName:file.name,fileSize:file.size,fileType:file.type,uploading:true,suggestedItems:[],extractedText:""};
   renderBody();
 
@@ -933,7 +940,12 @@ Si el documento no tributa a ningún ítem, responde: []`;
         const replyText=(data2.content&&data2.content[0]?.text)||data2.reply||"[]";
         const jsonMatch=replyText.match(/\[[\s\S]*\]/);
         if(jsonMatch){
-          classifyingDoc.suggestedItems=JSON.parse(jsonMatch[0]);
+          /* BUG-FIX: si la IA devuelve JSON malformado, JSON.parse rompe el
+             flujo y el modal de clasificación nunca aparece — el archivo ya
+             está subido a Storage y el usuario lo "pierde". Ahora caemos a
+             una lista vacía y el flujo continúa. */
+          try { classifyingDoc.suggestedItems=JSON.parse(jsonMatch[0]); }
+          catch(e){ console.warn("[Ley21369] JSON IA malformado:",e.message); classifyingDoc.suggestedItems=[]; }
         }
       }
     }catch(e){console.warn("[Ley21369] Classification error:",e)}
@@ -1051,11 +1063,19 @@ function cancelClassify(){
   // File already uploaded to storage — save as unclassified
   if(classifyingDoc&&classifyingDoc.filePath){
     getUser().then(user=>{
+      /* BUG-FIX (post-RLS): antes user_id podía quedar en null si getUser
+         retornaba sin user, lo que ahora viola la política user_id=auth.uid()
+         y descartaba el documento sin avisar. Ahora abortamos limpio si no
+         hay sesión y se lo decimos al usuario. */
+      if(!user){ showToast("⚠ Sesión requerida para guardar el documento"); return; }
       return sb.from("ley21369_documentos").insert({
-        user_id:user?user.id:null,item_id:null,file_name:classifyingDoc.fileName,
+        user_id:user.id,item_id:null,file_name:classifyingDoc.fileName,
         file_path:classifyingDoc.filePath,file_size:classifyingDoc.fileSize,
         file_type:classifyingDoc.fileType,category:"evidencia_ses"
-      }).then(()=>loadData());
+      }).then(({error})=>{
+        if(error){console.warn('[ley21369] cancelClassify insert error:',error.message);showToast("⚠ "+error.message);}
+        loadData();
+      });
     }).catch(err=>console.warn('[ley21369] cancelClassify insert failed:',err));
   }
   const overlay=document.getElementById("leyClassifyOverlay");
