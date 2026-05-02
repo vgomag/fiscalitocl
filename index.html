@@ -4904,7 +4904,10 @@ async function loadChecklist(){
       </div>
     </div>`}).join('')}
   </div>
-  <div style="padding:10px 0"><button class="btn-sm" onclick="addChecklistItem()">+ Agregar paso</button></div>`;
+  <div style="padding:10px 0;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn-sm" onclick="addChecklistItem()">+ Agregar paso</button>
+    <button class="btn-sm" onclick="autoMarkChecklistFromCaseData()" title="Marca como completados los pasos para los que ya hay evidencia en el expediente (diligencias, participantes, etapas, datos del caso). Nunca desmarca." style="background:rgba(79,70,229,.06);border-color:rgba(79,70,229,.25);color:var(--gold)">🪄 Auto-marcar según expediente</button>
+  </div>`;
 }
 
 /* BUG-FIX duplicación: limpia pasos repetidos del checklist del caso actual.
@@ -4945,6 +4948,118 @@ async function cleanupChecklistDuplicates(){
   if(delErr){showToast('⚠ '+delErr.message);return;}
   if(typeof logAuditEvent==='function')logAuditEvent('cleanup_checklist_duplicates',{case_id:currentCase.id,deleted:toDelete.length});
   showToast(`✓ ${toDelete.length} duplicado(s) eliminado(s).`);
+  await loadChecklist();
+}
+
+/* ── Auto-marcado del checklist según evidencia del expediente ──
+   Recorre los pasos del CHK_TEMPLATE del caso actual y marca como
+   completados aquellos para los que existe evidencia clara en las
+   tablas relacionadas (diligencias, case_participants, etapas) o en
+   campos del propio caso (actuaria, medida_cautelar, fecha_vista,
+   estado_procedimiento, resultado, etc.).
+
+   Reglas:
+   · Sólo MARCA (is_completed=true). NUNCA desmarca un paso.
+   · Pasos personalizados (texto distinto al template) se ignoran.
+   · Pide confirmación con resumen antes de aplicar.
+   · El completed_at se setea al momento de la operación (no se sabe
+     la fecha real). Si te interesa la fecha histórica, edítala manualmente
+     después con el lápiz del paso.
+*/
+async function autoMarkChecklistFromCaseData(){
+  if(!currentCase)return;
+  const cid=currentCase.id;
+  const c=currentCase;
+
+  /* 1. Cargar checklist + evidencia en paralelo */
+  const[chkRes,dilRes,partRes,etapaRes]=await Promise.all([
+    sb.from('case_checklist_items').select('id,item_text,is_completed').eq('case_id',cid),
+    sb.from('diligencias').select('diligencia_type,diligencia_label,file_name').eq('case_id',cid),
+    sb.from('case_participants').select('role').eq('case_id',cid),
+    sb.from('etapas').select('current_stage,indagatoria_completed_at,cargos_completed_at,descargos_completed_at,prueba_completed_at').eq('case_id',cid).maybeSingle(),
+  ]);
+
+  if(chkRes.error){showToast('⚠ '+chkRes.error.message);return;}
+  const items=chkRes.data||[];
+  const dils=dilRes.data||[];
+  const parts=partRes.data||[];
+  const etapa=etapaRes.data||null;
+
+  /* 2. Helpers */
+  const norm=s=>(s||'').toString().toLowerCase().trim();
+  const filled=v=>{
+    if(v==null)return false;
+    const s=String(v).trim();
+    if(!s||s==='[]')return false;
+    const lo=s.toLowerCase();
+    return lo!=='no'&&lo!=='sin medida'&&lo!=='ninguna'&&lo!=='ninguno';
+  };
+  const hasDilType=type=>dils.some(d=>norm(d.diligencia_type)===type);
+  const hasDilLike=rx=>dils.some(d=>rx.test((d.diligencia_label||'')+' '+(d.file_name||'')));
+  const hasPart=rx=>parts.some(p=>rx.test(norm(p.role)));
+  const indagDils=dils.filter(d=>!['denuncia','resolucion_inicio'].includes(norm(d.diligencia_type)));
+
+  const stageOrder=['indagatoria','cargos','descargos','prueba','vista','resolucion','finalizacion','terminado'];
+  const stageIdx=s=>stageOrder.indexOf(norm(s));
+  const stageReached=target=>{const i=stageIdx(c.estado_procedimiento);return i>=0&&i>=stageIdx(target);};
+
+  /* 3. Mapeo item_text (lower) → predicado de evidencia */
+  const evidence={
+    'acepta cargo':()=>filled(c.actuaria)||parts.length>0||dils.length>0||hasDilType('resolucion_inicio'),
+    'nombra actuaria/o':()=>filled(c.actuaria)||hasPart(/actuari/),
+    'medida de protección':()=>filled(c.medida_cautelar),
+    'ratificación de denuncia':()=>hasDilType('declaracion_denunciante')||hasDilLike(/ratificaci[oó]n/i),
+    'declaración persona/s denunciada/s':()=>hasDilType('declaracion_denunciado'),
+    'diligencias indagatorias':()=>indagDils.length>=1||!!(etapa&&etapa.indagatoria_completed_at)||stageReached('cargos'),
+    'envío de cuestionarios a testigos':()=>hasDilLike(/cuestionari/i),
+    'respuesta de cuestionarios de testigos':()=>hasDilType('declaracion_testigo')||hasDilLike(/respuesta.*cuestionari|cuestionari.*respuesta/i),
+    'cierre de la etapa indagatoria':()=>!!(etapa&&etapa.indagatoria_completed_at)||stageReached('cargos'),
+    'informe proponiendo el sobreseimiento y/o cargos':()=>hasDilType('informe')||hasDilType('cargos')||filled(c.propuesta),
+    'formulación de cargos':()=>hasDilType('cargos')||!!(etapa&&etapa.cargos_completed_at)||stageReached('descargos'),
+    'descargos':()=>hasDilType('descargos')||!!(etapa&&etapa.descargos_completed_at),
+    'término probatorio':()=>!!(etapa&&etapa.prueba_completed_at)||stageReached('vista'),
+    'vista fiscal':()=>hasDilType('vista_fiscal')||filled(c.fecha_vista)||filled(c.informe_final),
+    'remisión del expediente a la jefatura de la institución':()=>norm(c.status)==='terminado'||filled(c.resultado)||filled(c.resolucion_termino),
+  };
+
+  /* 4. Recorrer items y decidir cuáles marcar (sin desmarcar) */
+  const toUpdate=[];
+  const summary={marked:0,alreadyDone:0,noEvidence:0,custom:0};
+  const markedLabels=[];
+
+  for(const it of items){
+    if(it.is_completed){summary.alreadyDone++;continue;}
+    const key=norm(it.item_text);
+    const pred=evidence[key];
+    if(!pred){summary.custom++;continue;}
+    if(pred()){toUpdate.push(it.id);summary.marked++;markedLabels.push(it.item_text);}
+    else{summary.noEvidence++;}
+  }
+
+  if(!toUpdate.length){
+    showToast('Sin evidencia nueva para auto-marcar pasos.');
+    return;
+  }
+
+  /* 5. Confirmación con resumen */
+  const preview=markedLabels.slice(0,8).map(t=>'  ✓ '+t).join('\n')+(markedLabels.length>8?`\n  …y ${markedLabels.length-8} más`:'');
+  const ok=confirm(
+    `Auto-marcar pasos según los datos del expediente?\n\n`+
+    `• ${summary.marked} con evidencia (se marcarán)\n`+
+    `• ${summary.alreadyDone} ya completados (no se tocan)\n`+
+    `• ${summary.noEvidence} sin evidencia (no se tocan)\n`+
+    `• ${summary.custom} personalizados (no se tocan)\n\n`+
+    `Pasos que se marcarán:\n${preview}\n\n`+
+    `Nunca se desmarca un paso. Puedes revertir manualmente clic a clic.`
+  );
+  if(!ok)return;
+
+  /* 6. Aplicar UPDATE en lote */
+  const nowIso=new Date().toISOString();
+  const{error}=await sb.from('case_checklist_items').update({is_completed:true,completed_at:nowIso}).in('id',toUpdate);
+  if(error){showToast('⚠ '+error.message);return;}
+  if(typeof logAuditEvent==='function')logAuditEvent('auto_mark_checklist',{case_id:cid,marked:toUpdate.length});
+  showToast(`✓ ${toUpdate.length} paso(s) auto-marcado(s).`);
   await loadChecklist();
 }
 
