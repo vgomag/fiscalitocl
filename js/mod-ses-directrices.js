@@ -43,6 +43,12 @@ async function loadSesDocs(){
 async function uploadSesDoc(file,category,description,docDate){
   if(!session)return showToast('⚠ Sin sesión');
 
+  /* BUG-FIX: validar tamaño máximo (50MB). Antes archivos enormes hacían
+     colgar el navegador o disparaban timeouts en la API silenciosamente. */
+  if(file.size > 50 * 1024 * 1024){
+    return showToast(`⚠ Archivo muy grande (${(file.size/1048576).toFixed(1)} MB). Máximo 50 MB.`);
+  }
+
   /* Extraer texto según tipo de archivo */
   let extractedText=null;
   try{
@@ -101,8 +107,13 @@ async function uploadSesDoc(file,category,description,docDate){
 }
 
 async function deleteSesDoc(id,name){
+  if(!session?.user?.id) return showToast('⚠ Sesión requerida');
   if(!confirm('¿Eliminar "'+name+'"?'))return;
-  await sb.from('ley21369_ses_documents').delete().eq('id',id);
+  /* BUG-FIX: defense-in-depth + reportar error.
+     Antes: solo .eq('id',id) sin user_id (post-RLS habría sido bloqueado, pero
+     el toast "🗑️ Eliminada" se mostraba aunque el delete fallara). */
+  const{error}=await sb.from('ley21369_ses_documents').delete().eq('id',id).eq('user_id',session.user.id);
+  if(error){showToast('⚠ Error: '+error.message);return;}
   showToast('🗑️ Eliminada');
   await loadSesDocs();
   renderSesPanel();
