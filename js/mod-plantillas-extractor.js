@@ -542,9 +542,356 @@ async function save(replaceMode){
   }
 }
 
-/* API pública */
-window._plExtractor = { open, close, pickType, setSamples, setTipoProc, setProto, startExtraction, back, save };
-window.openPlantillaExtractor = open;
+/* ════════════════════════════════════════════════════════════════════════
+   FILLER: openCustomTplWizard(tpl, caseObj)
+   ────────────────────────────────────────────────────────────────────────
+   Modal para llenar una plantilla custom_templates con datos del caso.
+   Antes esto NO existía: las custom_templates no se podían usar porque
+   `useTmplInWizard` apuntaba a un `openWizard()` inexistente. Esto cierra
+   el círculo: extraer → guardar → abrir → llenar → exportar.
+   ════════════════════════════════════════════════════════════════════════ */
+let _fillState = null;
 
-console.log('%c🤖 mod-plantillas-extractor cargado', 'color:#7c3aed;font-weight:bold');
+function _fillerModalShell(bodyHtml){
+  const old = document.getElementById('plantillaFillerOverlay');
+  if(old) old.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'plantillaFillerOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = e => { if(e.target===overlay) closeFiller(); };
+  overlay.innerHTML = `
+    <div style="background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;max-width:1080px;width:100%;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div id="plFillerHeader" style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"></div>
+      <div id="plFillerBody" style="flex:1;overflow:hidden;display:flex;gap:0">${bodyHtml}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeFiller(){
+  const o = document.getElementById('plantillaFillerOverlay');
+  if(o) o.remove();
+  _fillState = null;
+}
+
+async function openCustomTplWizard(tpl, caseObj){
+  if(!tpl) return _toast('⚠ Plantilla inválida');
+  /* Auto-fill desde el caso si está disponible */
+  let autoVals = {};
+  if(caseObj && typeof autoFillFromCase === 'function'){
+    try{ autoVals = await autoFillFromCase(caseObj) || {}; }catch(e){ console.warn('[plantillas-fill] autoFill error',e); }
+  }
+  const variables = tpl.variables && tpl.variables.length
+    ? tpl.variables
+    : [...new Set((tpl.structure.match(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g)||[]).map(m=>m.slice(1,-1)))]
+        .map(k=>({key:k,label:k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),type:'text',required:false}));
+  const initialVals = {};
+  variables.forEach(v=>{ initialVals[v.key] = autoVals[v.key] || ''; });
+  _fillState = { tpl, caseObj, variables, vals: initialVals };
+
+  _fillerModalShell('');
+  document.getElementById('plFillerHeader').innerHTML = `
+    <div>
+      <div style="font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px">📋 ${_esc(tpl.name||'Plantilla')}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${_esc(_stripMeta(tpl.description||''))} ${caseObj?'· Caso vinculado: <strong>'+_esc(caseObj.name||'')+'</strong>':''}</div>
+    </div>
+    <button class="btn-action" onclick="window._plExtractor.closeFiller()" style="font-size:18px">✕</button>`;
+  _renderFillerBody();
+}
+
+function _applyVars(structure, vals){
+  return (structure||'').replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (m, key)=>{
+    const v = vals[key];
+    return (v && String(v).trim()) ? String(v) : m;
+  });
+}
+
+function _renderFillerBody(){
+  const { tpl, variables, vals } = _fillState;
+  const filled = variables.filter(v=>vals[v.key] && String(vals[v.key]).trim()).length;
+  const total = variables.length;
+
+  const body = document.getElementById('plFillerBody');
+  body.innerHTML = `
+    <div style="width:42%;border-right:1px solid var(--border);overflow-y:auto;padding:14px 16px;background:var(--surface)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Variables (${filled}/${total} llenas)</div>
+        <button class="btn-sm" style="font-size:10px;padding:3px 8px" onclick="window._plExtractor.fillerReset()" title="Restaurar auto-fill">↺ Reset</button>
+      </div>
+      ${variables.map(v=>{
+        const val = vals[v.key]||'';
+        const filled = !!val.trim();
+        return `
+        <div style="margin-bottom:10px">
+          <label style="font-size:10.5px;font-weight:600;color:${filled?'var(--text)':'var(--text-muted)'};display:flex;align-items:center;gap:4px">
+            ${filled?'<span style="color:var(--green,#059669)">●</span>':'<span style="color:var(--text-muted)">○</span>'}
+            ${_esc(v.label||v.key)} ${v.required?'<span style="color:var(--red,#ef4444)">*</span>':''}
+            <code style="font-size:9.5px;color:var(--text-muted);font-weight:400">{${_esc(v.key)}}</code>
+          </label>
+          ${(v.type==='textarea')
+            ? `<textarea rows="3" data-var="${_esc(v.key)}" oninput="window._plExtractor.fillerSetVar('${_esc(v.key)}',this.value)" style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:11.5px;font-family:inherit">${_esc(val)}</textarea>`
+            : (v.type==='date')
+            ? `<input type="date" data-var="${_esc(v.key)}" value="${_esc(val)}" oninput="window._plExtractor.fillerSetVar('${_esc(v.key)}',this.value)" style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:11.5px">`
+            : `<input type="text" data-var="${_esc(v.key)}" value="${_esc(val)}" oninput="window._plExtractor.fillerSetVar('${_esc(v.key)}',this.value)" style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:11.5px">`}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;flex:1">Vista previa (en vivo)</span>
+        <button class="btn-sm" onclick="window._plExtractor.fillerCopy()" title="Copiar al portapapeles">📋 Copiar</button>
+        <button class="btn-sm" onclick="window._plExtractor.fillerDownload()" title="Descargar como .txt">⬇ TXT</button>
+        <button class="btn-sm" onclick="window._plExtractor.fillerAdaptIA()" title="Pedir a Fiscalito que adapte el texto al caso vinculado" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none">✨ Adaptar con IA</button>
+      </div>
+      <div id="plFillerPreview" style="flex:1;overflow-y:auto;padding:18px 22px;font-family:var(--font-serif,Georgia,serif);font-size:13px;line-height:1.65;white-space:pre-wrap"></div>
+    </div>`;
+  _renderFillerPreview();
+}
+
+function _renderFillerPreview(){
+  const el = document.getElementById('plFillerPreview');
+  if(!el) return;
+  const { tpl, vals } = _fillState;
+  const text = _applyVars(tpl.structure||'', vals);
+  /* Resaltar variables NO llenas */
+  const html = _esc(text).replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '<span style="background:rgba(245,158,11,.18);color:#d97706;padding:0 4px;border-radius:3px;font-family:var(--font-mono);font-size:11.5px">{$1}</span>');
+  el.innerHTML = html;
+}
+
+function fillerSetVar(key, value){
+  if(!_fillState) return;
+  _fillState.vals[key] = value;
+  _renderFillerPreview();
+  /* Re-render dot indicators sin perder foco — pero actualizar el contador */
+  const{variables, vals} = _fillState;
+  const filled = variables.filter(v=>vals[v.key] && String(vals[v.key]).trim()).length;
+  const total = variables.length;
+  const headerCount = document.querySelector('#plFillerBody div[style*="text-transform:uppercase"]');
+  if(headerCount) headerCount.textContent = `Variables (${filled}/${total} llenas)`;
+}
+
+async function fillerReset(){
+  if(!_fillState) return;
+  const { tpl, caseObj, variables } = _fillState;
+  let autoVals = {};
+  if(caseObj && typeof autoFillFromCase === 'function'){
+    try{ autoVals = await autoFillFromCase(caseObj) || {}; }catch{}
+  }
+  variables.forEach(v=>{ _fillState.vals[v.key] = autoVals[v.key] || ''; });
+  _renderFillerBody();
+}
+
+function fillerCopy(){
+  if(!_fillState) return;
+  const text = _applyVars(_fillState.tpl.structure||'', _fillState.vals);
+  navigator.clipboard.writeText(text).then(()=>_toast('📋 Copiado al portapapeles')).catch(()=>_toast('⚠ No se pudo copiar'));
+}
+
+function fillerDownload(){
+  if(!_fillState) return;
+  const text = _applyVars(_fillState.tpl.structure||'', _fillState.vals);
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = ((_fillState.tpl.name||'plantilla').replace(/[^a-zA-Z0-9_-]/g,'_')) + '_' + new Date().toISOString().slice(0,10) + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  _toast('⬇ Descargado');
+}
+
+async function fillerAdaptIA(){
+  if(!_fillState) return;
+  const { tpl, caseObj, vals } = _fillState;
+  const _doFetch = typeof authFetch==='function' ? authFetch : fetch;
+  const filledText = _applyVars(tpl.structure||'', vals);
+  const remaining = (filledText.match(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g)||[]).length;
+  let caseCtx = '';
+  if(caseObj){
+    const fields = ['name','rol','tipo_procedimiento','protocolo','materia','fecha_denuncia','fecha_resolucion','denunciantes','denunciados','medida_cautelar_detalle','observaciones'];
+    const lines = fields.map(f=>{
+      const v = caseObj[f];
+      if(!v) return null;
+      return `- ${f}: ${typeof v==='object'?JSON.stringify(v):v}`;
+    }).filter(Boolean);
+    if(lines.length) caseCtx = '\nDATOS DEL CASO VINCULADO:\n'+lines.join('\n');
+  }
+  const prompt = `Eres Fiscalito, asistente jurídico UMAG. Tienes una plantilla parcialmente llena (${remaining} variables aún sin completar). Adapta el texto al caso usando los datos provistos. NO inventes información: si no tienes un dato, déjalo entre llaves. Mantén formato y estilo formal jurídico chileno.${caseCtx}\n\nPLANTILLA RELLENA (con variables {} pendientes resaltadas):\n\n${filledText}\n\nDevuelve SOLO el texto final adaptado, sin comentarios ni preámbulos.`;
+
+  const btn = document.querySelector('#plFillerBody button[onclick*="fillerAdaptIA"]');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Adaptando…'; }
+  try{
+    const token = (typeof session!=='undefined') ? (session?.access_token||'') : '';
+    const r = await _doFetch(_CHAT_EP, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-auth-token':token},
+      body:JSON.stringify({
+        model: typeof CLAUDE_SONNET!=='undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    const reply = (data.content && data.content[0]?.text) || data.reply || '';
+    if(!reply) throw new Error('Respuesta IA vacía');
+    /* Reemplazar la estructura del fillState con el texto adaptado.
+       Ojo: esto rompe la relación con variables, pero la idea es que la
+       IA ya generó un texto final; el usuario puede copiar/descargar. */
+    _fillState.tpl = { ..._fillState.tpl, structure: reply };
+    /* Limpiar las vals porque ya están en el texto */
+    _fillState.variables.forEach(v=>{ _fillState.vals[v.key] = ''; });
+    _renderFillerBody();
+    _toast('✨ Texto adaptado por Fiscalito');
+  }catch(e){
+    _toast('⚠ Error al adaptar: '+e.message);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '✨ Adaptar con IA'; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SECCIÓN PARA INYECTAR EN CUESTIONARIOS Y ACTAS
+   ────────────────────────────────────────────────────────────────────────
+   Carga las custom_templates del usuario, las ordena (las extraídas que
+   matcheen el caso vinculado primero), y devuelve HTML listo para insertar.
+   ════════════════════════════════════════════════════════════════════════ */
+async function renderExtractedTemplatesSection(linkedCase){
+  const sb = _sb();
+  if(!sb || !session?.user?.id) return '';
+  const{data}=await sb.from('custom_templates').select('*')
+    .eq('user_id',session.user.id).eq('is_active',true).order('created_at',{ascending:false});
+  if(!data || !data.length) return '';
+
+  const TYPE_ICON = { RES:'📜', OFI:'📨', ACT:'📋', CON:'🛡️', CER:'✅', INF:'📄' };
+
+  /* Calcular match score: 2=ambos coinciden, 1=uno coincide, 0=ninguno o sin meta */
+  const linkedProc = (linkedCase?.tipo_procedimiento||'').trim();
+  const linkedProto = (linkedCase?.protocolo||'').trim();
+  const enriched = data.map(t=>{
+    const meta = _parseMeta(t.description) || {};
+    let score = 0;
+    if(meta.proc && linkedProc && meta.proc===linkedProc) score++;
+    if(meta.proto && linkedProto && meta.proto===linkedProto) score++;
+    return { tpl:t, meta, score };
+  });
+  /* Ordenar: matches primero, luego por created_at */
+  enriched.sort((a,b)=>b.score-a.score);
+
+  const cards = enriched.map(({tpl, meta, score})=>{
+    const desc = _stripMeta(tpl.description||'');
+    const icon = TYPE_ICON[tpl.type] || '📄';
+    const isExt = (tpl.code||'').startsWith('MT-EXT');
+    const badgeMatch = (linkedCase && score>=2)
+      ? '<span style="font-size:9.5px;background:rgba(5,150,105,.12);color:#059669;padding:2px 7px;border-radius:10px;font-weight:600">✓ Compatible con tu caso</span>'
+      : (linkedCase && score===1)
+      ? '<span style="font-size:9.5px;background:rgba(245,158,11,.12);color:#d97706;padding:2px 7px;border-radius:10px;font-weight:600">~ Parcialmente compatible</span>'
+      : '';
+    const tagExt = isExt ? '<span style="font-size:9px;background:rgba(124,58,237,.12);color:#7c3aed;padding:1px 6px;border-radius:8px;font-weight:600">EXTRAÍDA</span>' : '<span style="font-size:9px;background:rgba(245,158,11,.12);color:#d97706;padding:1px 6px;border-radius:8px;font-weight:600">CUSTOM</span>';
+    const metaInfo = (meta.proc||meta.proto) ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">${meta.proc?'· '+_esc(meta.proc):''}${meta.proto?' · '+_esc(meta.proto):''}${meta.samples?' · '+meta.samples+' ej':''}</div>` : '';
+    const escId = _esc(tpl.id);
+    return `
+      <div onclick="window._plExtractor.useExtracted('${escId}')" style="background:var(--surface);border:1.5px solid ${score>=2?'rgba(5,150,105,.4)':'var(--border)'};border-radius:10px;padding:12px;cursor:pointer;transition:all .12s" onmouseover="this.style.borderColor='var(--gold-dim)';this.style.boxShadow='var(--shadow-sm)'" onmouseout="this.style.borderColor='${score>=2?'rgba(5,150,105,.4)':'var(--border)'}';this.style.boxShadow='none'">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:18px">${icon}</span>
+          <span style="font-size:10px;background:var(--gold-glow);border:1px solid var(--gold-dim);color:var(--gold);padding:1px 6px;border-radius:4px;font-weight:600;font-family:var(--font-mono)">${_esc(tpl.code||'')}</span>
+          ${tagExt}
+          ${badgeMatch}
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px">${_esc(tpl.name||'Sin nombre')}</div>
+        ${desc?`<div style="font-size:11px;color:var(--text-muted);line-height:1.4">${_esc(desc.substring(0,140))}${desc.length>140?'…':''}</div>`:''}
+        ${metaInfo}
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${(tpl.variables||[]).length} variables</div>
+      </div>`;
+  }).join('');
+
+  const matchCount = enriched.filter(e=>e.score>=1).length;
+  const headerNote = linkedCase
+    ? `${matchCount>0?'<strong style="color:#059669">'+matchCount+' compatible(s) con tu caso</strong> · ':''}${enriched.length} totales`
+    : `${enriched.length} plantillas`;
+
+  return `
+    <div style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:600">🤖 Mis plantillas extraídas y custom</div>
+          <div style="font-size:11px;color:var(--text-muted)">${headerNote}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}</div>
+    </div>`;
+}
+
+async function useExtracted(id){
+  const sb = _sb();
+  if(!sb) return;
+  const{data}=await sb.from('custom_templates').select('*').eq('id',id).maybeSingle();
+  if(!data) return _toast('⚠ Plantilla no encontrada');
+  /* Tomar el caso vinculado de Cuestionarios o currentCase */
+  const caseObj = (typeof _wizState!=='undefined' && _wizState?.linkedCase)
+    || (typeof currentCase!=='undefined' ? currentCase : null);
+  await openCustomTplWizard(data, caseObj);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   BANNER DE SUGERENCIA
+   ────────────────────────────────────────────────────────────────────────
+   Si hay tipos de diligencia con ≥10 ejemplos disponibles y NINGUNA
+   custom_template extraída para ese tipo, sugerimos extraer.
+   ════════════════════════════════════════════════════════════════════════ */
+async function getSuggestionBanner(){
+  const sb = _sb();
+  if(!sb || !session?.user?.id) return '';
+  /* Conteo de diligencias por tipo (con texto) y de custom_templates por dilType en meta */
+  const counts = await _loadCounts();
+  const{data:tpls}=await sb.from('custom_templates').select('description')
+    .eq('user_id',session.user.id).eq('is_active',true);
+  const coveredDilTypes = new Set();
+  (tpls||[]).forEach(t=>{
+    const meta = _parseMeta(t.description);
+    if(meta?.dil) coveredDilTypes.add(meta.dil);
+  });
+  /* Tipos con ≥10 ejemplos y sin plantilla aún */
+  const candidates = DIL_TYPES_FOR_EXTRACTION
+    .filter(d => (counts[d.value]||0) >= 10 && !coveredDilTypes.has(d.value))
+    .sort((a,b)=>(counts[b.value]||0)-(counts[a.value]||0))
+    .slice(0,3);
+  if(!candidates.length) return '';
+
+  const top = candidates[0];
+  const others = candidates.slice(1).map(d=>`${d.label} (${counts[d.value]})`).join(', ');
+  return `
+    <div style="background:linear-gradient(135deg,rgba(124,58,237,.06),rgba(168,85,247,.06));border:1px solid rgba(124,58,237,.25);border-radius:10px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:20px">💡</span>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12.5px;font-weight:600;color:var(--text)">
+          Tienes <strong>${counts[top.value]} ejemplos</strong> de "${_esc(top.label)}" sin plantilla extraída.
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+          Genera una plantilla reusable a partir de tus diligencias reales.${others?' También: '+_esc(others)+'.':''}
+        </div>
+      </div>
+      <button class="btn-save" onclick="window._plExtractor.openWith('${_esc(top.value)}')" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-size:11.5px;padding:6px 12px;border-radius:7px;font-weight:600;cursor:pointer">⚡ Extraer ahora</button>
+    </div>`;
+}
+
+async function openWith(dilType){
+  await open();
+  /* Pre-seleccionar el tipo */
+  _state.dilType = dilType;
+  _renderStep1Cache();
+}
+
+/* API pública */
+window._plExtractor = {
+  open, close, pickType, setSamples, setTipoProc, setProto, startExtraction, back, save,
+  openCustomTplWizard, closeFiller, fillerSetVar, fillerReset, fillerCopy, fillerDownload, fillerAdaptIA,
+  useExtracted, openWith
+};
+window.openPlantillaExtractor = open;
+window.openCustomTplWizard = openCustomTplWizard;
+window.renderExtractedTemplatesSection = renderExtractedTemplatesSection;
+window.getExtractorSuggestionBanner = getSuggestionBanner;
+
+console.log('%c🤖 mod-plantillas-extractor cargado (con filler + sección Cuestionarios + sugerencias)', 'color:#7c3aed;font-weight:bold');
 })();

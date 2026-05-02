@@ -575,9 +575,33 @@ function renderCuestionariosView(){
               :'<span style="font-size:10px;color:var(--text-muted)">Abre un caso primero desde la lista de expedientes.</span>'}`}
       </div>
 
+      <!-- Banner de sugerencia (se llena async después del render) -->
+      <div id="cuestSuggestionBanner"></div>
+
       <!-- Contenido según pestaña -->
       ${_cuestActiveTab==='cuestionarios' ? renderCuestTabCuestionarios() : renderCuestTabMeroTramite(linkedCase)}
+
+      <!-- Sección de plantillas extraídas / custom (solo en tab cuestionarios, se llena async) -->
+      ${_cuestActiveTab==='cuestionarios' ? '<div id="cuestExtractedSection"></div>' : ''}
     </div>`;
+
+  /* Inyección async de las secciones del extractor — el render principal es
+     síncrono pero estas dos secciones requieren queries a Supabase. Mostramos
+     placeholders y los reemplazamos cuando llegue la data. */
+  setTimeout(async ()=>{
+    try{
+      if(typeof getExtractorSuggestionBanner === 'function'){
+        const banner = await getExtractorSuggestionBanner();
+        const slot = document.getElementById('cuestSuggestionBanner');
+        if(slot && banner) slot.innerHTML = banner;
+      }
+      if(_cuestActiveTab==='cuestionarios' && typeof renderExtractedTemplatesSection === 'function'){
+        const html = await renderExtractedTemplatesSection(linkedCase);
+        const slot = document.getElementById('cuestExtractedSection');
+        if(slot) slot.innerHTML = html || '';
+      }
+    }catch(e){ console.warn('[cuestionarios] inyección extractor falló:', e); }
+  }, 50);
 }
 
 function renderCuestTabCuestionarios(){
