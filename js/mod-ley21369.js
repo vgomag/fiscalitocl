@@ -289,6 +289,9 @@ async function seedFromTemplate(){
     if(data) items=data;
     if(error) console.warn("[Ley21369] Error seeding:",error);
   }catch(e){console.warn("[Ley21369] Seed error:",e)}
+  finally{ _seedingInFlight = null; }
+  })();
+  return _seedingInFlight;
 }
 
 // ── CRUD Operations ─────────────────────────────────────────────────────────
