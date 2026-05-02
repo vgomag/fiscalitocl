@@ -5902,7 +5902,6 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-escritos.js"></script>
 <script src="/js/mod-transcripcion.js"></script>
 <script src="/js/mod-resoluciones-termino.js"></script>
-<script src="/js/mod-monday-bridge.js"></script>
 <script>
 // Transcripción module moved to mod-transcripcion.js
 </script>
@@ -5940,8 +5939,69 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-import-mis-casos.js"></script>
 <script src="/js/mod-actuaria-tabla.js"></script>
 <script src="/js/mod-actuaria-pendientes.js"></script>
-<script src="/js/mod-pendientes-monday.js"></script>
 <script src="/js/logo-data.js"></script>
+<script>
+/* ── Lazy-load de la integración Monday ─────────────────────────────
+   mod-monday-bridge.js + mod-pendientes-monday.js suman ~30KB y solo
+   se necesitan cuando: (a) el usuario hace clic en el 📤 de un caso, o
+   (b) abre la vista "Pendientes". Antes se cargaban siempre. Ahora
+   cargan al primer uso real. Si no usas Monday, nunca se descargan. */
+(function(){
+  let _mondayLoaded = null;
+  function _loadScript(src){
+    return new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src=src; s.onload=res;
+      s.onerror=()=>rej(new Error('No se cargó '+src));
+      document.head.appendChild(s);
+    });
+  }
+  function loadMonday(){
+    if(_mondayLoaded) return _mondayLoaded;
+    _mondayLoaded = Promise.all([
+      _loadScript('/js/mod-monday-bridge.js'),
+      _loadScript('/js/mod-pendientes-monday.js'),
+    ]).catch(e=>{_mondayLoaded=null;throw e;});
+    return _mondayLoaded;
+  }
+  /* Stub: si alguien llama openMondayBridge antes de cargar, dispara la carga
+     y luego re-llama al real (que ya reemplazó este stub al ejecutarse). */
+  const stub = async function(caseId){
+    if(typeof showToast==='function') showToast('Cargando integración Monday…');
+    try{
+      await loadMonday();
+      if(typeof window.openMondayBridge === 'function' && window.openMondayBridge !== stub){
+        return window.openMondayBridge(caseId);
+      }
+    }catch(e){
+      if(typeof showToast==='function') showToast('⚠ No se pudo cargar Monday: '+e.message);
+    }
+  };
+  window.openMondayBridge = stub;
+
+  /* Hook lazy: cuando el usuario abre la vista Pendientes, cargar Monday
+     en segundo plano para que los botones 📤 aparezcan. mod-pendientes.js
+     se carga antes (sin defer) — esperamos a que defina openPendientes. */
+  function patchOpenPendientes(retries){
+    retries = retries || 0;
+    if(typeof window.openPendientes === 'function' && !window.__pendLazyMondayHooked){
+      const orig = window.openPendientes;
+      window.openPendientes = function(){
+        loadMonday().catch(()=>{}); /* fire-and-forget */
+        return orig.apply(this, arguments);
+      };
+      window.__pendLazyMondayHooked = true;
+      return;
+    }
+    if(retries < 60) setTimeout(()=>patchOpenPendientes(retries+1), 100);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ()=>patchOpenPendientes());
+  } else {
+    patchOpenPendientes();
+  }
+})();
+</script>
 <script src="/js/mod-auto-subdivision.js"></script>
 <script src="/js/mod-biblioteca-procedimientos.js"></script>
 <script src="/js/mod-branding.js"></script>
