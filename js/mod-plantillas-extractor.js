@@ -353,13 +353,13 @@ function _renderStep1(counts){
       }).join('')}
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div>
         <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Cantidad de ejemplos</label>
         <input type="number" id="plExSampleCount" value="${_state.sampleCount}" min="3" max="12"
           oninput="window._plExtractor.setSamples(parseInt(this.value)||6)"
           style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-top:4px">
-        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Recomendado 5-8. Más ejemplos = template más genérico.</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Recomendado 5-8.</div>
       </div>
       <div>
         <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Tipo de procedimiento</label>
@@ -374,6 +374,27 @@ function _renderStep1(counts){
           style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-top:4px;background:var(--surface)">
           ${PROTOS.map(p=>`<option value="${_esc(p.id)}" ${_state.protocolo===p.id?'selected':''}>${_esc(p.label)}</option>`).join('')}
         </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:18px">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Resultado del caso</label>
+        <select id="plExResultado" onchange="window._plExtractor.setResultado(this.value)"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-top:4px;background:var(--surface)">
+          <option value="all" ${_state.resultado==='all'?'selected':''}>Todos</option>
+          <option value="Sanción" ${_state.resultado==='Sanción'?'selected':''}>Solo sancionados</option>
+          <option value="Sobreseimiento" ${_state.resultado==='Sobreseimiento'?'selected':''}>Solo sobreseídos</option>
+          <option value="Absuelto" ${_state.resultado==='Absuelto'?'selected':''}>Solo absueltos</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Buscar texto en el documento (opcional)</label>
+        <input type="text" id="plExSearch" value="${_esc(_state.searchText)}"
+          oninput="window._plExtractor.setSearchText(this.value)"
+          placeholder="ej: 'término probatorio', 'formulación de cargos', 'absuelvo'"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-top:4px;font-family:var(--font-mono,monospace)">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Filtra solo diligencias cuyo texto/etiqueta contenga la frase.</div>
       </div>
     </div>
 
@@ -465,7 +486,7 @@ function _renderStep3(template, samples){
 /* ══════════════════ FLOW CONTROLLERS ══════════════════ */
 async function open(){
   if(!session?.user?.id) return _toast('⚠ Sesión requerida');
-  _state = { step:1, dilType:'oficio', sampleCount:6, tipoProc:'all', protocolo:'all', samples:[], extracted:null };
+  _state = { step:1, dilType:'oficio', sampleCount:6, tipoProc:'all', protocolo:'all', resultado:'all', searchText:'', samples:[], extracted:null };
   _modalShell('<div style="text-align:center;padding:40px;color:var(--text-muted)">Cargando inventario…</div>');
   const counts = await _loadCounts();
   /* Auto-pick el tipo con más ejemplos si oficio no tiene */
