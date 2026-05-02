@@ -188,26 +188,97 @@ ${samplesText}`;
   return parsed;
 }
 
-/* ── Guardar en custom_templates ── */
-async function _save(template){
+/* ── Embed metadata en description (compatible con UI existente) ──
+   Formato: "<descripción humana> [ext:proc=<X>|proto=<Y>|samples=<N>]"
+   Permite filtrar/badgear templates extraídos según el caso vinculado sin
+   tener que añadir columnas nuevas a custom_templates. */
+function _embedMeta(desc, meta){
+  const parts = [];
+  if(meta.proc && meta.proc!=='all') parts.push('proc='+meta.proc);
+  if(meta.proto && meta.proto!=='all') parts.push('proto='+meta.proto);
+  if(meta.samples) parts.push('samples='+meta.samples);
+  if(meta.dilType) parts.push('dil='+meta.dilType);
+  if(!parts.length) return desc||'';
+  const cleaned = (desc||'').replace(/\s*\[ext:[^\]]+\]\s*$/,'').trim();
+  return cleaned + ' [ext:' + parts.join('|') + ']';
+}
+function _parseMeta(desc){
+  const m = (desc||'').match(/\[ext:([^\]]+)\]/);
+  if(!m) return null;
+  const meta = {};
+  m[1].split('|').forEach(kv=>{const[k,v]=kv.split('=');if(k&&v)meta[k.trim()]=v.trim();});
+  return meta;
+}
+function _stripMeta(desc){
+  return (desc||'').replace(/\s*\[ext:[^\]]+\]\s*$/,'').trim();
+}
+
+/* ── Guardar en custom_templates con anti-dupe ──
+   Si ya existe una plantilla con el mismo `code` para este user, se ofrece
+   reemplazar (UPDATE) o crear una nueva versión (-vN). Esto evita el
+   problema de extraer la misma combo dos veces y terminar con duplicados. */
+async function _save(template, opts){
+  opts = opts || {};
   const sb = _sb();
   if(!sb || !session?.user?.id) throw new Error('Sesión requerida');
-  const payload = {
+
+  /* Embed metadata si se entregó (proc/proto/samples/dilType) */
+  const desc = opts.meta ? _embedMeta(template.description, opts.meta) : (template.description||'');
+
+  /* Check dupe por code */
+  const{data:existing}=await sb.from('custom_templates').select('id,code,name')
+    .eq('user_id',session.user.id).eq('code',template.code).eq('is_active',true).limit(1);
+  let finalCode = template.code;
+  let isUpdate = false;
+  let updateId = null;
+
+  if(existing && existing.length>0){
+    if(opts.replaceMode === 'replace'){
+      isUpdate = true;
+      updateId = existing[0].id;
+    } else if(opts.replaceMode === 'newVersion'){
+      /* Buscar el siguiente sufijo -vN libre */
+      let n = 2;
+      while(true){
+        const candidate = template.code.replace(/-v\d+$/,'') + '-v' + n;
+        const{data:c}=await sb.from('custom_templates').select('id').eq('user_id',session.user.id).eq('code',candidate).limit(1);
+        if(!c || !c.length){ finalCode = candidate; break; }
+        n++;
+        if(n>50) break;
+      }
+    } else {
+      /* Sin replaceMode: lanzamos error con info para que la UI pregunte */
+      const err = new Error('DUPE');
+      err.code = 'DUPE_CODE';
+      err.existingId = existing[0].id;
+      err.existingName = existing[0].name;
+      throw err;
+    }
+  }
+
+  const basePayload = {
     user_id: session.user.id,
     name: template.name,
-    code: template.code,
+    code: finalCode,
     type: template.type,
     category: template.category,
-    description: template.description,
+    description: desc,
     structure: template.structure,
     variables: template.variables,
     is_active: true,
-    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
-  const{error,data} = await sb.from('custom_templates').insert(payload).select().single();
-  if(error) throw new Error(error.message);
-  return data;
+
+  if(isUpdate){
+    const{error,data} = await sb.from('custom_templates').update(basePayload).eq('id',updateId).select().single();
+    if(error) throw new Error(error.message);
+    return data;
+  } else {
+    basePayload.created_at = new Date().toISOString();
+    const{error,data} = await sb.from('custom_templates').insert(basePayload).select().single();
+    if(error) throw new Error(error.message);
+    return data;
+  }
 }
 
 /* ══════════════════ UI: MODAL ══════════════════ */
@@ -438,7 +509,7 @@ async function startExtraction(){
 
 function back(){ _renderStep1Cache(); }
 
-async function save(){
+async function save(replaceMode){
   const name = document.getElementById('plExName')?.value?.trim();
   const code = document.getElementById('plExCode')?.value?.trim();
   const type = document.getElementById('plExType')?.value;
@@ -452,15 +523,20 @@ async function save(){
   const variables = detectedKeys.map(k=>oldVars[k] || {key:k, label:k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()), type:'text', required:false});
 
   const tpl = { name, code, type, category, description, structure, variables };
+  const meta = { proc: _state.tipoProc, proto: _state.protocolo, samples: _state.samples?.length, dilType: _state.dilType };
   try{
-    await _save(tpl);
+    await _save(tpl, { replaceMode, meta });
     _toast('✅ Plantilla guardada — disponible en "Mis Plantillas"');
     close();
-    /* Si la vista de plantillas custom está abierta, refrescar */
     if(typeof loadTemplates==='function'){ try{ await loadTemplates(); }catch{} }
-    /* Refrescar la vista de Cuestionarios si está activa */
     if(typeof renderCuestionariosView==='function'){ try{ renderCuestionariosView(); }catch{} }
   }catch(e){
+    if(e.code === 'DUPE_CODE'){
+      /* Pedir al usuario que decida: reemplazar o nueva versión */
+      const ans = confirm(`Ya existe una plantilla con código "${code}" llamada "${e.existingName}".\n\n• Aceptar = REEMPLAZAR la existente (mantiene el código).\n• Cancelar = crear como NUEVA VERSIÓN (código será ${code}-v2, v3…).`);
+      const mode = ans ? 'replace' : 'newVersion';
+      return save(mode);
+    }
     _toast('⚠ Error al guardar: '+e.message);
     console.error('[plantillas-extractor] save', e);
   }
