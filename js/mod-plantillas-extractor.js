@@ -62,36 +62,49 @@ async function _loadCounts(){
   return counts;
 }
 
-/* ── Sample N diligencias representativas ── */
-async function _fetchSamples(dilType,n,tipoProc,protocolo){
+/* ── Sample N diligencias representativas ──
+   Aplica filtros: tipo de diligencia + tipo de procedimiento + protocolo +
+   resultado del caso (ej. solo "Sanción") + búsqueda libre en extracted_text
+   o diligencia_label (útil para localizar resoluciones específicas como
+   "apertura del probatorio", "formulación de cargos", etc.). */
+async function _fetchSamples(dilType,n,tipoProc,protocolo,resultado,searchText){
   const sb = _sb();
   if(!sb || !session?.user?.id) return [];
-  /* Trae candidatos: diligencias del tipo elegido, de mis casos terminados,
-     con extracted_text no vacío. Filtramos en cliente por longitud + tipo de
-     procedimiento + protocolo (porque join inverso vía .filter no es trivial). */
-  const{data:cases}=await sb.from('cases').select('id,tipo_procedimiento,protocolo')
+  const{data:cases}=await sb.from('cases').select('id,tipo_procedimiento,protocolo,resultado')
     .eq('user_id',session.user.id).eq('status','terminado').is('deleted_at',null);
   if(!cases?.length) return [];
   let caseIds = cases.map(c=>c.id);
   const caseMeta = {};
-  cases.forEach(c=>{caseMeta[c.id]={tipo:c.tipo_procedimiento||'',proto:c.protocolo||''};});
+  cases.forEach(c=>{caseMeta[c.id]={tipo:c.tipo_procedimiento||'',proto:c.protocolo||'',res:(c.resultado||'').toLowerCase()};});
   if(tipoProc && tipoProc!=='all') caseIds = caseIds.filter(id=>caseMeta[id].tipo===tipoProc);
   if(protocolo && protocolo!=='all') caseIds = caseIds.filter(id=>caseMeta[id].proto===protocolo);
+  if(resultado && resultado!=='all'){
+    const target = resultado.toLowerCase();
+    caseIds = caseIds.filter(id=>caseMeta[id].res.includes(target));
+  }
   if(!caseIds.length) return [];
 
   const{data}=await sb.from('diligencias')
-    .select('id,case_id,diligencia_type,diligencia_label,extracted_text,fecha_diligencia')
+    .select('id,case_id,diligencia_type,diligencia_label,extracted_text,fecha_diligencia,file_name')
     .eq('diligencia_type',dilType)
     .in('case_id',caseIds)
     .not('extracted_text','is',null)
-    .limit(50);
+    .limit(200);
   if(!data?.length) return [];
-  /* Filtrar por longitud útil + ordenar por más texto (mejor señal) y tomar los top N
-     más algunos al azar para variedad. */
-  const useful = data.filter(d=>d.extracted_text && d.extracted_text.length>500 && d.extracted_text.length<30000);
+  /* Filtro de longitud + búsqueda libre (case-insensitive) */
+  const q = (searchText||'').trim().toLowerCase();
+  let useful = data.filter(d=>d.extracted_text && d.extracted_text.length>500 && d.extracted_text.length<60000);
+  if(q){
+    useful = useful.filter(d=>{
+      const hay = (d.extracted_text||'').toLowerCase()
+        + ' ' + (d.diligencia_label||'').toLowerCase()
+        + ' ' + (d.file_name||'').toLowerCase();
+      return hay.includes(q);
+    });
+  }
   if(!useful.length) return [];
   useful.sort((a,b)=>b.extracted_text.length-a.extracted_text.length);
-  /* Mezcla: 60% top por largo + 40% aleatorios */
+  /* Mezcla: 60% top por largo + 40% aleatorios para variedad */
   const topN = Math.ceil(n*0.6);
   const top = useful.slice(0,topN);
   const rest = useful.slice(topN);
@@ -485,7 +498,7 @@ async function startExtraction(){
     _renderStep2();
     _setStatus('Buscando diligencias representativas…', 15);
     const dilLbl = (DIL_TYPES_FOR_EXTRACTION.find(d=>d.value===_state.dilType)||{}).label || _state.dilType;
-    const samples = await _fetchSamples(_state.dilType, _state.sampleCount, _state.tipoProc, _state.protocolo);
+    const samples = await _fetchSamples(_state.dilType, _state.sampleCount, _state.tipoProc, _state.protocolo, _state.resultado, _state.searchText);
     if(!samples.length){
       _toast('⚠ No se encontraron ejemplos con texto extraído para esos filtros.');
       _renderStep1Cache();
