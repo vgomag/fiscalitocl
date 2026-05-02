@@ -23,7 +23,7 @@
 
   /* ── Cargar TODO en paralelo ── */
   const [casesR, pendR, dilR, mondayR, driveR] = await Promise.all([
-    sb.from('cases').select('id,name,nueva_resolucion,actuaria,materia,protocolo,tipo_procedimiento,estado_procedimiento,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_resolucion,fecha_vista,drive_folder_url,observaciones,informe_final,resultado,propuesta,judicializada,medida_cautelar,categoria,status,deleted_at').is('deleted_at', null),
+    sb.from('cases').select('id,name,nueva_resolucion,materia,protocolo,tipo_procedimiento,estado_procedimiento,denunciantes,denunciados,estamentos_denunciante,estamentos_denunciado,fecha_denuncia,fecha_recepcion_fiscalia,fecha_resolucion,fecha_vista,drive_folder_url,observaciones,informe_final,resultado,propuesta,judicializada,medida_cautelar,categoria,status,deleted_at').is('deleted_at', null),
     sb.from('acciones_pendientes').select('id,case_id,status,priority').eq('user_id', user.id),
     sb.from('diligencias').select('id,case_id,is_processed,ai_summary,file_name'),
     sb.from('monday_mappings').select('case_id,last_message_at,monday_item_id'),
@@ -63,7 +63,18 @@
     fecha_denuncia:         empty('fecha_denuncia').length,
     fecha_recepcion:        empty('fecha_recepcion_fiscalia').length,
     fecha_resolucion:       empty('fecha_resolucion').length,
-    actuaria:               empty('actuaria').length,
+    actuaria:               (function(){
+      /* Como cases.actuaria no existe en BD, contamos desde fiscalitoUMAG / localStorage */
+      let m = {};
+      try { m = JSON.parse(localStorage.getItem('fiscalito_actuarias_assign')||'{}'); } catch {}
+      return cases.filter(c => {
+        if (window.fiscalitoUMAG && typeof window.fiscalitoUMAG.getActuariaCaso==='function'){
+          const v = window.fiscalitoUMAG.getActuariaCaso(c);
+          if (v) return false;
+        }
+        return !m[c.id];
+      }).length;
+    })(),
     nueva_resolucion:       empty('nueva_resolucion').length
   };
   const cap1Score = Object.values(c1).reduce((s,v)=>s+(total-v),0) / (Object.keys(c1).length*total);
