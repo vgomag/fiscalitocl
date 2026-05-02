@@ -302,7 +302,7 @@ function _modalShell(bodyHtml){
   const overlay = document.createElement('div');
   overlay.id = 'plantillaExtractorOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.onclick = e => { if(e.target===overlay) closeExtractor(); };
+  overlay.onclick = e => { if(e.target===overlay) close(); };
   overlay.innerHTML = `
     <div style="background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;max-width:820px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)">
       <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
