@@ -201,9 +201,22 @@ function _f11ClearDB(){
 }
 
 /* ── sessionStorage helpers para textos ── */
+let _f11QuotaWarned = false;
 function _f11SaveText(key, value){
   try { if(value) sessionStorage.setItem(_F11_SS_PREFIX + key, value); }
-  catch(e){ console.warn('[F11-Recovery] sessionStorage write error:', e); }
+  catch(e){
+    /* BUG-FIX: antes el QuotaExceededError quedaba enterrado en console.warn.
+       Para textos largos (sesiones de >30 min refundidas + acta) el navegador
+       puede llenar los ~5MB de sessionStorage y el checkpoint falla silente —
+       si el usuario cierra la pestaña pierde la edición. Avisamos UNA vez. */
+    const isQuota = e && (e.name === 'QuotaExceededError' || e.code === 22 || /quota/i.test(String(e.message)));
+    if(isQuota && !_f11QuotaWarned){
+      _f11QuotaWarned = true;
+      if(typeof showToast === 'function')
+        showToast('⚠ Sin espacio local para autoguardar — guarda el acta ahora antes de cerrar la pestaña.', 8000);
+    }
+    console.warn('[F11-Recovery] sessionStorage write error ('+key+'):', e?.message||e);
+  }
 }
 function _f11LoadText(key){
   try { return sessionStorage.getItem(_F11_SS_PREFIX + key) || ''; }
@@ -558,6 +571,22 @@ async function _f11StreamStructure({ systemPrompt, userMsg, maxTokens, onProgres
             if(onProgress) onProgress(accumulated);
           }
         } catch(e){ /* ignorar líneas no-JSON */ }
+      }
+    }
+    /* BUG-FIX: procesar el buffer residual al cerrar el stream.
+       Antes, si la última línea del SSE llegaba completa pero sin '\n' final
+       (caso común cuando el servidor cierra la conexión inmediatamente tras
+       el último delta), el último delta de texto se perdía. */
+    if(buffer && buffer.startsWith('data: ')){
+      const jsonStr = buffer.slice(6).trim();
+      if(jsonStr && jsonStr !== '[DONE]'){
+        try {
+          const evt = JSON.parse(jsonStr);
+          if(evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta'){
+            accumulated += evt.delta.text;
+            if(onProgress) onProgress(accumulated);
+          }
+        } catch(e){ /* línea final incompleta o no-JSON: descartar */ }
       }
     }
   } catch(e){
@@ -1828,7 +1857,11 @@ async function f11Paso3_GenerarActa(){
 /* ══════════════════ GUARDAR EN CASO ══════════════════ */
 /* ══════════════════ GUARDAR TRANSCRIPCIÓN CRUDA (Paso 1) ══════════════════ */
 async function f11SaveRawToCase(){
-  if(!currentCase || !session) return showToast('⚠ Para guardar en el expediente, primero vincula un caso usando el selector de arriba');
+  /* BUG-FIX: snapshot currentCase/session — el usuario podría desvincular el caso
+     entre el check inicial y los inserts (race condition rara pero posible). */
+  const _case = (typeof currentCase !== 'undefined') ? currentCase : null;
+  const _session = (typeof session !== 'undefined') ? session : null;
+  if(!_case || !_session?.user?.id) return showToast('⚠ Para guardar en el expediente, primero vincula un caso usando el selector de arriba');
   if(!_f11RawText) return showToast('⚠ Sin transcripción para guardar');
 
   const tipo   = document.getElementById('f11Tipo')?.value || 'testigo';
@@ -1840,8 +1873,8 @@ async function f11SaveRawToCase(){
 
   try {
     const { error: errDil } = await sb.from('diligencias').insert({
-      case_id: currentCase.id,
-      user_id: session.user.id,
+      case_id: _case.id,
+      user_id: _session.user.id,
       diligencia_type: tipo==='testigo'?'declaracion_testigo':tipo==='denunciante'?'ratificacion':tipo==='denunciado'?'declaracion_denunciado':'otro',
       diligencia_label: label,
       fecha_diligencia: fecha || null,
@@ -1850,16 +1883,25 @@ async function f11SaveRawToCase(){
       is_processed: true,
       processing_status: 'transcripcion_cruda',
     });
-    if(errDil) throw errDil;
+    if(errDil) throw new Error('Diligencia: ' + errDil.message);
 
     const noteContent = `🎙️ ${label}\n📅 ${fecha||'—'} · 📍 ${lugar||'—'}\n\n` +
       `═══ TRANSCRIPCIÓN CRUDA ═══\n${_f11RawText}`;
 
-    await sb.from('case_notes').insert({
-      case_id: currentCase.id,
-      user_id: session.user.id,
+    /* BUG-FIX: validar también el error del insert en case_notes.
+       Antes era fire-and-forget — si la nota fallaba (RLS/conexión), el toast
+       igual decía "guardada en diligencias y notas" engañando al usuario. */
+    const { error: errNote } = await sb.from('case_notes').insert({
+      case_id: _case.id,
+      user_id: _session.user.id,
       content: noteContent,
     });
+    if(errNote){
+      /* Diligencia sí se guardó; sólo la nota falló. Mensaje claro y específico. */
+      showToast('⚠ Diligencia guardada, pero falló la nota: ' + errNote.message);
+      console.warn('SaveRaw note error:', errNote);
+      return;
+    }
 
     showToast('✅ Transcripción cruda guardada en diligencias y notas del caso');
   } catch(e){
@@ -1870,7 +1912,10 @@ async function f11SaveRawToCase(){
 
 /* ══════════════════ GUARDAR ACTA FINAL ══════════════════ */
 async function f11SaveToCase(){
-  if(!currentCase || !session) return showToast('⚠ Para guardar en el expediente, primero vincula un caso usando el selector de arriba');
+  /* BUG-FIX: snapshot currentCase/session — protege contra race con desvinculación. */
+  const _case = (typeof currentCase !== 'undefined') ? currentCase : null;
+  const _session = (typeof session !== 'undefined') ? session : null;
+  if(!_case || !_session?.user?.id) return showToast('⚠ Para guardar en el expediente, primero vincula un caso usando el selector de arriba');
 
   const actaText = _f11FinalActa || _f11EditedText || _f11RawText;
   if(!actaText) return showToast('⚠ Sin texto para guardar');
@@ -1884,8 +1929,8 @@ async function f11SaveToCase(){
 
   try {
     const { error: errDil } = await sb.from('diligencias').insert({
-      case_id: currentCase.id,
-      user_id: session.user.id,
+      case_id: _case.id,
+      user_id: _session.user.id,
       diligencia_type: tipo==='testigo'?'declaracion_testigo':tipo==='denunciante'?'ratificacion':tipo==='denunciado'?'declaracion_denunciado':'otro',
       diligencia_label: label,
       fecha_diligencia: fecha || null,
@@ -1894,17 +1939,23 @@ async function f11SaveToCase(){
       is_processed: true,
       processing_status: 'acta_firmable',
     });
-    if(errDil) throw errDil;
+    if(errDil) throw new Error('Diligencia: ' + errDil.message);
 
     const noteContent = `📝 ${label}\n📅 ${fecha||'—'} · 📍 ${lugar||'—'}\n\n` +
       `═══ ACTA FINAL ═══\n${actaText}` +
       (_f11RawText ? `\n\n═══ TRANSCRIPCIÓN CRUDA (referencia) ═══\n${_f11RawText}` : '');
 
-    await sb.from('case_notes').insert({
-      case_id: currentCase.id,
-      user_id: session.user.id,
+    /* BUG-FIX: validar el error del insert en case_notes (antes era fire-and-forget). */
+    const { error: errNote } = await sb.from('case_notes').insert({
+      case_id: _case.id,
+      user_id: _session.user.id,
       content: noteContent,
     });
+    if(errNote){
+      showToast('⚠ Acta guardada en diligencias, pero falló la nota: ' + errNote.message);
+      console.warn('Save note error:', errNote);
+      return;
+    }
 
     showToast('✅ Acta guardada en diligencias y notas del caso');
   } catch(e){
