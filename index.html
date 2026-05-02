@@ -3553,6 +3553,54 @@ async function sendMessage(){
   if(_caseSnapshot && !_isCont) await loadChatHistory(_caseSnapshot.id);
   /* HIGH#1 FIX: Si el usuario cambió de caso mientras loadChatHistory cargaba, abortar */
   if(_caseSnapshot && currentCase?.id!==_caseSnapshot.id){console.warn('sendMessage aborted: case changed during load');return;}
+
+  /* ═══ F13/F5/F7/F8: detección de diligencias pendientes ═══
+     Las funciones pesadas dependen del extracted_text de las diligencias. Si hay
+     documentos en Drive sin OCR'ear (is_processed=false con drive_file_id),
+     Claude solo verá los nombres pero no el contenido. Ofrecemos procesar antes. */
+  if(_caseSnapshot && !_isCont && ['F5','F7','F8','F13'].includes(activeFn)){
+    try{
+      const{data:pendingDils}=await sb.from('diligencias')
+        .select('id,diligencia_type,diligencia_label')
+        .eq('case_id',_caseSnapshot.id)
+        .eq('is_processed',false)
+        .not('drive_file_id','is',null)
+        .order('fecha_diligencia',{ascending:true});
+      if(pendingDils && pendingDils.length > 0){
+        const fnName = (FNS.find(f=>f.code===activeFn)||{}).name || activeFn;
+        const sample = pendingDils.slice(0,6).map(d=>'• '+(d.diligencia_label||d.diligencia_type)).join('\n');
+        const more = pendingDils.length>6 ? `\n…y ${pendingDils.length-6} más` : '';
+        const proceed = confirm(
+          `Para que la función "${fnName}" funcione bien necesito el texto de los documentos del caso.\n\n`+
+          `Hay ${pendingDils.length} diligencia(s) en Drive sin extraer texto:\n\n${sample}${more}\n\n`+
+          `¿Procesar ahora antes de analizar?\n\n`+
+          `• Aceptar = extraer texto de los PDFs (~30-60s por documento) y luego analizar.\n`+
+          `• Cancelar = continuar sin procesar (Fiscalito solo verá los nombres de los documentos, no su contenido).`
+        );
+        if(proceed){
+          if(typeof analyzeAllPending === 'function'){
+            /* Validar que el caso vinculado siga siendo el mismo */
+            if(currentCase?.id !== _caseSnapshot.id){
+              showToast('⚠ Cambiaste de caso durante el procesamiento — operación cancelada');
+              setLoading(false); _sendingMessage=false; hideTyping(typingId);
+              return;
+            }
+            try{
+              await analyzeAllPending();
+              showToast('✓ Diligencias procesadas — analizando con Fiscalito…');
+            }catch(e){
+              console.warn('analyzeAllPending error:', e);
+              showToast('⚠ Algunas diligencias no se pudieron procesar — continuando con las disponibles');
+            }
+          }else{
+            showToast('⚠ Función de procesamiento no disponible — continuando sin OCR');
+          }
+        }
+        /* Si canceló, continuamos el envío con lo que haya en BD (Claude verá metadata + texto parcial). */
+      }
+    }catch(e){ console.warn('Pending diligencias check failed:', e); }
+  }
+
   inputBox.value='';autoResize(inputBox);
   const msgs=document.getElementById('msgs');
   const panel=document.getElementById('fnPanel');
