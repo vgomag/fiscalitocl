@@ -104,11 +104,11 @@
       let list = orig.apply(this, arguments);
       if (state.actuariaFilter && state.actuariaFilter !== 'all') {
         const cases = (window.pend && window.pend.cases) || {};
-        list = list.filter(a => {
-          const c = cases[a.case_id];
-          const act = getActuariaFor(c);
-          return act === state.actuariaFilter;
-        });
+        if (state.actuariaFilter === '__none') {
+          list = list.filter(a => !getActuariaFor(cases[a.case_id]));
+        } else {
+          list = list.filter(a => getActuariaFor(cases[a.case_id]) === state.actuariaFilter);
+        }
       }
       return list;
     };
@@ -145,24 +145,7 @@
       + list.map(n => '<option value="'+escAttr(n)+'"'+(state.actuariaFilter===n?' selected':'')+'>👤 '+escHTML(n)+'</option>').join('')
       + '<option value="__none"'+(state.actuariaFilter==='__none'?' selected':'')+'>⚪ Sin asignar</option>';
     sel.onchange = (e) => {
-      const v = e.target.value;
-      if (v === '__none') {
-        /* Filtro especial: casos sin actuaria */
-        if (typeof window.pendGetFiltered === 'function' && !window.__pendNoneActuariaPatched) {
-          /* parche extra: agregar lógica de "sin asignar" */
-          const origF = window.pendGetFiltered;
-          window.pendGetFiltered = function () {
-            let l = origF.apply(this, arguments);
-            if (state.actuariaFilter === '__none') {
-              const cases = (window.pend && window.pend.cases) || {};
-              l = l.filter(a => !getActuariaFor(cases[a.case_id]));
-            }
-            return l;
-          };
-          window.__pendNoneActuariaPatched = true;
-        }
-      }
-      state.actuariaFilter = v;
+      state.actuariaFilter = e.target.value;
       if (typeof window.pendRender === 'function') window.pendRender();
     };
     /* Insertar antes del primer botón de vista */
