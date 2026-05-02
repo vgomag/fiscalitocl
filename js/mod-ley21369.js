@@ -465,7 +465,7 @@ function renderBody(){
         <div><button class="ley-btn ley-btn-sm" onclick="window._ley21369.copyReport()">📋 Copiar</button>
         <button class="ley-btn ley-btn-sm ley-btn-danger" onclick="window._ley21369.closeReport()">✕</button></div>
       </div>
-      <div class="ley-report-box">${typeof md==="function"?md(aiReport):aiReport.replace(/\n/g,"<br>")}</div>
+      <div class="ley-report-box">${typeof md==="function"?md(aiReport):h(aiReport).replace(/\n/g,"<br>")}</div>
     </div>`;
   }
 
