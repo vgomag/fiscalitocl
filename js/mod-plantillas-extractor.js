@@ -485,6 +485,8 @@ function pickType(t){ _state.dilType = t; _renderStep1Cache(); }
 function setSamples(n){ _state.sampleCount = Math.max(3, Math.min(12, n||6)); }
 function setTipoProc(v){ _state.tipoProc = v; }
 function setProto(v){ _state.protocolo = v; }
+function setResultado(v){ _state.resultado = v; }
+function setSearchText(v){ _state.searchText = v||''; }
 
 /* re-render step1 sin re-loadCounts (las cuentas no cambian) */
 let _cachedCounts = null;
@@ -897,7 +899,8 @@ async function openWith(dilType){
 
 /* API pública */
 window._plExtractor = {
-  open, close, pickType, setSamples, setTipoProc, setProto, startExtraction, back, save,
+  open, close, pickType, setSamples, setTipoProc, setProto, setResultado, setSearchText,
+  startExtraction, back, save,
   openCustomTplWizard, closeFiller, fillerSetVar, fillerReset, fillerCopy, fillerDownload, fillerAdaptIA,
   useExtracted, openWith
 };
