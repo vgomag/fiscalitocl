@@ -4907,6 +4907,47 @@ async function loadChecklist(){
   <div style="padding:10px 0"><button class="btn-sm" onclick="addChecklistItem()">+ Agregar paso</button></div>`;
 }
 
+/* BUG-FIX duplicación: limpia pasos repetidos del checklist del caso actual.
+   Agrupa por item_text (case-insensitive, trim), conserva 1 por grupo —
+   prefiere el completado; si hay varios completados, el más antiguo;
+   si ninguno completado, el más antiguo — y borra el resto. */
+async function cleanupChecklistDuplicates(){
+  if(!currentCase)return;
+  if(!confirm('¿Eliminar los pasos duplicados del checklist?\n\nSe conservará una sola copia de cada paso, priorizando los que ya estén marcados como completados. Esta acción no se puede deshacer.'))return;
+
+  const{data,error}=await sb.from('case_checklist_items').select('*').eq('case_id',currentCase.id);
+  if(error){showToast('⚠ '+error.message);return;}
+  if(!data?.length){showToast('Sin pasos.');return;}
+
+  const groups={};
+  data.forEach(it=>{
+    const k=(it.item_text||'').trim().toLowerCase();
+    if(!groups[k])groups[k]=[];
+    groups[k].push(it);
+  });
+
+  const toDelete=[];
+  Object.values(groups).forEach(group=>{
+    if(group.length<=1)return;
+    group.sort((a,b)=>{
+      if(a.is_completed&&!b.is_completed)return -1;
+      if(!a.is_completed&&b.is_completed)return 1;
+      const ad=a.created_at?new Date(a.created_at).getTime():0;
+      const bd=b.created_at?new Date(b.created_at).getTime():0;
+      return ad-bd;
+    });
+    for(let i=1;i<group.length;i++)toDelete.push(group[i].id);
+  });
+
+  if(!toDelete.length){showToast('✓ No hay duplicados.');return;}
+
+  const{error:delErr}=await sb.from('case_checklist_items').delete().in('id',toDelete);
+  if(delErr){showToast('⚠ '+delErr.message);return;}
+  if(typeof logAuditEvent==='function')logAuditEvent('cleanup_checklist_duplicates',{case_id:currentCase.id,deleted:toDelete.length});
+  showToast(`✓ ${toDelete.length} duplicado(s) eliminado(s).`);
+  await loadChecklist();
+}
+
 async function toggleChecklist(id,done){
   await sb.from('case_checklist_items').update({is_completed:done,completed_at:done?new Date().toISOString():null}).eq('id',id);
   await loadChecklist();
