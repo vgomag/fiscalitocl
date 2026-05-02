@@ -4802,13 +4802,30 @@ const CHK_TEMPLATE = [
 ];
 
 async function initChecklist() {
+  if(!currentCase) return;
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return;
+
+  /* BUG-FIX duplicación: hacer idempotente.
+     Si el caso ya tiene pasos en case_checklist_items, NO insertar otra vez —
+     antes, hacer doble clic en "Generar checklist" (o re-ejecutar la función)
+     duplicaba los 15 pasos del template, dejando entradas como
+     "Diligencias indagatorias / Diligencias indagatorias" repetidas. */
+  const { data: existing, error: existErr } = await sb.from('case_checklist_items')
+    .select('id').eq('case_id', currentCase.id).limit(1);
+  if (existErr) { showToast('⚠ '+existErr.message); return; }
+  if (existing && existing.length > 0) {
+    showToast('ℹ Este caso ya tiene checklist generado.');
+    await loadChecklist();
+    return;
+  }
+
   const rows = CHK_TEMPLATE.map(t => ({
     case_id: currentCase.id, user_id: user.id,
     phase: 'paso', item_text: t.text, item_order: t.order, is_completed: false
   }));
-  await sb.from('case_checklist_items').insert(rows);
+  const { error: insErr } = await sb.from('case_checklist_items').insert(rows);
+  if (insErr) { showToast('⚠ '+insErr.message); return; }
   await loadChecklist();
 }
 
@@ -4833,7 +4850,23 @@ async function loadChecklist(){
   const nextItem=data.find(d=>!d.is_completed);
   const nextAction=nextItem?nextItem.item_text:'✅ Procedimiento completado';
 
+  /* BUG-FIX duplicación: detectar pasos repetidos por item_text dentro del caso.
+     Si hay duplicados, mostramos un banner con botón para limpiarlos. */
+  const _dupCounts={};
+  data.forEach(d=>{const k=(d.item_text||'').trim().toLowerCase();_dupCounts[k]=(_dupCounts[k]||0)+1;});
+  const _dupTotal=Object.values(_dupCounts).reduce((a,n)=>a+(n>1?n-1:0),0);
+  const dupBanner=_dupTotal>0?`
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:16px">⚠️</span>
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:12px;font-weight:600;color:var(--red,#ef4444)">Se detectaron ${_dupTotal} paso(s) duplicado(s) en este checklist.</div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">Puedes limpiarlos automáticamente — se conservará una sola copia de cada paso (priorizando los marcados como completados).</div>
+      </div>
+      <button class="btn-sm" onclick="cleanupChecklistDuplicates()" style="font-size:10.5px;padding:5px 10px">🧹 Limpiar duplicados</button>
+    </div>`:'';
+
   el.innerHTML=`
+  ${dupBanner}
   <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;flex-wrap:wrap">
     <div style="text-align:center;min-width:60px">
       <div style="font-family:var(--font-serif);font-size:28px;font-weight:500;color:${pct===100?'var(--green)':'var(--gold)'}">${pct}%</div>
