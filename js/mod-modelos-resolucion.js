@@ -737,5 +737,290 @@
     _onDragOver:      onDragOver,
     _onDragLeave:     onDragLeave,
     _onDrop:          onDrop,
+    // Vista global (Biblioteca cross-case)
+    renderGlobalLibrary,
+    _setGlobalSearch:    setGlobalSearch,
+    _setGlobalCatFilter: setGlobalCatFilter,
+    _setGlobalProcFilter:setGlobalProcFilter,
+    _toggleGlobalExpand: toggleGlobalExpand,
+    _deleteGlobalModel:  deleteGlobalModel,
+    _updateGlobalCategory: updateGlobalCategory,
+    _updateGlobalProcedure:updateGlobalProcedure,
+    _openCaseFromGlobal: openCaseFromGlobal,
   };
+
+  /* ════════════════════════════════════════════════════════════════════
+     VISTA GLOBAL — Biblioteca de Modelos cross-case
+     ════════════════════════════════════════════════════════════════════
+     Renderiza TODOS los modelos del usuario sin filtrar por caso, con
+     búsqueda full-text y filtros por categoría/procedure_type. Cada item
+     muestra el caso de origen y permite saltar a él.
+     ════════════════════════════════════════════════════════════════════ */
+  const globalState = {
+    container: null,
+    models: [],          // todos los modelos del usuario, con _caseName
+    casesById: {},
+    loading: false,
+    search: '',
+    catFilter: 'all',
+    procFilter: 'all',
+    expandedId: null,
+  };
+
+  async function renderGlobalLibrary(container) {
+    if (!container) return;
+    globalState.container = container;
+    globalState.loading = true;
+    container.innerHTML = '<div class="loading" style="padding:30px">Cargando biblioteca de modelos…</div>';
+
+    try {
+      if (!window.sb || !window.session) {
+        container.innerHTML = '<div class="empty-state">⚠ Sin sesión activa</div>';
+        return;
+      }
+      const uid = window.session.user.id;
+
+      // Cargar TODOS los modelos del usuario
+      const { data: models, error } = await window.sb
+        .from('case_resolution_models')
+        .select('id,case_id,name,file_name,resolution_category,procedure_type,is_global,extracted_text,created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      // Cargar nombres de casos para mapear case_id → name
+      const { data: cases } = await window.sb
+        .from('cases')
+        .select('id,name,nueva_resolucion')
+        .eq('user_id', uid)
+        .is('deleted_at', null);
+      const casesById = {};
+      (cases || []).forEach(c => { casesById[c.id] = c; });
+
+      globalState.models = (models || []).map(m => ({
+        ...m,
+        _caseName: m.case_id && casesById[m.case_id] ? (casesById[m.case_id].name || casesById[m.case_id].nueva_resolucion || 'Caso sin nombre') : '(caso eliminado)',
+      }));
+      globalState.casesById = casesById;
+      globalState.loading = false;
+      renderGlobalUI();
+    } catch (err) {
+      console.error('[modelos-global] render error:', err);
+      container.innerHTML = `<div class="empty-state">⚠ Error: ${safeEsc(err.message)}</div>`;
+    }
+  }
+
+  function applyGlobalFilters(arr) {
+    const q = normForSearch(globalState.search);
+    return (arr || []).filter(m => {
+      if (globalState.catFilter !== 'all' && (m.resolution_category || 'otro') !== globalState.catFilter) return false;
+      if (globalState.procFilter !== 'all' && (m.procedure_type || 'investigacion_sumaria') !== globalState.procFilter) return false;
+      if (q) {
+        const hay = normForSearch(
+          (m.name || '') + ' ' + (m.file_name || '') + ' ' +
+          (m._caseName || '') + ' ' + (m.extracted_text || '')
+        );
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderGlobalUI() {
+    const all = globalState.models;
+    const filtered = applyGlobalFilters(all);
+    const totalCharsAll = all.reduce((a, m) => a + (m.extracted_text ? m.extracted_text.length : 0), 0);
+
+    // Categorías presentes en los datos (solo mostrar las que tienen >0)
+    const catCounts = {};
+    all.forEach(m => {
+      const c = m.resolution_category || 'otro';
+      catCounts[c] = (catCounts[c] || 0) + 1;
+    });
+    const catOptions = Object.entries(CATEGORIES).map(([k, v]) => {
+      const c = catCounts[k] || 0;
+      return c > 0 ? `<option value="${k}" ${globalState.catFilter === k ? 'selected' : ''}>${safeEsc(v)} (${c})</option>` : '';
+    }).join('');
+
+    const procOptions = Object.entries(PROCEDURE_TYPES).map(([k, v]) => `
+      <option value="${k}" ${globalState.procFilter === k ? 'selected' : ''}>${safeEsc(v)}</option>
+    `).join('');
+
+    globalState.container.innerHTML = `
+      <div class="global-models-wrap" style="padding:14px">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div style="font-size:14px;font-weight:600;color:var(--text)">📚 Biblioteca de Modelos · todos los casos</div>
+            <div style="font-size:11.5px;color:var(--text-muted)">
+              <strong>${all.length}</strong> modelo${all.length === 1 ? '' : 's'} en tu cuenta ·
+              ${all.filter(m => m.is_global).length} compartido${all.filter(m => m.is_global).length === 1 ? '' : 's'} ·
+              ${totalCharsAll.toLocaleString('es-CL')} chars totales
+              ${globalState.search ? ` · ${filtered.length} coinciden` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="globalModelsSearch" placeholder="🔎 Buscar nombre, caso o contenido…"
+                   value="${safeEsc(globalState.search)}"
+                   oninput="window.ModelosResolucion._setGlobalSearch(this.value)"
+                   style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius);font-size:11.5px;font-family:var(--font-body);outline:none;min-width:240px"/>
+            <select onchange="window.ModelosResolucion._setGlobalCatFilter(this.value)"
+                    style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius);font-size:11px;font-family:var(--font-body);outline:none">
+              <option value="all" ${globalState.catFilter === 'all' ? 'selected' : ''}>Todas categorías</option>
+              ${catOptions}
+            </select>
+            <select onchange="window.ModelosResolucion._setGlobalProcFilter(this.value)"
+                    style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius);font-size:11px;font-family:var(--font-body);outline:none">
+              <option value="all" ${globalState.procFilter === 'all' ? 'selected' : ''}>Todos procedimientos</option>
+              ${procOptions}
+            </select>
+          </div>
+        </div>
+
+        ${filtered.length === 0 ? `
+          <div class="empty-state" style="padding:40px 14px;text-align:center;color:var(--text-muted);font-size:12.5px;background:var(--surface);border:1px dashed var(--border2);border-radius:var(--radius)">
+            ${all.length === 0
+              ? '🗂️ Aún no has subido modelos en ningún caso.<br><span style="font-size:11px">Entra a un caso → pestaña Modelos → subir.</span>'
+              : '🔎 Ningún modelo coincide con los filtros aplicados.'}
+          </div>
+        ` : `
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${filtered.map(m => renderGlobalCard(m)).join('')}
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  function renderGlobalCard(m) {
+    const cat = CATEGORIES[m.resolution_category] || 'Otro';
+    const isExpanded = globalState.expandedId === m.id;
+    const charCount = m.extracted_text ? m.extracted_text.length : 0;
+    const fmtDate = m.created_at ? new Date(m.created_at).toLocaleDateString('es-CL') : '';
+    const preview = isExpanded ? safeEsc((m.extracted_text || '').slice(0, 5000)) : '';
+
+    const catSelectOptions = Object.entries(CATEGORIES).map(([k, v]) => `
+      <option value="${k}" ${m.resolution_category === k ? 'selected' : ''}>${safeEsc(v)}</option>
+    `).join('');
+    const procSelectOptions = Object.entries(PROCEDURE_TYPES).map(([k, v]) => `
+      <option value="${k}" ${m.procedure_type === k ? 'selected' : ''}>${safeEsc(v)}</option>
+    `).join('');
+
+    return `
+      <div class="global-model-card" data-model-id="${m.id}" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer" onclick="window.ModelosResolucion._toggleGlobalExpand('${m.id}')">
+          <span style="font-size:14px;flex-shrink:0">${m.is_global ? '🌐' : '📌'}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeEsc(m.name || m.file_name)}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="proc-badge" style="font-size:9.5px">${safeEsc(cat)}</span>
+              <span>${charCount.toLocaleString('es-CL')} chars</span>
+              ${fmtDate ? `<span>${safeEsc(fmtDate)}</span>` : ''}
+              ${m.case_id
+                ? `<span style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="event.stopPropagation();window.ModelosResolucion._openCaseFromGlobal('${m.case_id}')" title="Abrir caso de origen">📁 ${safeEsc(m._caseName)}</span>`
+                : `<span style="color:var(--text-muted);font-style:italic">${safeEsc(m._caseName)}</span>`}
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end" onclick="event.stopPropagation()">
+            <select onchange="window.ModelosResolucion._updateGlobalCategory('${m.id}', this.value)"
+                    title="Cambiar categoría"
+                    style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:3px 6px;border-radius:var(--radius-sm);font-size:10.5px;font-family:var(--font-body);outline:none;max-width:160px">
+              ${catSelectOptions}
+            </select>
+            <select onchange="window.ModelosResolucion._updateGlobalProcedure('${m.id}', this.value)"
+                    title="Cambiar tipo de procedimiento"
+                    style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:3px 6px;border-radius:var(--radius-sm);font-size:10.5px;font-family:var(--font-body);outline:none;max-width:170px">
+              ${procSelectOptions}
+            </select>
+            <button class="btn-del" onclick="window.ModelosResolucion._deleteGlobalModel('${m.id}')" title="Eliminar">🗑</button>
+          </div>
+        </div>
+        ${isExpanded ? `
+          <div style="padding:0 12px 12px;border-top:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text-muted);margin:8px 0 4px">📄 ${safeEsc(m.file_name)} · vista previa (máx 5 000 chars)</div>
+            <pre style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;font-family:var(--font-mono);font-size:10.5px;line-height:1.5;color:var(--text-dim);white-space:pre-wrap;word-wrap:break-word;max-height:340px;overflow-y:auto;margin:0">${preview}${m.extracted_text && m.extracted_text.length > 5000 ? '\n\n[…texto truncado…]' : ''}</pre>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function setGlobalSearch(value) {
+    globalState.search = value || '';
+    renderGlobalUI();
+    const input = document.getElementById('globalModelsSearch');
+    if (input) {
+      input.focus();
+      try { input.setSelectionRange(input.value.length, input.value.length); } catch(e){}
+    }
+  }
+  function setGlobalCatFilter(value) {
+    globalState.catFilter = value || 'all';
+    renderGlobalUI();
+  }
+  function setGlobalProcFilter(value) {
+    globalState.procFilter = value || 'all';
+    renderGlobalUI();
+  }
+  function toggleGlobalExpand(id) {
+    globalState.expandedId = (globalState.expandedId === id) ? null : id;
+    renderGlobalUI();
+  }
+  async function deleteGlobalModel(id) {
+    if (!confirm('¿Eliminar este modelo de TODA tu biblioteca? Esta acción no se puede deshacer.')) return;
+    try {
+      const { error } = await window.sb
+        .from('case_resolution_models')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', window.session.user.id);
+      if (error) throw error;
+      globalState.models = globalState.models.filter(m => m.id !== id);
+      toast('✓ Modelo eliminado');
+      renderGlobalUI();
+      if (typeof window.loadModelCounts === 'function') window.loadModelCounts();
+    } catch (err) {
+      toast('⚠ Error: ' + (err.message || err));
+    }
+  }
+  async function updateGlobalCategory(id, category) {
+    if (!CATEGORIES[category]) { toast('⚠ Categoría inválida'); return; }
+    try {
+      const { error } = await window.sb
+        .from('case_resolution_models')
+        .update({ resolution_category: category })
+        .eq('id', id)
+        .eq('user_id', window.session.user.id);
+      if (error) throw error;
+      const m = globalState.models.find(x => x.id === id);
+      if (m) m.resolution_category = category;
+      toast('✓ Categoría actualizada');
+      renderGlobalUI();
+    } catch (err) {
+      toast('⚠ Error: ' + (err.message || err));
+    }
+  }
+  async function updateGlobalProcedure(id, procedure_type) {
+    if (!PROCEDURE_TYPES[procedure_type]) { toast('⚠ Procedimiento inválido'); return; }
+    try {
+      const { error } = await window.sb
+        .from('case_resolution_models')
+        .update({ procedure_type })
+        .eq('id', id)
+        .eq('user_id', window.session.user.id);
+      if (error) throw error;
+      const m = globalState.models.find(x => x.id === id);
+      if (m) m.procedure_type = procedure_type;
+      toast('✓ Tipo de procedimiento actualizado');
+      renderGlobalUI();
+    } catch (err) {
+      toast('⚠ Error: ' + (err.message || err));
+    }
+  }
+  function openCaseFromGlobal(caseId) {
+    if (typeof window.pickCaseById === 'function') {
+      window.pickCaseById(caseId);
+    } else {
+      toast('No se puede abrir el caso desde aquí');
+    }
+  }
 })();
