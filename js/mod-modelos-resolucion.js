@@ -57,9 +57,10 @@
   };
 
   const PROCEDURE_TYPES = {
-    investigacion_sumaria:    'Investigación Sumaria',
-    sumario_administrativo:   'Sumario Administrativo',
-    ambos:                    'Ambos',
+    investigacion_sumaria:        'Investigación Sumaria',
+    sumario_administrativo:       'Sumario Administrativo',
+    procedimiento_disciplinario:  'Procedimiento Disciplinario',
+    ambos:                        'Ambos',
   };
 
   const ALLOWED_EXT = ['docx', 'doc', 'txt', 'md'];
@@ -130,9 +131,14 @@
     return 'otro';
   }
   function guessProcedure(name) {
-    return /sumario/i.test(String(name || ''))
-      ? 'sumario_administrativo'
-      : 'investigacion_sumaria';
+    const n = String(name || '').toLowerCase();
+    // Orden importa: detecta "disciplinario" antes de "sumario" porque
+    // un mismo nombre podría contener ambos términos.
+    if (/procedimiento\s+disciplinario|p\.?\s*disciplinario|prom\.?\s*disc|disciplinario\s+estudiantil/.test(n)) {
+      return 'procedimiento_disciplinario';
+    }
+    if (/sumario/.test(n)) return 'sumario_administrativo';
+    return 'investigacion_sumaria';
   }
 
   /* ── Sanitización PII (RUTs, emails, teléfonos) ──
