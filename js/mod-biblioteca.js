@@ -112,20 +112,46 @@ function switchBibTab(tab) {
   if (tab === 'modelos' && typeof loadRAGDocs === 'function' && typeof rag !== 'undefined' && !rag.docs.length && !rag.loading) {
     loadRAGDocs();
   }
+  // Cargar Biblioteca cross-case de Modelos de Resolución al cambiar a esa pestaña
+  if (tab === 'modelos_resolucion') {
+    setTimeout(function(){
+      const mount = document.getElementById('bibModelosResolucionMount');
+      if (mount && window.ModelosResolucion && typeof window.ModelosResolucion.renderGlobalLibrary === 'function') {
+        window.ModelosResolucion.renderGlobalLibrary(mount);
+      }
+    }, 30);
+  }
 }
 
 function renderBibTabBody() {
   switch (biblioteca.activeTab) {
-    case 'documentos': return renderBibDocumentos();
-    case 'normas':     return renderBibNormas();
-    case 'normativa':  return renderBibNormativaInterna();
-    case 'parrafos':   return renderBibParrafos();
-    case 'modelos':    return renderBibModelosRAG();
-    case 'drive':      return renderBibDrive();
-    case 'pdf':        return renderBibPdf();
-    case 'chat':       return renderBibChat();
-    default:           return '';
+    case 'documentos':         return renderBibDocumentos();
+    case 'normas':             return renderBibNormas();
+    case 'normativa':          return renderBibNormativaInterna();
+    case 'parrafos':           return renderBibParrafos();
+    case 'modelos':            return renderBibModelosRAG();
+    case 'modelos_resolucion': return renderBibModelosResolucion();
+    case 'drive':              return renderBibDrive();
+    case 'pdf':                return renderBibPdf();
+    case 'chat':               return renderBibChat();
+    default:                   return '';
   }
+}
+
+/* ── TAB MODELOS DE RESOLUCIÓN (biblioteca cross-case del usuario) ── */
+function renderBibModelosResolucion() {
+  // Mount placeholder; el render real ocurre en post-render para que el
+  // contenedor esté en el DOM cuando ModelosResolucion.renderGlobalLibrary lo busque.
+  setTimeout(function(){
+    const mount = document.getElementById('bibModelosResolucionMount');
+    if (!mount) return;
+    if (window.ModelosResolucion && typeof window.ModelosResolucion.renderGlobalLibrary === 'function') {
+      window.ModelosResolucion.renderGlobalLibrary(mount);
+    } else {
+      mount.innerHTML = '<div class="loading">Módulo Modelos de Resolución no cargado.</div>';
+    }
+  }, 30);
+  return '<div id="bibModelosResolucionMount"><div class="loading" style="padding:30px">Cargando biblioteca de modelos…</div></div>';
 }
 
 /* ── TAB MODELOS RAG (embebido en Biblioteca) ── */
