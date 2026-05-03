@@ -1932,9 +1932,29 @@ async function loadCases(){
     updateCatCounts();
     /* Cargar conteo de diligencias por caso en background */
     loadDilCounts();
+    /* Cargar conteo de modelos de resolución por caso (badge en sidebar) */
+    loadModelCounts();
   } finally {
     _loadCasesInProgress = false;
   }
+}
+
+/* Conteo de modelos de resolución por caso (para badge en sidebar) */
+window._modelCountMap = window._modelCountMap || {};
+async function loadModelCounts(){
+  try{
+    if(!session)return;
+    const{data,error}=await sb.from('case_resolution_models')
+      .select('case_id')
+      .eq('user_id',session.user.id);
+    if(error){console.warn('[modelos count]',error);return;}
+    window._modelCountMap = {};
+    (data||[]).forEach(r=>{
+      if(!r.case_id) return;
+      window._modelCountMap[r.case_id] = (window._modelCountMap[r.case_id]||0) + 1;
+    });
+    renderCaseList();
+  }catch(e){console.warn('Error cargando conteo modelos:',e);}
 }
 
 async function loadDilCounts(){
