@@ -459,6 +459,17 @@ async function generarBorradorIA(){
       memoBlock +
       caseCtx;
 
+    /* 3.5) Inyectar biblioteca de Modelos del usuario (sección XVII)
+       — son resoluciones, actas, oficios reales que el usuario ya subió y
+       que el agente debe replicar como referencia de estilo institucional. */
+    let resolutionModelsBlock = '';
+    try {
+      if (window.ModelosResolucion && typeof window.ModelosResolucion.buildCaseModelsBlock === 'function') {
+        resolutionModelsBlock = await window.ModelosResolucion.buildCaseModelsBlock(state.caseObj.id) || '';
+      }
+    } catch(e){ console.warn('[resoluciones-termino] modelos:', e); }
+    const sysPromptFinal = sysPrompt + (resolutionModelsBlock ? '\n\n' + resolutionModelsBlock : '');
+
     /* 4) llamada a /api/chat-stream */
     const userPrompt = `Redacta ahora la resolución de término correspondiente al expediente descrito arriba, replicando la estructura del modelo de referencia y rellenando todos los placeholders con los datos del caso.`;
 
@@ -468,7 +479,7 @@ async function generarBorradorIA(){
       body: JSON.stringify({
         model: (typeof CLAUDE_SONNET!=='undefined'?CLAUDE_SONNET:'claude-sonnet-4-20250514'),
         max_tokens: 8000,
-        system: sysPrompt,
+        system: sysPromptFinal,
         messages: [{ role:'user', content: userPrompt }],
         stream: true
       })

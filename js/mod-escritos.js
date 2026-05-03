@@ -165,6 +165,20 @@ REQUISITOS:
 - Genera el documento completo y listo para revisión
 - Cita artículos del Código del Trabajo, Código de Procedimiento Civil u otras normas pertinentes`;
 
+  /* Inyectar biblioteca de Modelos de Resolución del usuario (sección XVII).
+     Si el caso activo tiene modelos subidos (o globales del usuario), el agente
+     los usará como referencia de estilo institucional para escribir el escrito. */
+  let resolutionModelsBlock = '';
+  try {
+    const cid = (typeof currentCase !== 'undefined' && currentCase) ? currentCase.id : null;
+    if (cid && window.ModelosResolucion && typeof window.ModelosResolucion.buildCaseModelsBlock === 'function') {
+      resolutionModelsBlock = await window.ModelosResolucion.buildCaseModelsBlock(cid) || '';
+    }
+  } catch(e){ console.warn('[escritos] modelos:', e); }
+
+  const systemBase = `Eres Fiscalito, asistente jurídico especializado en escritos judiciales chilenos. Generas documentos formales completos con estructura procesal correcta, citas normativas precisas y lenguaje institucional formal. Tus escritos son listos para revisión del abogado.`;
+  const systemFinal = systemBase + (resolutionModelsBlock ? '\n\n' + resolutionModelsBlock : '');
+
   try {
     const _ctrl=new AbortController();
     const _tout=setTimeout(()=>_ctrl.abort(),30000);
@@ -175,7 +189,7 @@ REQUISITOS:
         body: JSON.stringify({
           model: typeof CLAUDE_SONNET !== 'undefined' ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
           max_tokens: 4000,
-          system: `Eres Fiscalito, asistente jurídico especializado en escritos judiciales chilenos. Generas documentos formales completos con estructura procesal correcta, citas normativas precisas y lenguaje institucional formal. Tus escritos son listos para revisión del abogado.`,
+          system: systemFinal,
           messages: [{ role: 'user', content: prompt }]
         }),
         signal:_ctrl.signal
