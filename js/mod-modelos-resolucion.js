@@ -507,6 +507,7 @@
       state.globalModels = state.globalModels.filter(m => m.id !== id);
       toast('✓ Modelo eliminado');
       renderUI();
+      if (typeof window.loadModelCounts === 'function') window.loadModelCounts();
     } catch (err) {
       toast('⚠ Error eliminando: ' + (err.message || err));
     }
@@ -590,6 +591,8 @@
     state.models = models;
     state.globalModels = globalModels;
     renderUI();
+    // Refrescar badge en sidebar
+    if (typeof window.loadModelCounts === 'function') window.loadModelCounts();
   }
 
   async function classifyAI() {
