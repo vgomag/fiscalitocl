@@ -185,10 +185,12 @@ function buildResolutionModelsBlock(payload) {
     for (const m of items) {
       if (left() < 200) break;
       const tag = m._origin === 'current' ? '📌' : '🔗';
-      const slice = String(m.extracted_text || '').slice(0, MAX_RES_MODELS_PER_MODEL);
+      // Sanitizar PII antes de inyectar (RUTs, emails, teléfonos)
+      const cleaned = sanitizePII(m.extracted_text);
+      const slice = cleaned.slice(0, MAX_RES_MODELS_PER_MODEL);
       const allowed = Math.min(slice.length, left() - 120);
       if (allowed <= 100) break;
-      const piece = `\n${tag} ${m.name || ''}\n${slice.slice(0, allowed)}\n${slice.length > allowed ? '[…truncado…]\n' : ''}`;
+      const piece = `\n${tag} ${sanitizePII(m.name || '')}\n${slice.slice(0, allowed)}\n${slice.length > allowed ? '[…truncado…]\n' : ''}`;
       block += piece; used += piece.length;
     }
   }
