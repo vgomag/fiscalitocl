@@ -77,14 +77,15 @@ function renderBibliotecaView() {
   if (!container) return;
 
   const tabs = [
-    { id:'documentos', label:'📚 Libros' },
-    { id:'normas',     label:'📋 Normas' },
-    { id:'normativa',  label:'🏛 Normativa Interna' },
-    { id:'parrafos',   label:'✏️ Párrafos' },
-    { id:'modelos',    label:'📄 Modelos RAG' },
-    { id:'drive',      label:'☁️ Drive' },
-    { id:'pdf',        label:'📕 PDF' },
-    { id:'chat',       label:'💬 Chat IA' },
+    { id:'documentos',          label:'📚 Libros' },
+    { id:'normas',              label:'📋 Normas' },
+    { id:'normativa',           label:'🏛 Normativa Interna' },
+    { id:'parrafos',            label:'✏️ Párrafos' },
+    { id:'modelos',             label:'📄 Modelos RAG' },
+    { id:'modelos_resolucion',  label:'🧩 Modelos de Resolución' },
+    { id:'drive',               label:'☁️ Drive' },
+    { id:'pdf',                 label:'📕 PDF' },
+    { id:'chat',                label:'💬 Chat IA' },
   ];
 
   container.innerHTML = `
