@@ -45,7 +45,8 @@ const { corsHeaders } = require('./shared/cors');
 const CATEGORIES = [
   'citacion','notificacion','acta_declaracion','acta_ratificacion',
   'acta_entrevista','acta_notificacion','resolucion_acepta_cargo',
-  'resolucion_cita_declarar','resolucion_medida_resguardo','resolucion_general',
+  'resolucion_cita_declarar','resolucion_medida_resguardo',
+  'resolucion_decreta_diligencia','resolucion_general',
   'oficio','cuestionario','constancia','consentimiento','certificacion',
   'acuerdo_alejamiento','formulacion_cargos','descargos','provee_descargos',
   'informe','vista_fiscal','incorpora_antecedentes','denuncia','memo','otro'
@@ -70,6 +71,7 @@ function guessCategory(name) {
   if (/acepta cargo|actuaria/.test(n)) return 'resolucion_acepta_cargo';
   if (/resolucion.*cita/.test(n)) return 'resolucion_cita_declarar';
   if (/medida.*resguardo|medida.*proteccion/.test(n)) return 'resolucion_medida_resguardo';
+  if (/decreta.*diligencia|decreto.*diligencia|resolucion.*diligencia/.test(n)) return 'resolucion_decreta_diligencia';
   if (/incorpora/.test(n)) return 'incorpora_antecedentes';
   if (/resolucion|res\.ex/.test(n)) return 'resolucion_general';
   if (/oficio/.test(n)) return 'oficio';

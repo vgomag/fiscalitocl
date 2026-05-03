@@ -107,6 +107,7 @@ const RES_CATEGORY_LABELS = {
   resolucion_acepta_cargo: 'Resolución Acepta Cargo',
   resolucion_cita_declarar: 'Resolución Cita a Declarar',
   resolucion_medida_resguardo: 'Medida de Resguardo',
+  resolucion_decreta_diligencia: 'Decreta Diligencia',
   resolucion_general: 'Resolución General',
   oficio: 'Oficio', cuestionario: 'Cuestionario', constancia: 'Constancia',
   consentimiento: 'Consentimiento', certificacion: 'Certificación',

@@ -38,6 +38,7 @@
     resolucion_acepta_cargo:      'Resolución Acepta Cargo',
     resolucion_cita_declarar:     'Resolución Cita a Declarar',
     resolucion_medida_resguardo:  'Medida de Resguardo',
+    resolucion_decreta_diligencia:'Decreta Diligencia',
     resolucion_general:           'Resolución General',
     oficio:                       'Oficio',
     cuestionario:                 'Cuestionario',
@@ -113,6 +114,7 @@
     if (/acepta cargo|actuaria/.test(n)) return 'resolucion_acepta_cargo';
     if (/resolucion.*cita/.test(n)) return 'resolucion_cita_declarar';
     if (/medida.*resguardo|medida.*proteccion/.test(n)) return 'resolucion_medida_resguardo';
+    if (/decreta.*diligencia|decreto.*diligencia|resolucion.*diligencia/.test(n)) return 'resolucion_decreta_diligencia';
     if (/incorpora/.test(n)) return 'incorpora_antecedentes';
     if (/resolucion|res\.ex/.test(n)) return 'resolucion_general';
     if (/oficio/.test(n)) return 'oficio';
