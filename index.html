@@ -1958,6 +1958,7 @@ async function loadModelCounts(){
 }
 
 async function loadDilCounts(){
+  if(!session)return; /* Guard defensivo: evita queries sin sesión activa */
   try{
     const{data,error}=await sb.rpc('count_diligencias_by_case');
     if(!error&&data){
@@ -2019,8 +2020,8 @@ async function pickCaseById(id){
   renderCaseHeader();
   if(typeof renderCaseCollaborators==='function')renderCaseCollaborators(c.id);
   if(typeof applyCasePermissions==='function')applyCasePermissions();
+  /* showTab ya invoca loadParticipantes() internamente — no duplicar la llamada */
   showTab('tabParticipantes');
-  loadParticipantes();
 }
 
 function renderCaseHeader(){
@@ -2126,8 +2127,9 @@ function showTab(tabId){
   if(tabId==='tabAcciones')loadAcciones();
   if(tabId==='tabNotas')loadNotas();
   if(tabId==='tabModelos')loadModelos();
-  if(tabId==='tabDrive')loadDrivePanel();
-  if(tabId==='tabDiligencias')loadDiligenciasTab();
+  /* Loaders de módulos externos (mod-*.js) — guard por si el módulo aún no cargó */
+  if(tabId==='tabDrive'&&typeof loadDrivePanel==='function')loadDrivePanel();
+  if(tabId==='tabDiligencias'&&typeof loadDiligenciasTab==='function')loadDiligenciasTab();
 }
 
 /* ── Views ── */
@@ -5509,7 +5511,8 @@ function _renderQuickModelos(el){
 }
 
 function useModelo(el){
-  const prompt=el.dataset.prompt;
+  if(!currentCase){showToast('⚠ Selecciona un caso primero');return;}
+  const prompt=el?.dataset?.prompt;
   if(!prompt)return;
   showTab('tabChat');
   pickFn('F9');
