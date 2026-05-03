@@ -1994,10 +1994,15 @@ function renderCaseList(){
   casesListEl.innerHTML=filtered.slice(0,50).map(c=>{
     const statusColors={active:'var(--green)',terminado:'var(--text-muted)',archived:'#f59e0b'};
     const isActive=currentCase?.id===c.id;
+    const modelCount=(window._modelCountMap||{})[c.id]||0;
+    const modelBadge=modelCount>0
+      ? `<span title="${modelCount} modelo${modelCount===1?'':'s'} de resolución" style="font-size:9px;background:var(--gold-glow2);color:var(--gold);padding:1px 5px;border-radius:8px;font-weight:600;line-height:1;flex-shrink:0">🧩 ${modelCount}</span>`
+      : '';
     return `<div class="case-item${isActive?' active':''}" onclick="pickCaseById('${esc(c.id)}')">
       <div style="display:flex;align-items:center;gap:5px">
         <div class="case-status-dot" style="background:${statusColors[c.status]||'var(--border2)'}"></div>
         <span class="case-name">${esc(c.name||'Sin nombre')}</span>
+        ${modelBadge}
       </div>
       ${c.nueva_resolucion?`<span class="case-item-rol">${esc(c.nueva_resolucion)}</span>`:''}
     </div>`;
