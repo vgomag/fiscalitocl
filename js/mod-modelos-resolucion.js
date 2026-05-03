@@ -77,7 +77,9 @@
     globalModels: [],      // modelos globales del usuario (otros casos)
     loading: false,
     filterCategory: 'all', // categoría de filtro
+    searchText: '',        // texto de búsqueda (nombre + contenido)
     expandedId: null,      // id de modelo expandido (preview)
+    dragOver: false,       // estado visual del dropzone
   };
 
   /* ────────────────────────────────────────────────────────
