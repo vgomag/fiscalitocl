@@ -52,7 +52,10 @@ const CATEGORIES = [
 ];
 
 const PROCEDURE_TYPES = [
-  'investigacion_sumaria','sumario_administrativo','ambos'
+  'investigacion_sumaria',
+  'sumario_administrativo',
+  'procedimiento_disciplinario',
+  'ambos'
 ];
 
 /* ── Heurística por nombre (replica exacta del cliente) ── */
@@ -86,9 +89,13 @@ function guessCategory(name) {
 }
 
 function guessProcedure(name) {
-  return /sumario/i.test(String(name || ''))
-    ? 'sumario_administrativo'
-    : 'investigacion_sumaria';
+  const n = String(name || '').toLowerCase();
+  // Orden importa: "disciplinario" antes que "sumario"
+  if (/procedimiento\s+disciplinario|p\.?\s*disciplinario|prom\.?\s*disc|disciplinario\s+estudiantil/.test(n)) {
+    return 'procedimiento_disciplinario';
+  }
+  if (/sumario/.test(n)) return 'sumario_administrativo';
+  return 'investigacion_sumaria';
 }
 
 function classifyByName(model) {
