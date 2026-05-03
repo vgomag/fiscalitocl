@@ -4944,8 +4944,10 @@ function editParticipanteById(id) {
 }
 
 function editParticipante(p){
-  const isNew=!p;
-  document.getElementById('miniModalTitle').textContent=isNew?'Agregar participante':'Editar participante';
+  /* isNew=true cuando no hay objeto O cuando el objeto vino del JSON (sin id en BD).
+     Esto permite que promoteJsonParticipante() pase un seed precargado y guarde como INSERT. */
+  const isNew=!p||!p.id;
+  document.getElementById('miniModalTitle').textContent=isNew?(p?'Completar datos del participante':'Agregar participante'):'Editar participante';
   document.getElementById('miniModalBody').innerHTML=`
     <div class="mini-row"><div class="mini-field"><label>Rol</label><select id="mPartRole">
       <option value="denunciante">Denunciante</option><option value="denunciado">Denunciado/a</option>
