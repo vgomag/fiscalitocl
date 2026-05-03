@@ -118,6 +118,16 @@ const RES_CATEGORY_LABELS = {
   denuncia: 'Denuncia', memo: 'Memo', otro: 'Otro',
 };
 
+/* Sanitización PII (RUTs, emails, teléfonos chilenos) — aplicada al texto
+   inyectado al LLM. Replica la función del cliente (mod-modelos-resolucion.js). */
+function sanitizePII(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\b\d{1,2}\.?\d{3}\.?\d{3}-?[\dkK]\b/g, '[RUT]')
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[EMAIL]')
+    .replace(/\b(?:\+?56[\s-]?)?(?:9[\s-]?\d{4}[\s-]?\d{4}|2[\s-]?\d{3,4}[\s-]?\d{4})\b/g, '[TEL]');
+}
+
 async function fetchCaseResolutionModels(userId, caseId) {
   if (!userId || !caseId) return { local: [], globals: [] };
   const select = 'name,resolution_category,procedure_type,extracted_text,case_id';
