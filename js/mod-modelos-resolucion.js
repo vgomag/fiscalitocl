@@ -135,6 +135,29 @@
       : 'investigacion_sumaria';
   }
 
+  /* ── Sanitización PII (RUTs, emails, teléfonos) ──
+     Aplicada SOLO al texto que se inyecta al LLM en buildCaseModelsBlock.
+     El texto original en BD queda intacto — ofuscación es solo para el prompt
+     y los logs de Anthropic. Patrones replican qdrant-ingest.js. */
+  function sanitizePII(text) {
+    if (!text) return '';
+    return String(text)
+      // RUTs chilenos: 12.345.678-9 / 12345678-K / con o sin puntos
+      .replace(/\b\d{1,2}\.?\d{3}\.?\d{3}-?[\dkK]\b/g, '[RUT]')
+      // Emails
+      .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[EMAIL]')
+      // Teléfonos chilenos: +56 9 XXXX XXXX, 9 XXXX XXXX, etc.
+      .replace(/\b(?:\+?56[\s-]?)?(?:9[\s-]?\d{4}[\s-]?\d{4}|2[\s-]?\d{3,4}[\s-]?\d{4})\b/g, '[TEL]');
+  }
+
+  /* ── Normalización para búsqueda (NFD + lowercase, sin tildes) ── */
+  function normForSearch(s) {
+    return String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
+  }
+
   /* ── Extracción de texto client-side ── */
   async function extractText(file) {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
