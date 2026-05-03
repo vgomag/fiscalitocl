@@ -4808,48 +4808,130 @@ async function handleFnDocUpload(input){
 }
 
 /* ── Participantes ── */
+/* ── Pestaña Participantes — vista unificada ──
+   Combina dos fuentes sin duplicar:
+     1) Tabla case_participants (rica: nombre, RUT, estamento, carrera, email, dependencia, role)
+     2) Campos JSON del caso (cases.denunciantes / denunciados + estamentos/carreras paralelos)
+   Dedupe por (role + nombre normalizado). Los que solo viven en JSON ofrecen un
+   botón "+ Completar datos" que abre el modal precargado para promoverlos a
+   case_participants y enriquecerlos con email/RUT/dependencia/etc. */
+window._jsonOnlyParticipantes = window._jsonOnlyParticipantes || {};
+
+const PART_ROLE_META = {
+  denunciante:  { label:'Denunciante',     color:'var(--green)',       icon:'🟢' },
+  denunciado:   { label:'Denunciado/a',    color:'var(--red)',         icon:'🔴' },
+  imputado:     { label:'Imputado/a',      color:'var(--red)',         icon:'🔴' },
+  testigo:      { label:'Testigo',         color:'var(--blue)',        icon:'👁️' },
+  perito:       { label:'Perito',          color:'#a855f7',            icon:'🔬' },
+  fiscal:       { label:'Fiscal',          color:'var(--gold)',        icon:'⚖️' },
+  actuario:     { label:'Actuario/a',      color:'var(--text-dim)',    icon:'📋' },
+  abogado:      { label:'Abogado/a',       color:'#0ea5e9',            icon:'💼' },
+  otro:         { label:'Otro',            color:'var(--text-muted)',  icon:'👤' },
+};
+const PART_ROLE_ORDER = ['denunciante','denunciado','imputado','testigo','perito','fiscal','actuario','abogado'];
+
 async function loadParticipantes(){
   if(!currentCase)return;
   const el=document.getElementById('participantesList');if(!el)return;
   el.innerHTML='<div class="loading">Cargando participantes…</div>';
+
   const fmtArr=v=>{if(!v)return[];if(Array.isArray(v))return v;try{const a=JSON.parse(v);return Array.isArray(a)?a:[String(v)];}catch{return[String(v)];}};
-  let autoHTML='';
-  const dtes=fmtArr(currentCase.denunciantes),ddos=fmtArr(currentCase.denunciados);
-  const estDte=fmtArr(currentCase.estamentos_denunciante),estDdo=fmtArr(currentCase.estamentos_denunciado);
-  if(dtes.length||ddos.length){
-    autoHTML=`<div style="margin-bottom:14px;padding:10px 12px;background:var(--gold-glow);border:1px solid rgba(79,70,229,.12);border-radius:var(--radius)">
-      <div style="font-size:10.5px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Intervinientes del expediente</div>
-      <div class="part-grid">
-        ${dtes.map((d,i)=>`<div class="part-card" style="border-left:3px solid var(--green)"><div class="part-role">Denunciante</div><div class="part-name">${esc(d)}</div>${estDte[i]?`<div class="part-meta"><span>👤 ${esc(estDte[i])}</span></div>`:''}</div>`).join('')}
-        ${ddos.map((d,i)=>`<div class="part-card" style="border-left:3px solid var(--red)"><div class="part-role">Denunciado/a</div><div class="part-name">${esc(d)}</div>${estDdo[i]?`<div class="part-meta"><span>👤 ${esc(estDdo[i])}</span></div>`:''}</div>`).join('')}
-      </div>
-    </div>`;
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const keyOf=(role,name)=>`${norm(role)}|${norm(name)}`;
+
+  /* 1) case_participants — fuente rica */
+  const{data:dbParts,error}=await sb.from('case_participants').select('*').eq('case_id',currentCase.id);
+  if(error)console.warn('[participantes]',error);
+  const seen=new Set((dbParts||[]).map(p=>keyOf(p.role,p.name)));
+
+  /* 2) Datos JSON del caso — solo agregar los que NO estén ya cubiertos */
+  const dtes=fmtArr(currentCase.denunciantes), ddos=fmtArr(currentCase.denunciados);
+  const estDte=fmtArr(currentCase.estamentos_denunciante), estDdo=fmtArr(currentCase.estamentos_denunciado);
+  const carrDte=fmtArr(currentCase.carrera_denunciante), carrDdo=fmtArr(currentCase.carrera_denunciado);
+
+  window._jsonOnlyParticipantes={};
+  const jsonOnly=[];
+  const pushJson=(role,name,est,carr)=>{
+    if(!name)return;
+    const k=keyOf(role,name); if(seen.has(k))return;
+    const entry={role,name,estamento:est||null,carrera:carr||null,_fromJson:true,_jsonKey:`${role}_${jsonOnly.length}`};
+    window._jsonOnlyParticipantes[entry._jsonKey]=entry;
+    jsonOnly.push(entry); seen.add(k);
+  };
+  dtes.forEach((d,i)=>pushJson('denunciante',d,estDte[i],carrDte[i]));
+  ddos.forEach((d,i)=>pushJson('denunciado',d,estDdo[i],carrDdo[i]));
+
+  /* 3) Combinar y agrupar por rol */
+  const all=[...(dbParts||[]),...jsonOnly];
+  if(!all.length){
+    el.innerHTML=`<div class="empty-state" style="padding:30px 14px">📋 Sin participantes en este caso<br><span style="font-size:11px">Agrega denunciantes, denunciados, testigos, peritos u otros intervinientes.</span></div>
+      <div style="padding:0 14px"><button class="btn-save" onclick="editParticipante(null)">+ Agregar participante</button></div>`;
+    return;
   }
-  const{data}=await sb.from('case_participants').select('*').eq('case_id',currentCase.id).order('role');
-  if(!data?.length){el.innerHTML=autoHTML+`<div class="empty-state">📋 <p>Sin participantes adicionales</p></div><div style="padding:0 14px"><button class="btn-save" onclick="editParticipante(null)">+ Agregar participante</button></div>`;return;}
-  const roleOrder=['denunciante','denunciado','testigo','fiscal','actuario','abogado'];
-  const sorted=[...data].sort((a,b)=>{
-    const ia=roleOrder.indexOf(a.role?.toLowerCase())||99;
-    const ib=roleOrder.indexOf(b.role?.toLowerCase())||99;
-    return ia-ib;
+  const byRole={};
+  all.forEach(p=>{
+    const r=(p.role||'otro').toLowerCase();
+    (byRole[r]=byRole[r]||[]).push(p);
   });
-  el.innerHTML=autoHTML+`<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn-sm" onclick="editParticipante(null)">+ Agregar participante</button></div>
-    <div class="part-grid">${sorted.map(p=>`
-      <div class="part-card">
-        <div class="part-role">${esc(p.role||'—')}</div>
-        <div class="part-name">${esc(p.name||'[Sin nombre]')}</div>
-        <div class="part-meta">
-          ${p.estamento?`<span>👤 ${esc(p.estamento)}</span>`:''}
-          ${p.carrera?`<span>🎓 ${esc(p.carrera)}</span>`:''}
-          ${p.email?`<span>✉️ ${esc(p.email)}</span>`:''}
-          ${p.dependencia?`<span>🏛 ${esc(p.dependencia)}</span>`:''}
+
+  /* 4) Render por secciones (rol) en orden definido + roles "otros" al final */
+  const orderedRoles=[...PART_ROLE_ORDER.filter(r=>byRole[r]&&byRole[r].length), ...Object.keys(byRole).filter(r=>!PART_ROLE_ORDER.includes(r)).sort()];
+  const sections=orderedRoles.map(r=>{
+    const items=byRole[r];
+    const meta=PART_ROLE_META[r]||PART_ROLE_META.otro;
+    return `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:${meta.color};text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+          <span>${meta.icon}</span><span>${esc(meta.label)} (${items.length})</span>
         </div>
-        <div class="card-actions">
-          <button class="btn-del" data-pid="${p.id}" data-pname="${esc((p.name||'').replace(/\n/g,' ').replace(/\r/g,''))}" onclick="deleteParticipante(this.dataset.pid,this.dataset.pname)">Eliminar</button>
-          <button class="btn-edit" data-pid="${p.id}" onclick="editParticipanteById(this.dataset.pid)">Editar</button>
+        <div class="part-grid">
+          ${items.map(p=>renderParticipanteCard(p,meta.color)).join('')}
         </div>
-      </div>`).join('')}
+      </div>`;
+  });
+
+  const dbCount=(dbParts||[]).length;
+  const jsonCount=jsonOnly.length;
+  const summary=`<div style="font-size:11px;color:var(--text-muted)">${all.length} participante${all.length===1?'':'s'}${jsonCount>0?` · <span style="color:var(--gold)">${jsonCount} solo en datos del expediente</span> · usa "Completar datos" para enriquecerlos`:''}${dbCount>0?` · ${dbCount} en BD`:''}</div>`;
+
+  el.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      ${summary}
+      <button class="btn-sm" onclick="editParticipante(null)">+ Agregar participante</button>
+    </div>
+    ${sections.join('')}`;
+}
+
+/* Card de un participante (BD o JSON) */
+function renderParticipanteCard(p,color){
+  const fromJson=!!p._fromJson;
+  const fields=[
+    p.estamento ? `<span>👤 ${esc(p.estamento)}</span>` : '',
+    p.carrera   ? `<span>🎓 ${esc(p.carrera)}</span>` : '',
+    p.rut       ? `<span>🪪 ${esc(p.rut)}</span>` : '',
+    p.email     ? `<span>✉️ ${esc(p.email)}</span>` : '',
+    p.dependencia ? `<span>🏛 ${esc(p.dependencia)}</span>` : '',
+  ].filter(Boolean).join('');
+  const actions=fromJson
+    ? `<button class="btn-sm" data-jkey="${esc(p._jsonKey)}" onclick="promoteJsonParticipante(this.dataset.jkey)" title="Crear registro completo en BD para enriquecer datos">+ Completar datos</button>`
+    : `<button class="btn-edit" data-pid="${p.id}" onclick="editParticipanteById(this.dataset.pid)">Editar</button>
+       <button class="btn-del" data-pid="${p.id}" data-pname="${esc((p.name||'').replace(/\n/g,' ').replace(/\r/g,''))}" onclick="deleteParticipante(this.dataset.pid,this.dataset.pname)">Eliminar</button>`;
+  return `
+    <div class="part-card" style="border-left:3px solid ${color}${fromJson?';background:linear-gradient(180deg,var(--gold-glow) 0%,var(--surface) 100%)':''}">
+      <div class="part-name">${esc(p.name||'[Sin nombre]')}${fromJson?` <span style="font-size:9px;font-weight:400;color:var(--gold);background:var(--gold-glow2);padding:1px 6px;border-radius:8px;margin-left:4px">solo JSON</span>`:''}</div>
+      ${fields ? `<div class="part-meta">${fields}</div>` : ''}
+      <div class="card-actions">${actions}</div>
     </div>`;
+}
+
+/* Promueve un participante "solo JSON" al modal de edición precargado.
+   Al guardar se inserta como nuevo registro en case_participants. */
+function promoteJsonParticipante(jsonKey){
+  const seed=(window._jsonOnlyParticipantes||{})[jsonKey];
+  if(!seed){showToast('⚠ No se encontraron datos del participante');return;}
+  /* editParticipante(null) crea como nuevo; pasamos seed sin id para que precarga
+     funcione pero guarde como INSERT. */
+  editParticipante({...seed, id:undefined, _fromJson:undefined, _jsonKey:undefined});
 }
 
 // Cache participantes loaded for lookup by id
