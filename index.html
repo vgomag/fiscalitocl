@@ -5396,8 +5396,10 @@ async function deletePendiente(id){
   await loadAcciones();showToast('✓ Pendiente eliminado');
 }
 
-/* ── Modelos / Plantillas ── */
-function loadModelos(){
+/* ── Modelos / Plantillas ──
+   IMPORTANTE: debe ser async porque drive-client.js wrappea showTab y
+   hace `loadModelos().catch(...)`. Si es sincrónica, undefined.catch() rompe. */
+async function loadModelos(){
   if(!currentCase)return;
   const el=document.getElementById('modelosList');if(!el)return;
   /* Estructura: arriba la biblioteca de modelos del usuario (mod-modelos-resolucion),
@@ -5409,7 +5411,8 @@ function loadModelos(){
     </div>`;
   /* 1) Biblioteca de modelos del caso (subir/listar/clasificar) */
   if (window.ModelosResolucion && typeof window.ModelosResolucion.render === 'function') {
-    window.ModelosResolucion.render(document.getElementById('modelosResolucionMount'), currentCase.id);
+    try { await window.ModelosResolucion.render(document.getElementById('modelosResolucionMount'), currentCase.id); }
+    catch(e){ console.warn('[modelos] biblioteca:', e); }
   }
   /* 2) Plantillas rápidas (legacy) */
   _renderQuickModelos(document.getElementById('modelosQuickMount'));
