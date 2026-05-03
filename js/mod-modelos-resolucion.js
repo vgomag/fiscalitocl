@@ -179,11 +179,11 @@
      CARGA DESDE SUPABASE
      ──────────────────────────────────────────────────────── */
   async function loadModels(caseId) {
-    if (!window.sb || !window.session) return { models: [], globalModels: [] };
-    const uid = window.session.user.id;
+    if (!sb || !session) return { models: [], globalModels: [] };
+    const uid = session.user.id;
 
     // Modelos del caso actual
-    const localQ = window.sb
+    const localQ = sb
       .from('case_resolution_models')
       .select('id,name,file_name,resolution_category,procedure_type,is_global,extracted_text,description,created_at,case_id')
       .eq('user_id', uid)
@@ -191,7 +191,7 @@
       .order('created_at', { ascending: false });
 
     // Modelos globales del usuario (otros casos), tope MAX_GLOBAL_LIMIT
-    const globalQ = window.sb
+    const globalQ = sb
       .from('case_resolution_models')
       .select('id,name,file_name,resolution_category,procedure_type,is_global,extracted_text,description,created_at,case_id')
       .eq('user_id', uid)
@@ -431,11 +431,11 @@
       return;
     }
     try {
-      const { error } = await window.sb
+      const { error } = await sb
         .from('case_resolution_models')
         .update({ resolution_category: category })
         .eq('id', id)
-        .eq('user_id', window.session.user.id);
+        .eq('user_id', session.user.id);
       if (error) throw error;
       // Actualizar estado local
       const all = [...state.models, ...state.globalModels];
@@ -454,11 +454,11 @@
       return;
     }
     try {
-      const { error } = await window.sb
+      const { error } = await sb
         .from('case_resolution_models')
         .update({ procedure_type })
         .eq('id', id)
-        .eq('user_id', window.session.user.id);
+        .eq('user_id', session.user.id);
       if (error) throw error;
       const all = [...state.models, ...state.globalModels];
       const m = all.find(x => x.id === id);
@@ -497,11 +497,11 @@
   async function deleteModel(id) {
     if (!confirm('¿Eliminar este modelo? Esta acción no se puede deshacer.')) return;
     try {
-      const { error } = await window.sb
+      const { error } = await sb
         .from('case_resolution_models')
         .delete()
         .eq('id', id)
-        .eq('user_id', window.session.user.id);
+        .eq('user_id', session.user.id);
       if (error) throw error;
       state.models = state.models.filter(m => m.id !== id);
       state.globalModels = state.globalModels.filter(m => m.id !== id);
@@ -515,7 +515,7 @@
 
   async function handleFiles(fileList) {
     if (!fileList || !fileList.length) return;
-    if (!state.caseId || !window.session) {
+    if (!state.caseId || !session) {
       toast('⚠ Sin caso o sesión activa');
       return;
     }
@@ -556,7 +556,7 @@
 
         const payload = {
           case_id: state.caseId,
-          user_id: window.session.user.id,
+          user_id: session.user.id,
           name: baseName,
           file_name: f.name,
           extracted_text: text,
@@ -566,7 +566,7 @@
           is_global: true,
         };
 
-        const { error } = await window.sb
+        const { error } = await sb
           .from('case_resolution_models')
           .insert(payload);
         if (error) {
@@ -632,19 +632,19 @@
      buildCaseModelsBlock(caseId) — para uso desde generadores
      ──────────────────────────────────────────────────────── */
   async function buildCaseModelsBlock(caseId) {
-    if (!caseId || !window.sb || !window.session) return '';
-    const uid = window.session.user.id;
+    if (!caseId || !sb || !session) return '';
+    const uid = session.user.id;
 
     try {
       // Modelos del caso actual
-      const { data: local } = await window.sb
+      const { data: local } = await sb
         .from('case_resolution_models')
         .select('name,resolution_category,procedure_type,extracted_text,case_id')
         .eq('user_id', uid)
         .eq('case_id', caseId);
 
       // Modelos globales del usuario (otros casos), tope 50
-      const { data: globals } = await window.sb
+      const { data: globals } = await sb
         .from('case_resolution_models')
         .select('name,resolution_category,procedure_type,extracted_text,case_id')
         .eq('user_id', uid)
@@ -774,14 +774,14 @@
     container.innerHTML = '<div class="loading" style="padding:30px">Cargando biblioteca de modelos…</div>';
 
     try {
-      if (!window.sb || !window.session) {
+      if (!sb || !session) {
         container.innerHTML = '<div class="empty-state">⚠ Sin sesión activa</div>';
         return;
       }
-      const uid = window.session.user.id;
+      const uid = session.user.id;
 
       // Cargar TODOS los modelos del usuario
-      const { data: models, error } = await window.sb
+      const { data: models, error } = await sb
         .from('case_resolution_models')
         .select('id,case_id,name,file_name,resolution_category,procedure_type,is_global,extracted_text,created_at')
         .eq('user_id', uid)
@@ -789,7 +789,7 @@
       if (error) throw error;
 
       // Cargar nombres de casos para mapear case_id → name
-      const { data: cases } = await window.sb
+      const { data: cases } = await sb
         .from('cases')
         .select('id,name,nueva_resolucion')
         .eq('user_id', uid)
@@ -968,11 +968,11 @@
   async function deleteGlobalModel(id) {
     if (!confirm('¿Eliminar este modelo de TODA tu biblioteca? Esta acción no se puede deshacer.')) return;
     try {
-      const { error } = await window.sb
+      const { error } = await sb
         .from('case_resolution_models')
         .delete()
         .eq('id', id)
-        .eq('user_id', window.session.user.id);
+        .eq('user_id', session.user.id);
       if (error) throw error;
       globalState.models = globalState.models.filter(m => m.id !== id);
       toast('✓ Modelo eliminado');
@@ -985,11 +985,11 @@
   async function updateGlobalCategory(id, category) {
     if (!CATEGORIES[category]) { toast('⚠ Categoría inválida'); return; }
     try {
-      const { error } = await window.sb
+      const { error } = await sb
         .from('case_resolution_models')
         .update({ resolution_category: category })
         .eq('id', id)
-        .eq('user_id', window.session.user.id);
+        .eq('user_id', session.user.id);
       if (error) throw error;
       const m = globalState.models.find(x => x.id === id);
       if (m) m.resolution_category = category;
@@ -1002,11 +1002,11 @@
   async function updateGlobalProcedure(id, procedure_type) {
     if (!PROCEDURE_TYPES[procedure_type]) { toast('⚠ Procedimiento inválido'); return; }
     try {
-      const { error } = await window.sb
+      const { error } = await sb
         .from('case_resolution_models')
         .update({ procedure_type })
         .eq('id', id)
-        .eq('user_id', window.session.user.id);
+        .eq('user_id', session.user.id);
       if (error) throw error;
       const m = globalState.models.find(x => x.id === id);
       if (m) m.procedure_type = procedure_type;
