@@ -243,15 +243,25 @@
     return [...set];
   }
 
+  function applyFilters(arr) {
+    const q = normForSearch(state.searchText);
+    return (arr || []).filter(m => {
+      if (state.filterCategory !== 'all' && (m.resolution_category || 'otro') !== state.filterCategory) return false;
+      if (q) {
+        const hay = normForSearch((m.name || '') + ' ' + (m.file_name || '') + ' ' + (m.extracted_text || ''));
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
   function renderUI() {
     const all = state.models;
     const otros = countOtros(all);
     const cats = uniqueCategories(all);
 
-    // Filtro por categoría
-    const filtered = state.filterCategory === 'all'
-      ? all
-      : all.filter(m => (m.resolution_category || 'otro') === state.filterCategory);
+    const filtered = applyFilters(all);
+    const filteredGlobals = applyFilters(state.globalModels);
 
     const filterHTML = cats.length > 1 ? `
       <select class="case-models-filter"
@@ -262,8 +272,16 @@
       </select>
     ` : '';
 
+    /* Drag-over visual: borde resaltado + cambio de mensaje en el dropzone */
+    const dropOver = state.dragOver;
+
     state.container.innerHTML = `
-      <div class="case-models-wrap">
+      <div class="case-models-wrap" id="caseModelsWrap"
+           ondragenter="window.ModelosResolucion._onDragEnter(event)"
+           ondragover="window.ModelosResolucion._onDragOver(event)"
+           ondragleave="window.ModelosResolucion._onDragLeave(event)"
+           ondrop="window.ModelosResolucion._onDrop(event)"
+           style="position:relative">
         <!-- Header con métricas + acciones -->
         <div class="case-models-header" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
           <div style="display:flex;flex-direction:column;gap:2px">
@@ -273,9 +291,14 @@
               ${all.filter(m => m.is_global).length} compartido${all.filter(m => m.is_global).length === 1 ? '' : 's'} entre casos ·
               ${totalChars(all).toLocaleString('es-CL')} chars
               ${state.globalModels.length ? ` · ${state.globalModels.length} de otros casos disponibles` : ''}
+              ${state.searchText ? ` · ${filtered.length + filteredGlobals.length} coinciden con "${safeEsc(state.searchText)}"` : ''}
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="caseModelsSearch" placeholder="🔎 Buscar nombre o contenido…"
+                   value="${safeEsc(state.searchText)}"
+                   oninput="window.ModelosResolucion._setSearch(this.value)"
+                   style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:var(--radius);font-size:11px;font-family:var(--font-body);outline:none;min-width:180px"/>
             ${filterHTML}
             ${otros > 0 ? `<button class="btn-sm" onclick="window.ModelosResolucion._classifyAI()" title="Reclasifica con IA los ${otros} modelo(s) en categoría 'otro'">🤖 Clasificar (${otros})</button>` : ''}
             <label class="btn-save" style="cursor:pointer;display:inline-block">
@@ -285,14 +308,20 @@
           </div>
         </div>
 
+        <!-- Dropzone (siempre visible para sugerir drag&drop) -->
+        <div class="case-models-dropzone"
+             style="padding:14px;text-align:center;border:2px dashed ${dropOver ? 'var(--gold)' : 'var(--border2)'};background:${dropOver ? 'var(--gold-glow)' : 'transparent'};border-radius:var(--radius);margin-bottom:10px;font-size:11.5px;color:${dropOver ? 'var(--gold)' : 'var(--text-muted)'};transition:all .15s;pointer-events:none">
+          ${dropOver ? '⬇️ Suelta los archivos aquí' : '📥 También puedes arrastrar archivos .docx / .txt aquí'}
+        </div>
+
         <!-- Progreso de carga -->
         <div id="caseModelsProgress" style="display:none;padding:8px 14px;background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:var(--radius);margin-bottom:10px;font-size:12px;color:var(--gold-dim)"></div>
 
         <!-- Lista del caso -->
         ${filtered.length === 0 ? `
           <div class="empty-state" style="padding:30px 14px;text-align:center;color:var(--text-muted);font-size:12.5px;background:var(--surface);border:1px dashed var(--border2);border-radius:var(--radius)">
-            🗂️ Sin modelos en este caso${state.filterCategory !== 'all' ? ' para esa categoría' : ''}.<br>
-            <span style="font-size:11px">Sube resoluciones, actas, oficios u otras actuaciones de casos anteriores. El agente las usará como referencia de estilo en cualquier caso similar.</span>
+            🗂️ ${state.searchText ? 'Ningún modelo del caso coincide con tu búsqueda.' : `Sin modelos en este caso${state.filterCategory !== 'all' ? ' para esa categoría' : ''}.`}<br>
+            <span style="font-size:11px">${state.searchText ? '' : 'Sube resoluciones, actas, oficios u otras actuaciones de casos anteriores. El agente las usará como referencia de estilo en cualquier caso similar.'}</span>
           </div>
         ` : `
           <div class="case-models-list" style="display:flex;flex-direction:column;gap:6px">
@@ -301,12 +330,12 @@
         `}
 
         ${state.globalModels.length ? `
-          <details style="margin-top:14px" ${state.globalModels.length <= 5 ? 'open' : ''}>
+          <details style="margin-top:14px" ${(filteredGlobals.length <= 5) ? 'open' : ''}>
             <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);padding:8px 4px;letter-spacing:.05em;text-transform:uppercase;font-weight:600">
-              🔗 Tus modelos globales (de otros casos · ${state.globalModels.length})
+              🔗 Tus modelos globales (de otros casos · ${filteredGlobals.length}${filteredGlobals.length !== state.globalModels.length ? ' de ' + state.globalModels.length : ''})
             </summary>
             <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
-              ${state.globalModels.map(m => renderModelCard(m, true)).join('')}
+              ${filteredGlobals.length === 0 ? '<div style="font-size:11px;color:var(--text-muted);padding:8px">Ningún modelo global coincide con tu búsqueda.</div>' : filteredGlobals.map(m => renderModelCard(m, true)).join('')}
             </div>
           </details>
         ` : ''}
@@ -329,6 +358,10 @@
       <option value="${k}" ${m.resolution_category === k ? 'selected' : ''}>${safeEsc(v)}</option>
     `).join('');
 
+    const procSelectOptions = Object.entries(PROCEDURE_TYPES).map(([k, v]) => `
+      <option value="${k}" ${m.procedure_type === k ? 'selected' : ''}>${safeEsc(v)}</option>
+    `).join('');
+
     return `
       <div class="case-model-card" data-model-id="${m.id}" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer" onclick="window.ModelosResolucion._toggleExpand('${m.id}')">
@@ -337,18 +370,23 @@
             <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeEsc(m.name || m.file_name)}</div>
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap">
               <span class="proc-badge" style="font-size:9.5px">${safeEsc(cat)}</span>
-              <span>${safeEsc(proc)}</span>
               <span>${charCount.toLocaleString('es-CL')} chars</span>
               ${fmtDate ? `<span>${safeEsc(fmtDate)}</span>` : ''}
               ${m.is_global ? '<span style="color:var(--gold)">global</span>' : ''}
             </div>
           </div>
-          <div style="display:flex;gap:4px;align-items:center;flex-shrink:0" onclick="event.stopPropagation()">
+          <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end" onclick="event.stopPropagation()">
             <select class="case-model-cat-select" data-model-id="${m.id}"
                     onchange="window.ModelosResolucion._updateCategory('${m.id}', this.value)"
                     title="Cambiar categoría"
                     style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:3px 6px;border-radius:var(--radius-sm);font-size:10.5px;font-family:var(--font-body);outline:none;max-width:160px">
               ${catSelectOptions}
+            </select>
+            <select class="case-model-proc-select" data-model-id="${m.id}"
+                    onchange="window.ModelosResolucion._updateProcedure('${m.id}', this.value)"
+                    title="Cambiar tipo de procedimiento"
+                    style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:3px 6px;border-radius:var(--radius-sm);font-size:10.5px;font-family:var(--font-body);outline:none;max-width:170px">
+              ${procSelectOptions}
             </select>
             <button class="btn-del" onclick="window.ModelosResolucion._deleteModel('${m.id}')" title="Eliminar">🗑</button>
           </div>
@@ -369,6 +407,17 @@
   function setFilter(value) {
     state.filterCategory = value || 'all';
     renderUI();
+  }
+
+  function setSearch(value) {
+    state.searchText = value || '';
+    renderUI();
+    // Refocus el input y posicionar cursor al final (porque renderUI re-pinta)
+    const input = document.getElementById('caseModelsSearch');
+    if (input) {
+      input.focus();
+      try { input.setSelectionRange(input.value.length, input.value.length); } catch(e){}
+    }
   }
 
   function toggleExpand(id) {
@@ -397,6 +446,52 @@
     } catch (err) {
       toast('⚠ Error: ' + (err.message || err));
     }
+  }
+
+  async function updateProcedure(id, procedure_type) {
+    if (!PROCEDURE_TYPES[procedure_type]) {
+      toast('⚠ Tipo de procedimiento inválido');
+      return;
+    }
+    try {
+      const { error } = await window.sb
+        .from('case_resolution_models')
+        .update({ procedure_type })
+        .eq('id', id)
+        .eq('user_id', window.session.user.id);
+      if (error) throw error;
+      const all = [...state.models, ...state.globalModels];
+      const m = all.find(x => x.id === id);
+      if (m) m.procedure_type = procedure_type;
+      toast('✓ Tipo de procedimiento actualizado');
+      renderUI();
+    } catch (err) {
+      toast('⚠ Error: ' + (err.message || err));
+    }
+  }
+
+  /* ── Drag & drop handlers ── */
+  function onDragEnter(e) {
+    e.preventDefault(); e.stopPropagation();
+    if (!state.dragOver) { state.dragOver = true; renderUI(); }
+  }
+  function onDragOver(e) {
+    e.preventDefault(); e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  }
+  function onDragLeave(e) {
+    e.preventDefault(); e.stopPropagation();
+    // Solo apagar si el cursor sale del wrap completo (no a un hijo)
+    const wrap = document.getElementById('caseModelsWrap');
+    if (wrap && e.relatedTarget && wrap.contains(e.relatedTarget)) return;
+    if (state.dragOver) { state.dragOver = false; renderUI(); }
+  }
+  function onDrop(e) {
+    e.preventDefault(); e.stopPropagation();
+    state.dragOver = false;
+    const files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : null;
+    renderUI();
+    if (files && files.length) handleFiles(files);
   }
 
   async function deleteModel(id) {
@@ -597,10 +692,13 @@
         for (const m of items) {
           if (budgetLeft() < 200) break;
           const tag = m._origin === 'current' ? '📌' : '🔗';
-          const slice = String(m.extracted_text || '').slice(0, MAX_INJECT_PER_MODEL);
+          // Sanitizar PII (RUTs, emails, teléfonos) ANTES de slice/inject — ofuscación solo
+          // para el prompt enviado al LLM. El texto en BD queda intacto.
+          const cleaned = sanitizePII(m.extracted_text);
+          const slice = cleaned.slice(0, MAX_INJECT_PER_MODEL);
           const allowed = Math.min(slice.length, budgetLeft() - 120);
           if (allowed <= 100) break;
-          const piece = `\n${tag} ${m.name || ''}\n${slice.slice(0, allowed)}\n${slice.length > allowed ? '[…truncado…]\n' : ''}`;
+          const piece = `\n${tag} ${sanitizePII(m.name || '')}\n${slice.slice(0, allowed)}\n${slice.length > allowed ? '[…truncado…]\n' : ''}`;
           block += piece;
           used += piece.length;
         }
@@ -620,14 +718,21 @@
     // API pública
     render,
     buildCaseModelsBlock,
+    sanitizePII,
     CATEGORIES,
     PROCEDURE_TYPES,
     // Handlers internos (usados por onclick/onchange)
     _setFilter:       setFilter,
+    _setSearch:       setSearch,
     _toggleExpand:    toggleExpand,
     _updateCategory:  updateCategory,
+    _updateProcedure: updateProcedure,
     _deleteModel:     deleteModel,
     _handleFiles:     handleFiles,
     _classifyAI:      classifyAI,
+    _onDragEnter:     onDragEnter,
+    _onDragOver:      onDragOver,
+    _onDragLeave:     onDragLeave,
+    _onDrop:          onDrop,
   };
 })();
