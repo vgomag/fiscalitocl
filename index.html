@@ -5400,6 +5400,23 @@ async function deletePendiente(id){
 function loadModelos(){
   if(!currentCase)return;
   const el=document.getElementById('modelosList');if(!el)return;
+  /* Estructura: arriba la biblioteca de modelos del usuario (mod-modelos-resolucion),
+     abajo las plantillas rápidas hardcoded (modelos genéricos por categoría). */
+  el.innerHTML = `
+    <div id="modelosResolucionMount"></div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border2)">
+      <div id="modelosQuickMount"></div>
+    </div>`;
+  /* 1) Biblioteca de modelos del caso (subir/listar/clasificar) */
+  if (window.ModelosResolucion && typeof window.ModelosResolucion.render === 'function') {
+    window.ModelosResolucion.render(document.getElementById('modelosResolucionMount'), currentCase.id);
+  }
+  /* 2) Plantillas rápidas (legacy) */
+  _renderQuickModelos(document.getElementById('modelosQuickMount'));
+}
+
+function _renderQuickModelos(el){
+  if(!el || !currentCase) return;
   const c=currentCase;
   const fmtArr=v=>{if(!v)return'';if(Array.isArray(v))return v.join(', ');try{const a=JSON.parse(v);return Array.isArray(a)?a.join(', '):String(v);}catch{return String(v);}};
   const modelos=[
@@ -6198,5 +6215,6 @@ Toda la información actual y futura está o estará disponible en estas carpeta
 <script src="/js/mod-oficios.js"></script>
 <script src="/js/mod-plantillas-custom.js"></script>
 <script src="/js/mod-sync-monitor.js"></script>
+<script src="/js/mod-modelos-resolucion.js"></script>
 </body>
 </html>

@@ -88,6 +88,104 @@ async function supaFetch(path) {
 }
 
 /* ══════════════════════════════════════════════
+   Supabase: case_resolution_models (sección XVII)
+   ──────────────────────────────────────────────
+   Trae modelos de resolución/actuaciones subidos por el usuario:
+     - Modelos del caso actual (case_id = caseId)
+     - Modelos globales del usuario en otros casos (LIMIT 50)
+   Los inyecta como referencia OBLIGATORIA de estilo.
+   Presupuesto duro: MAX_RES_MODELS_TOTAL=30 000 chars / 3 000 por modelo.
+   ══════════════════════════════════════════════ */
+const MAX_RES_MODELS_TOTAL = 30000;
+const MAX_RES_MODELS_PER_MODEL = 3000;
+const MAX_RES_MODELS_GLOBAL = 50;
+
+const RES_CATEGORY_LABELS = {
+  citacion: 'Citación', notificacion: 'Notificación',
+  acta_declaracion: 'Acta de Declaración', acta_ratificacion: 'Acta de Ratificación',
+  acta_entrevista: 'Acta de Entrevista', acta_notificacion: 'Acta de Notificación',
+  resolucion_acepta_cargo: 'Resolución Acepta Cargo',
+  resolucion_cita_declarar: 'Resolución Cita a Declarar',
+  resolucion_medida_resguardo: 'Medida de Resguardo',
+  resolucion_general: 'Resolución General',
+  oficio: 'Oficio', cuestionario: 'Cuestionario', constancia: 'Constancia',
+  consentimiento: 'Consentimiento', certificacion: 'Certificación',
+  acuerdo_alejamiento: 'Acuerdo de Alejamiento',
+  formulacion_cargos: 'Formulación de Cargos',
+  descargos: 'Descargos', provee_descargos: 'Provee Descargos',
+  informe: 'Informe', vista_fiscal: 'Vista Fiscal',
+  incorpora_antecedentes: 'Incorpora Antecedentes',
+  denuncia: 'Denuncia', memo: 'Memo', otro: 'Otro',
+};
+
+async function fetchCaseResolutionModels(userId, caseId) {
+  if (!userId || !caseId) return { local: [], globals: [] };
+  const select = 'name,resolution_category,procedure_type,extracted_text,case_id';
+  const localPath = `case_resolution_models?select=${select}`
+    + `&user_id=eq.${encodeURIComponent(userId)}`
+    + `&case_id=eq.${encodeURIComponent(caseId)}`;
+  const globalsPath = `case_resolution_models?select=${select}`
+    + `&user_id=eq.${encodeURIComponent(userId)}`
+    + `&is_global=eq.true`
+    + `&case_id=neq.${encodeURIComponent(caseId)}`
+    + `&order=created_at.desc&limit=${MAX_RES_MODELS_GLOBAL}`;
+  const [local, globals] = await Promise.all([supaFetch(localPath), supaFetch(globalsPath)]);
+  return { local: local || [], globals: globals || [] };
+}
+
+function buildResolutionModelsBlock(payload) {
+  const local = (payload.local || []).map(m => ({ ...m, _origin: 'current' }));
+  const globals = (payload.globals || []).map(m => ({ ...m, _origin: 'other' }));
+  const all = [...local, ...globals];
+  if (!all.length) return '';
+
+  // Agrupar por categoría
+  const groups = {};
+  for (const m of all) {
+    const c = m.resolution_category || 'otro';
+    (groups[c] = groups[c] || []).push(m);
+  }
+
+  const header = [
+    '',
+    '═══════════════════════════════════════════════════════════════',
+    'XVII. MODELOS DE ESTILO INSTITUCIONAL (referencia obligatoria)',
+    '═══════════════════════════════════════════════════════════════',
+    '',
+    'CRÍTICO — INSTRUCCIÓN OPERATIVA:',
+    'Cuando se solicite generar una resolución, acta, oficio u otra actuación,',
+    'BUSCA PRIMERO en estos modelos el tipo correspondiente y REPLICA fielmente',
+    'su formato, estructura, encabezados, fórmulas y estilo. ADAPTA SOLO los',
+    'datos específicos del caso actual (partes, fechas, hechos, materia). No',
+    'inventes estructuras nuevas si existe un modelo del mismo tipo.',
+    '',
+    'Etiquetas: 📌 modelo del caso actual · 🔗 modelo de otro caso del usuario.',
+    '',
+  ].join('\n');
+
+  let block = header;
+  let used = block.length;
+  const left = () => Math.max(0, MAX_RES_MODELS_TOTAL - used);
+
+  for (const [catKey, items] of Object.entries(groups)) {
+    if (left() < 200) break;
+    const label = RES_CATEGORY_LABELS[catKey] || catKey;
+    const sec = `\n──── ${label} (${items.length}) ────\n`;
+    block += sec; used += sec.length;
+    for (const m of items) {
+      if (left() < 200) break;
+      const tag = m._origin === 'current' ? '📌' : '🔗';
+      const slice = String(m.extracted_text || '').slice(0, MAX_RES_MODELS_PER_MODEL);
+      const allowed = Math.min(slice.length, left() - 120);
+      if (allowed <= 100) break;
+      const piece = `\n${tag} ${m.name || ''}\n${slice.slice(0, allowed)}\n${slice.length > allowed ? '[…truncado…]\n' : ''}`;
+      block += piece; used += piece.length;
+    }
+  }
+  return block;
+}
+
+/* ══════════════════════════════════════════════
    Supabase: Buscar modelos de referencia
    ══════════════════════════════════════════════ */
 async function fetchModelReports(caseData, mode, referenceModelId) {
@@ -753,13 +851,21 @@ export default async (req) => {
     try { modelReports = await fetchModelReports(data.caseData || {}, mode, referenceModelId); }
     catch (e) { console.warn('fetchModelReports:', e.message); }
 
+    /* Fetch case_resolution_models (sección XVII): modelos del caso + globales del usuario */
+    let resolutionModelsBlock = '';
+    try {
+      const caseId = (data.caseData && data.caseData.id) || '';
+      const resModels = await fetchCaseResolutionModels(userId, caseId);
+      resolutionModelsBlock = buildResolutionModelsBlock(resModels);
+    } catch (e) { console.warn('fetchCaseResolutionModels:', e.message); }
+
     /* Build context and prompt */
     const context = buildCaseContext(data, modelReports);
     const system = buildSystemPrompt(mode, data.participants || [], docType);
     const docLabel = (docType === 'vista_fiscal') ? 'vista fiscal'
       : (docType === 'informe_investigadora') ? 'informe de la investigadora'
       : (DOC_LABELS[mode] || 'vista fiscal');
-    const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}`;
+    const userMsg = `Con base en la siguiente información del expediente, genera el borrador de ${docLabel}:\n\n${context}${resolutionModelsBlock}`;
 
     /* Token estimation */
     const inputTokens = Math.ceil((system.length + userMsg.length) / 4);
