@@ -493,6 +493,7 @@
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="btn-sm" onclick="if(typeof openCuestionarios==='function'){openCuestionarios();setTimeout(()=>{if(typeof switchCuestTab==='function')switchCuestTab('merotramite');},120);}else{toast('Recarga la página');}" title="Abre el launcher de plantillas predefinidas (Resoluciones de Mero Trámite)" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:5px 10px;border-radius:var(--radius);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font-body)">📜 Plantillas rápidas</button>
             <input type="text" id="caseModelsSearch" placeholder="🔎 Buscar nombre o contenido…"
                    value="${safeEsc(state.searchText)}"
                    oninput="window.ModelosResolucion._setSearch(this.value)"
@@ -851,6 +852,7 @@
           <div id="gmOutput" class="gm-output">Pulsa "Generar" para que Claude llene la plantilla con los datos del caso…</div>
         </div>
         <div class="gm-foot">
+          <button class="gm-btn gm-btn-sec" id="gmDocx" disabled>📄 Descargar Word</button>
           <button class="gm-btn gm-btn-sec" id="gmCopy" disabled>📋 Copiar</button>
           <button class="gm-btn gm-btn-sec" id="gmCancel">Cerrar</button>
           <button class="gm-btn gm-btn-pri" id="gmGo">Generar</button>
@@ -869,6 +871,87 @@
       if (!generatedText) return;
       try { await navigator.clipboard.writeText(generatedText); toast('✓ Copiado al portapapeles'); }
       catch (e) { toast('⚠ No se pudo copiar: ' + e.message); }
+    };
+
+    $('gmDocx').onclick = async () => {
+      if (!generatedText) return;
+      $('gmDocx').disabled = true;
+      $('gmDocx').innerHTML = '<span class="gm-spinner"></span>Generando…';
+      try {
+        /* Esperar a que docx esté cargada (lib UMD ya está en index.html) */
+        const docxLib = await new Promise((res, rej) => {
+          if (window.docx) return res(window.docx);
+          let tries = 0;
+          (function chk(){
+            if (window.docx) return res(window.docx);
+            if (++tries > 50) return rej(new Error('Librería docx no cargada'));
+            setTimeout(chk, 100);
+          })();
+        });
+
+        const { Document, Packer, Paragraph, TextRun, AlignmentType } = docxLib;
+        const FONT = 'Arial';
+        const SIZE = 22;        /* 11pt en half-points */
+        const COLOR = '000000';
+        const LINE = 360;       /* 1.5 líneas */
+
+        /* sectionProps con logo UMAG si existe el helper global */
+        const sectionProps = (typeof window.getWordSectionProps === 'function')
+          ? await window.getWordSectionProps(docxLib, { caseRef: caso, includeLogo: true })
+          : {
+              properties: { page: { size: { width: 12240, height: 18720 }, margin: { top: 1440, bottom: 1440, left: 1701, right: 1701 } } },
+            };
+
+        /* Construir párrafos: cada línea no vacía → un párrafo justificado.
+           Detecta encabezados (líneas en mayúsculas tipo VISTOS/CONSIDERANDO/RESUELVO)
+           y los pone en negrita centrada. */
+        const lines = generatedText.split(/\r?\n/);
+        const children = [];
+        const headerRe = /^(VISTOS|CONSIDERANDO|RESUELVO|TÉNGASE PRESENTE|NOTIF[IÍ]QUESE|RES[OÓ]LV[AÁ]SE|REG[IÍ]STRESE|RESOLUCI[OÓ]N\s+EXENTA|UNIVERSIDAD\s+DE\s+MAGALLANES|FISCAL[IÍ]A\s+UNIVERSITARIA|AN[OÓ]TESE)/i;
+
+        for (const raw of lines) {
+          const line = raw.replace(/\u00A0/g, ' ');
+          if (!line.trim()) {
+            children.push(new Paragraph({ children: [new TextRun({ text: '', font: FONT, size: SIZE })] }));
+            continue;
+          }
+          const isHeader = headerRe.test(line.trim()) && line.trim().length < 120;
+          children.push(new Paragraph({
+            alignment: isHeader ? AlignmentType.CENTER : AlignmentType.JUSTIFIED,
+            spacing: { before: isHeader ? 240 : 0, after: isHeader ? 120 : 60, line: LINE },
+            children: [new TextRun({
+              text: line,
+              font: FONT,
+              size: SIZE,
+              color: COLOR,
+              bold: !!isHeader,
+            })],
+          }));
+        }
+
+        const doc = new Document({
+          styles: {
+            default: { document: { run: { font: FONT, size: SIZE, color: COLOR } } },
+          },
+          sections: [{ ...sectionProps, children }],
+        });
+
+        const blob = await Packer.toBlob(doc);
+        const safeName = (m.name || 'plantilla').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_').slice(0, 60);
+        const today = new Date().toISOString().split('T')[0];
+        const filename = `${safeName}_${today}.docx`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+        toast('✓ ' + filename + ' descargado');
+      } catch (err) {
+        toast('⚠ Error generando Word: ' + (err.message || err));
+        console.error('[generateFromModel/docx]', err);
+      } finally {
+        $('gmDocx').textContent = '📄 Descargar Word';
+        $('gmDocx').disabled = false;
+      }
     };
 
     $('gmGo').onclick = async () => {
@@ -947,6 +1030,7 @@ GENERA: el documento final, listo para imprimir, basado en la plantilla y rellen
         $('gmGo').textContent = '🔄 Regenerar';
         $('gmGo').disabled = false;
         $('gmCopy').disabled = false;
+        $('gmDocx').disabled = false;
         toast('✓ Documento generado');
       } catch (err) {
         $('gmOutput').textContent = '⚠ Error: ' + (err.message || err);
