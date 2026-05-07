@@ -1191,6 +1191,688 @@ NOTIFÍQUESE al Fiscal/Investigador/a. REGÍSTRESE.
   },
 ];
 
+
+/* ══════════════════════════════════════════════════════════════
+   PLANTILLAS UMAG ESPECÍFICAS — FASE INDAGATORIA (extras)
+   Basadas en el listado institucional de Fiscalía Universitaria
+   ══════════════════════════════════════════════════════════════ */
+const PLANTILLAS_INDAGATORIA_DOCX = [
+
+  // Aceptación de cargo
+  {
+    code: 'MT-IND-33',
+    name: 'Aceptación de cargo',
+    desc: 'Resolución/acta donde el fiscal o investigador acepta el cargo encomendado',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+La Resolución Exenta N° {resolucion_instruye} de {fecha_resolucion_instruye}, que instruyó {tipo_procedimiento} y designó {calidad_fiscal} a {nombre_fiscal_investigador}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, por la resolución antes citada se me designó {calidad_fiscal} en el procedimiento referido.
+2° Que, no concurren a mi respecto causales de inhabilidad o implicancia conforme a {normativa_inhabilidad}.
+
+RESUELVO:
+ACÉPTASE el cargo de {calidad_fiscal} en el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}.
+Téngase por iniciada la tramitación del expediente.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Certificación de actuaria
+  {
+    code: 'MT-IND-34',
+    name: 'Certificación de actuaria',
+    desc: 'Certificación que emite el actuario/a sobre actuaciones del expediente',
+    applicableTo: ['SA','PD'],
+    structure: `CERTIFICACIÓN
+
+En {ciudad}, a {fecha}, el/la suscrito/a Actuario/a designado/a en el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, CERTIFICA:
+
+1° Que, {hecho_certificado}.
+2° Que, lo anterior consta en el expediente a fojas {numero_fojas}.
+
+Es cuanto puedo certificar.
+
+{nombre_actuaria}
+ACTUARIO/A
+{dependencia_actuaria}
+Universidad de Magallanes`
+  },
+
+  // Certificación de investigadora
+  {
+    code: 'MT-IND-35',
+    name: 'Certificación de investigadora/or',
+    desc: 'Certificación que emite el/la investigador/a en investigación sumaria',
+    applicableTo: ['IS'],
+    structure: `CERTIFICACIÓN
+
+En {ciudad}, a {fecha}, el/la suscrito/a Investigador/a Sumario/a designado/a en la Investigación Sumaria instruida por Resolución Exenta N° {resolucion_instruye}, CERTIFICA:
+
+1° Que, {hecho_certificado}.
+2° Que, lo anterior consta en el expediente a fojas {numero_fojas}.
+
+Es cuanto puedo certificar.
+
+{nombre_investigador}
+INVESTIGADOR/A SUMARIO/A
+{dependencia_investigador}
+Universidad de Magallanes`
+  },
+
+  // Notificación de medidas de protección
+  {
+    code: 'MT-IND-36',
+    name: 'Notificación medida de protección (denunciante / denunciado)',
+    desc: 'Acta de notificación de medidas de protección al denunciante o persona denunciada',
+    applicableTo: ['IS','SA','PD'],
+    structure: `ACTA DE NOTIFICACIÓN DE MEDIDA DE PROTECCIÓN
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_notificacion}, el/la suscrito/a {nombre_notificador}, en su calidad de {calidad_notificador}, procede a notificar a {nombre_notificado}, RUT {rut_notificado}, en su calidad de {rol_notificado} dentro del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, lo siguiente:
+
+1° Que, mediante Resolución Exenta N° {resolucion_medida} de {fecha_resolucion_medida}, se ha decretado a su respecto la siguiente medida de protección: {medida_protección}.
+2° Que, la medida tendrá una duración de {duracion_medida} y deberá cumplirse en los términos siguientes: {terminos_cumplimiento}.
+3° Que, el incumplimiento de esta medida puede dar lugar a la responsabilidad disciplinaria que corresponda, sin perjuicio de las demás sanciones aplicables.
+
+El/la notificado/a manifiesta: {observaciones_notificado}.
+
+Firmado en señal de notificación,
+
+{nombre_notificado}
+RUT {rut_notificado}
+
+{nombre_notificador}
+{calidad_notificador}
+Universidad de Magallanes`
+  },
+
+  // Acuerdo de alejamiento
+  {
+    code: 'MT-IND-37',
+    name: 'Acuerdo de alejamiento',
+    desc: 'Acta de acuerdo de alejamiento voluntario entre denunciante y denunciado',
+    applicableTo: ['IS','SA','PD'],
+    structure: `ACTA DE ACUERDO DE ALEJAMIENTO
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en dependencias de {lugar}, comparecen:
+
+DENUNCIANTE: {nombre_denunciante}, RUT {rut_denunciante}, {estamento_denunciante}, {dependencia_denunciante}.
+DENUNCIADO/A: {nombre_denunciado}, RUT {rut_denunciado}, {estamento_denunciado}, {dependencia_denunciado}.
+
+Ante el/la suscrito/a {nombre_fiscal_investigador}, en calidad de {calidad_fiscal} del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, las partes acuerdan voluntariamente lo siguiente:
+
+PRIMERO: La persona denunciada se compromete a abstenerse de toda forma de contacto directo o indirecto con la persona denunciante, en cualquier dependencia universitaria, espacio académico o medio digital institucional.
+
+SEGUNDO: El acuerdo regirá desde la fecha de su suscripción y mientras dure la tramitación del procedimiento, sin perjuicio de las medidas adicionales que la autoridad pueda decretar.
+
+TERCERO: El incumplimiento del presente acuerdo será considerado como agravante para los efectos del procedimiento disciplinario en curso.
+
+CUARTO: Las partes manifiestan haber comprendido los términos del presente acuerdo y lo suscriben en señal de conformidad.
+
+{nombre_denunciante}                                  {nombre_denunciado}
+RUT {rut_denunciante}                                 RUT {rut_denunciado}
+
+{firma}`
+  },
+
+  // Oficio comunica medida de protección
+  {
+    code: 'MT-IND-38',
+    name: 'Oficio comunica medida de protección',
+    desc: 'Oficio dirigido a unidad académica/laboral comunicando la medida de protección decretada',
+    applicableTo: ['IS','SA','PD'],
+    structure: `OFICIO N° {numero_oficio}/{año}
+
+ANT.: {tipo_procedimiento} ROL N° {rol_expediente}.
+MAT.: Comunica medida de protección.
+
+{ciudad}, {fecha}
+
+DE: {calidad_fiscal} {nombre_fiscal_investigador}, Universidad de Magallanes.
+A:  {jefatura_destinataria}, {dependencia_destinataria}, Universidad de Magallanes.
+
+En el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, se ha decretado mediante Resolución Exenta N° {resolucion_medida} de {fecha_resolucion_medida}, la siguiente medida de protección a favor de {nombre_protegido}: {medida_protección}.
+
+Por lo anterior, vengo a solicitar su colaboración para implementar las siguientes acciones operativas que aseguren el cumplimiento efectivo de la medida: {acciones_operativas_solicitadas}.
+
+Sin otro particular, le saluda atentamente.
+
+{firma}`
+  },
+
+  // Citación a ratificar denuncia (acta)
+  {
+    code: 'MT-IND-39',
+    name: 'Citación a ratificar denuncia',
+    desc: 'Acta o resolución que cita al denunciante a ratificar formalmente su denuncia',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+La denuncia formulada por {nombre_denunciante} con fecha {fecha_denuncia}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, conforme a {normativa_ratificacion}, corresponde citar al/la denunciante a ratificar formalmente su denuncia, fijando los hechos que la motivan.
+2° Que, debe asegurarse el debido emplazamiento.
+
+RESUELVO:
+CÍTESE a {nombre_denunciante}, RUT {rut_denunciante}, a ratificar su denuncia el día {fecha_citacion} a las {hora_citacion} horas, en {lugar_citacion}.
+
+Notifíquese al/la citado/a personalmente o por correo institucional, dejando constancia en el expediente.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Resolución cita a ratificar denuncia
+  {
+    code: 'MT-IND-40',
+    name: 'Resolución cita a ratificar denuncia (con copia digital del expediente)',
+    desc: 'Resolución que cita a ratificar denuncia y entrega copia digital de antecedentes',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+La denuncia formulada con fecha {fecha_denuncia}; la Resolución Exenta N° {resolucion_instruye}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, debe procederse a la ratificación de la denuncia conforme a {normativa_ratificacion}.
+2° Que, en garantía del debido proceso, corresponde poner a disposición de la persona denunciante copia digital del expediente.
+
+RESUELVO:
+1° CÍTESE a {nombre_denunciante}, RUT {rut_denunciante}, a ratificar su denuncia el día {fecha_citacion} a las {hora_citacion} horas, en {lugar_citacion}.
+2° REMÍTASE a la persona citada, vía correo institucional, copia digital del expediente conforme se encuentra a la fecha de esta resolución.
+3° INSTRÚYASE al/la actuario/a hacer entrega registrada de la copia, dejando constancia.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Consentimiento para grabación de entrevista
+  {
+    code: 'MT-IND-41',
+    name: 'Consentimiento para grabación de entrevista',
+    desc: 'Acta de consentimiento informado para grabar audio/video de la declaración',
+    applicableTo: ['IS','SA','PD'],
+    structure: `ACTA DE CONSENTIMIENTO INFORMADO PARA GRABACIÓN
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_entrevista}, comparece {nombre_compareciente}, RUT {rut_compareciente}, en calidad de {rol_compareciente} dentro del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, ante el/la suscrito/a {nombre_fiscal_investigador}, {calidad_fiscal}{actuario_presente}.
+
+Se le informa al/la compareciente:
+
+1° Que, su declaración será registrada en formato audio/audiovisual con el único objeto de garantizar la fidelidad del registro y facilitar su posterior transcripción.
+2° Que, la grabación será incorporada al expediente del {tipo_procedimiento} y custodiada conforme a la normativa universitaria sobre protección de datos personales y reserva del procedimiento.
+3° Que, podrá acceder al registro en cualquier momento del procedimiento para verificar la fidelidad de su declaración.
+4° Que, su consentimiento es voluntario y libre.
+
+Manifestando haber comprendido lo anterior, el/la compareciente declara:
+
+[ ] CONSIENTO en que mi declaración sea grabada en los términos señalados.
+[ ] NO CONSIENTO en la grabación de mi declaración.
+
+Observaciones: {observaciones_consentimiento}.
+
+Firmado en señal de conformidad,
+
+{nombre_compareciente}
+RUT {rut_compareciente}
+
+{firma}`
+  },
+
+  // Decreta medida de resguardo (Decreto 30/SU/2022 art. 136)
+  {
+    code: 'MT-IND-42',
+    name: 'Decreta medida de resguardo (D. 30/SU/2022)',
+    desc: 'Resolución que decreta medida de resguardo en casos Ley Karin / acoso',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+La denuncia presentada por {nombre_denunciante} de fecha {fecha_denuncia}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; el Decreto N° 30/SU/2022 que aprueba el Protocolo para Prevenir y Enfrentar Situaciones de Acoso Sexual, Violencia de Género y Discriminación de Género en la Universidad de Magallanes; y las facultades que me confiere dicha normativa.
+
+CONSIDERANDO:
+1° Que, los hechos denunciados configuran un caso de los previstos en el Decreto N° 30/SU/2022, exigiendo la adopción inmediata de medidas de resguardo a favor de la persona denunciante.
+2° Que, conforme al referido protocolo, las medidas de resguardo tienen por objeto proteger la integridad psíquica, física y dignidad de la persona afectada durante la tramitación del procedimiento.
+3° Que, ponderada la gravedad de los hechos denunciados y los antecedentes del expediente, resulta procedente decretar las siguientes medidas: {medidas_resguardo}.
+
+RESUELVO:
+DECRÉTANSE, en favor de {nombre_denunciante}, RUT {rut_denunciante}, las siguientes medidas de resguardo, conforme al Decreto N° 30/SU/2022:
+
+{listado_medidas}
+
+Las medidas tendrán vigencia mientras dure la tramitación del procedimiento, pudiendo ser modificadas o levantadas por resolución fundada según evolucione la investigación.
+
+NOTIFÍQUESE a las partes y a las dependencias institucionales que correspondan para su cumplimiento.
+
+REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Acta de declaración inculpado
+  {
+    code: 'MT-IND-43',
+    name: 'Acta de declaración persona denunciada (inculpado/a)',
+    desc: 'Acta formal de la declaración del inculpado/a',
+    applicableTo: ['IS','SA','PD'],
+    structure: `ACTA DE DECLARACIÓN DE PERSONA DENUNCIADA
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_declaracion}, comparece {nombre_inculpado}, RUT {rut_inculpado}, {estamento_inculpado}, {dependencia_inculpado}, en calidad de PERSONA DENUNCIADA dentro del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, ante el/la suscrito/a {nombre_fiscal_investigador}, {calidad_fiscal}{actuario_presente}.
+
+ADVERTENCIAS LEGALES:
+Se le informa al/la compareciente:
+1° Que se encuentra prestando declaración en su calidad de persona denunciada en el procedimiento individualizado.
+2° Que tiene derecho a declarar lo que estime pertinente para su defensa y a guardar silencio.
+3° Que la declaración se prestará bajo la fe de su firma.
+4° Que puede contar con asesoría letrada en cualquier momento del procedimiento.
+
+INTERROGATORIO:
+
+{cuerpo_declaracion}
+
+CIERRE:
+Leída que le fue su declaración, se ratifica y firma para constancia.
+
+{nombre_inculpado}
+RUT {rut_inculpado}
+
+{firma}{actuario_firma}`
+  },
+
+  // Acta de declaración testigo
+  {
+    code: 'MT-IND-44',
+    name: 'Acta de declaración de testigo',
+    desc: 'Acta formal de la declaración testimonial',
+    applicableTo: ['IS','SA','PD'],
+    structure: `ACTA DE DECLARACIÓN DE TESTIGO
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_declaracion}, comparece {nombre_testigo}, RUT {rut_testigo}, {estamento_testigo}, {dependencia_testigo}, en calidad de TESTIGO dentro del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, ante el/la suscrito/a {nombre_fiscal_investigador}, {calidad_fiscal}{actuario_presente}.
+
+INHABILIDADES Y JURAMENTO:
+Interrogado/a sobre causales de inhabilidad, manifiesta {declaracion_inhabilidades}.
+Se le toma juramento de decir verdad sobre lo que sabe y le sea preguntado.
+
+INTERROGATORIO:
+
+{cuerpo_declaracion}
+
+CIERRE:
+Leída que le fue su declaración, se ratifica y firma para constancia.
+
+{nombre_testigo}
+RUT {rut_testigo}
+
+{firma}{actuario_firma}`
+  },
+
+  // Resolución renuncia y nombra nueva actuaria
+  {
+    code: 'MT-IND-45',
+    name: 'Resolución renuncia y nombra nueva actuaria/o',
+    desc: 'Resolución que acepta renuncia del actuario/a y designa reemplazante',
+    applicableTo: ['SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+La presentación de {nombre_actuaria_saliente} de fecha {fecha_renuncia}, mediante la cual presenta su renuncia al cargo de Actuario/a en el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, la renuncia presentada se funda en {motivo_renuncia} y resulta procedente aceptar la misma.
+2° Que, corresponde designar un/a reemplazante para asegurar la continuidad del procedimiento.
+
+RESUELVO:
+1° ACÉPTASE la renuncia de {nombre_actuaria_saliente} al cargo de Actuario/a en el {tipo_procedimiento} ROL N° {rol_expediente}, desde la fecha de la presente resolución.
+2° DESIGNESE como nuevo/a Actuario/a a {nombre_actuaria_entrante}, RUT {rut_actuaria_entrante}, {dependencia_actuaria_entrante}.
+3° NOTIFÍQUESE a ambos/as funcionarios/as y a las partes del procedimiento.
+
+REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Medida para mejor resolver
+  {
+    code: 'MT-IND-46',
+    name: 'Medida para mejor resolver',
+    desc: 'Resolución que decreta diligencia para mejor resolver',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+El estado del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}; las diligencias practicadas; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, revisados los antecedentes, se advierte la necesidad de practicar diligencia adicional para el mejor esclarecimiento de los hechos: {diligencia_para_mejor_resolver}.
+2° Que, esta medida se decreta para asegurar una decisión fundada y completa.
+
+RESUELVO:
+DECRÉTASE como medida para mejor resolver: {detalle_diligencia}.
+
+Plazo para su cumplimiento: {plazo_cumplimiento} días hábiles desde la presente resolución.
+Designación de funcionario/a a cargo: {funcionario_responsable}.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Incorpora antecedentes laborales
+  {
+    code: 'MT-IND-47',
+    name: 'Incorpora antecedentes laborales',
+    desc: 'Resolución que incorpora al expediente antecedentes laborales del denunciado',
+    applicableTo: ['SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+El Oficio N° {numero_oficio_remisor} de {fecha_oficio_remisor}, mediante el cual {dependencia_remisora} remite los antecedentes laborales solicitados de {nombre_denunciado}; el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, los antecedentes remitidos resultan pertinentes para la investigación.
+2° Que, corresponde incorporarlos formalmente al expediente.
+
+RESUELVO:
+INCORPÓRENSE al expediente del presente {tipo_procedimiento} los siguientes antecedentes laborales de {nombre_denunciado}: {detalle_antecedentes}, los que se agregan a fojas {numero_fojas}.
+
+REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Resolución por cuestionario testigos
+  {
+    code: 'MT-IND-48',
+    name: 'Resolución declaración por cuestionario a testigos',
+    desc: 'Resolución que dispone tomar declaración a testigos vía cuestionario escrito',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+El {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, atendidas las circunstancias de {motivo_cuestionario}, resulta procedente recibir la declaración testimonial mediante cuestionario escrito.
+2° Que, esta modalidad permite el ejercicio del derecho a aportar prueba sin alterar la marcha de la investigación.
+
+RESUELVO:
+1° DISPÓNGASE que las declaraciones de los siguientes testigos se rendirán por cuestionario escrito: {listado_testigos}.
+2° APRUÉBASE el cuestionario que se adjunta a la presente resolución.
+3° REMÍTANSE los cuestionarios a los testigos individualizados, otorgándoseles plazo de {plazo_respuesta} días hábiles para responder, contados desde la notificación.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Oficio remite cuestionario a testigo
+  {
+    code: 'MT-IND-49',
+    name: 'Oficio remite cuestionario a testigo',
+    desc: 'Oficio que remite cuestionario al testigo individualizado',
+    applicableTo: ['IS','SA','PD'],
+    structure: `OFICIO RESERVADO N° {numero_oficio}/{año}
+
+ANT.: {tipo_procedimiento} ROL N° {rol_expediente}.
+MAT.: Solicita responder cuestionario en calidad de testigo.
+
+{ciudad}, {fecha}
+
+DE: {calidad_fiscal} {nombre_fiscal_investigador}, Universidad de Magallanes.
+A:  {nombre_testigo}, RUT {rut_testigo}.
+
+En el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, mediante Resolución Exenta N° {resolucion_cuestionario} de {fecha_resolucion_cuestionario}, se ha dispuesto recibir su declaración testimonial por cuestionario escrito.
+
+Por lo anterior, vengo a remitirle el cuestionario adjunto, solicitándole responder por escrito cada una de las preguntas, en el plazo de {plazo_respuesta} días hábiles contados desde la recepción del presente oficio.
+
+Las respuestas deberán ser remitidas a {correo_recepcion}, debidamente firmadas. Se le hace presente el deber de veracidad y la confidencialidad del procedimiento.
+
+Sin otro particular, le saluda atentamente.
+
+{firma}`
+  },
+
+  // Resolución incorpora respuestas testigos
+  {
+    code: 'MT-IND-50',
+    name: 'Resolución incorpora respuestas de testigos',
+    desc: 'Resolución que incorpora al expediente las respuestas escritas de testigos',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+Las respuestas remitidas por los siguientes testigos: {listado_testigos_respondieron}; el Oficio N° {numero_oficio_envio} de {fecha_oficio_envio}; el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, los testigos individualizados han remitido sus respuestas dentro del plazo otorgado.
+2° Que, corresponde incorporar dichas respuestas al expediente para su valoración.
+
+RESUELVO:
+INCORPÓRENSE al expediente del presente {tipo_procedimiento} las respuestas escritas remitidas por {listado_testigos_respondieron}, las que se agregan a fojas {numero_fojas}.
+
+Téngase por evacuada la diligencia testimonial dispuesta por Resolución Exenta N° {resolucion_cuestionario}.
+
+REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Acta de incorporación de antecedentes (correo / presencial)
+  {
+    code: 'MT-IND-51',
+    name: 'Incorpora antecedentes (correo electrónico)',
+    desc: 'Resolución que incorpora antecedentes remitidos por correo electrónico institucional',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+El correo electrónico de fecha {fecha_correo}, remitido por {remitente_correo} desde la dirección {direccion_correo}, mediante el cual se acompañan los siguientes antecedentes: {listado_antecedentes}; el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, los antecedentes remitidos resultan pertinentes para la investigación de los hechos.
+2° Que, corresponde incorporarlos formalmente al expediente, con identificación de su origen.
+
+RESUELVO:
+INCORPÓRENSE al expediente del presente {tipo_procedimiento} los antecedentes remitidos por correo electrónico de {fecha_correo} por {remitente_correo}, los que se agregan a fojas {numero_fojas} con la siguiente identificación: {detalle_antecedentes}.
+
+REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Certificado búsquedas frustradas
+  {
+    code: 'MT-IND-52',
+    name: 'Certificado de búsquedas frustradas',
+    desc: 'Certificación de que se intentó notificar/citar sin éxito al destinatario',
+    applicableTo: ['IS','SA','PD'],
+    structure: `CERTIFICACIÓN DE BÚSQUEDAS FRUSTRADAS
+
+En {ciudad}, a {fecha}, el/la suscrito/a {nombre_certificador}, en calidad de {calidad_certificador} en el {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, CERTIFICA:
+
+1° Que, con el objeto de notificar/citar a {nombre_destinatario}, RUT {rut_destinatario}, se realizaron las siguientes diligencias:
+   a) {diligencia_1}: {resultado_1}.
+   b) {diligencia_2}: {resultado_2}.
+   c) {diligencia_3}: {resultado_3}.
+2° Que, no obstante las diligencias practicadas, no fue posible obtener resultado positivo respecto del/la destinatario/a individualizado/a.
+3° Que, se acompañan al expediente los respaldos de las búsquedas (correos, capturas, oficios), los que constan a fojas {numero_fojas}.
+
+Es cuanto puedo certificar.
+
+{firma}`
+  },
+
+];
+
+/* ══════════════════════════════════════════════════════════════
+   PLANTILLAS UMAG ESPECÍFICAS — FASE DISCUSIÓN Y DEFENSA (extras)
+   ══════════════════════════════════════════════════════════════ */
+const PLANTILLAS_DISCUSION_DOCX = [
+
+  // Acta entrega información reservada
+  {
+    code: 'MT-DIS-13',
+    name: 'Acta de entrega de información reservada',
+    desc: 'Acta de entrega al inculpado de copia digital del expediente reservada',
+    applicableTo: ['IS','SA','PD'],
+    structure: `ACTA DE ENTREGA DE INFORMACIÓN RESERVADA
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_entrega}, el/la suscrito/a {nombre_entregador}, en calidad de {calidad_entregador} del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, hace entrega a {nombre_receptor}, RUT {rut_receptor}, en su calidad de {rol_receptor}, de la siguiente información reservada:
+
+{listado_informacion_entregada}
+
+Se le hace presente al/la receptor/a que:
+1° La información entregada se encuentra cubierta por el deber de reserva y confidencialidad inherente al procedimiento disciplinario.
+2° Su utilización indebida puede generar responsabilidades funcionarias y/o legales.
+3° La entrega se efectúa exclusivamente para el ejercicio del derecho a defensa dentro del procedimiento.
+
+El/la receptor/a manifiesta haber recibido la información en los términos descritos y se compromete al deber de reserva señalado.
+
+{nombre_receptor}                                  {nombre_entregador}
+RUT {rut_receptor}                                 {calidad_entregador}`
+  },
+
+  // Resolución amplía plazo descargos
+  {
+    code: 'MT-DIS-14',
+    name: 'Resolución amplía plazo para remitir descargos',
+    desc: 'Resolución que concede ampliación de plazo para presentar descargos',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+La solicitud de ampliación de plazo presentada por {nombre_inculpado} con fecha {fecha_solicitud}; la Resolución Exenta N° {resolucion_cargos} que formuló cargos; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, el plazo originalmente otorgado para la presentación de descargos vence con fecha {fecha_vencimiento_original}.
+2° Que, el/la inculpado/a ha solicitado ampliación de dicho plazo fundándose en {motivo_solicitud}.
+3° Que, los fundamentos invocados aparecen justificados, resultando procedente acceder a lo solicitado.
+
+RESUELVO:
+1° AMPLIESE el plazo para presentar descargos por {dias_ampliacion} días hábiles, los que se contarán desde el vencimiento del plazo original.
+2° REMÍTASE al/la inculpado/a copia digital actualizada del expediente, conforme a Resolución Exenta N° {resolucion_remision} si correspondiere.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Previo a proveer
+  {
+    code: 'MT-DIS-15',
+    name: 'Previo a proveer descargos',
+    desc: 'Resolución que ordena trámite previo antes de proveer descargos',
+    applicableTo: ['IS','SA','PD'],
+    structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
+
+{ciudad}, {fecha}
+
+VISTOS:
+Los descargos presentados por {nombre_inculpado} con fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_cargos}; y las facultades que me confiere {normativa_aplicable}.
+
+CONSIDERANDO:
+1° Que, examinados los descargos, se advierte la necesidad de un trámite previo a proveerlos.
+2° Que, corresponde {tramite_previo_descripcion} antes de continuar con la siguiente etapa procedimental.
+
+RESUELVO:
+PREVIO A PROVEER, {orden_previa}.
+Cumplido lo anterior, agréguese a los autos para los efectos legales correspondientes.
+
+NOTIFÍQUESE Y REGÍSTRESE.
+
+{firma}`
+  },
+
+  // Acta declaración testigo en término probatorio
+  {
+    code: 'MT-DIS-16',
+    name: 'Acta de declaración testigo en término probatorio',
+    desc: 'Acta de declaración testimonial rendida en período probatorio',
+    applicableTo: ['SA','PD'],
+    structure: `ACTA DE DECLARACIÓN DE TESTIGO EN TÉRMINO PROBATORIO
+
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_declaracion}, comparece {nombre_testigo}, RUT {rut_testigo}, {estamento_testigo}, en calidad de TESTIGO ofrecido en el término probatorio del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, ante el/la suscrito/a {nombre_fiscal_investigador}, {calidad_fiscal}{actuario_presente}.
+
+INHABILIDADES Y JURAMENTO:
+Interrogado/a sobre causales de inhabilidad, manifiesta {declaracion_inhabilidades}.
+Se le toma juramento de decir verdad sobre lo que sabe y le sea preguntado.
+
+CIRCUNSTANCIA EN QUE COMPARECE: {circunstancia_comparecencia}.
+
+INTERROGATORIO:
+
+{cuerpo_declaracion}
+
+CIERRE:
+Leída que le fue su declaración, se ratifica y firma para constancia.
+
+{nombre_testigo}
+RUT {rut_testigo}
+
+{firma}{actuario_firma}`
+  },
+
+  // Oficio remite expediente a jefatura
+  {
+    code: 'MT-DIS-17',
+    name: 'Oficio remite expediente a la jefatura institucional',
+    desc: 'Oficio remisorio del expediente a la autoridad llamada a fallar',
+    applicableTo: ['IS','SA','PD'],
+    structure: `OFICIO N° {numero_oficio}/{año}
+
+ANT.: {tipo_procedimiento} ROL N° {rol_expediente}.
+MAT.: Remite expediente con vista fiscal/informe final.
+
+{ciudad}, {fecha}
+
+DE: {calidad_fiscal} {nombre_fiscal_investigador}, Universidad de Magallanes.
+A:  {autoridad_destinataria}, Universidad de Magallanes.
+
+Cumpliendo con lo dispuesto en {normativa_remision}, vengo a remitir a usted el expediente del {tipo_procedimiento} de la referencia, instruido por Resolución Exenta N° {resolucion_instruye}, en el que ha recaído {tipo_documento_final} de fecha {fecha_documento_final}.
+
+Adjunto:
+1° Expediente físico/digital completo, foliado de fojas 1 a fojas {ultimas_fojas}.
+2° {tipo_documento_final} con propuesta de {propuesta_resolucion}.
+3° Demás antecedentes que sirvan a la decisión final.
+
+Se hace presente que las partes han sido debidamente emplazadas y que se han evacuado todos los trámites procedimentales correspondientes a la etapa instructora.
+
+Sin otro particular, le saluda atentamente.
+
+{firma}`
+  },
+
+];
+
 /* ══════════════════════════════════════════════════════════════
    REGISTRO GLOBAL + API
    ══════════════════════════════════════════════════════════════ */
@@ -1198,7 +1880,9 @@ NOTIFÍQUESE al Fiscal/Investigador/a. REGÍSTRESE.
 // Combinar todas las plantillas
 const ALL_MERO_TRAMITE = [
   ...PLANTILLAS_INDAGATORIA.map(p => ({ ...p, fase: 'indagatoria' })),
+  ...PLANTILLAS_INDAGATORIA_DOCX.map(p => ({ ...p, fase: 'indagatoria' })),
   ...PLANTILLAS_DISCUSION.map(p => ({ ...p, fase: 'discusion' })),
+  ...PLANTILLAS_DISCUSION_DOCX.map(p => ({ ...p, fase: 'discusion' })),
 ];
 
 // Reemplazar {firma} por el bloque de firma correcto según tipo de procedimiento
