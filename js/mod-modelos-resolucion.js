@@ -111,7 +111,12 @@
     if (/acta de entrevista/.test(n)) return 'acta_entrevista';
     if (/acta de notificacion/.test(n)) return 'acta_notificacion';
     if (/notificacion/.test(n)) return 'notificacion';
-    if (/acepta cargo|actuaria/.test(n)) return 'resolucion_acepta_cargo';
+    /* FIX 2026-05-06: certificacion ANTES de acepta_cargo para que
+       "CERTIFICACION ACTUARIA" no caiga en resolucion_acepta_cargo por la
+       coincidencia de "actuaria". El orden ahora favorece la categoría
+       más específica. */
+    if (/certificacion|certificado/.test(n)) return 'certificacion';
+    if (/acepta cargo|\bactuaria\b/.test(n)) return 'resolucion_acepta_cargo';
     if (/resolucion.*cita/.test(n)) return 'resolucion_cita_declarar';
     if (/medida.*resguardo|medida.*proteccion/.test(n)) return 'resolucion_medida_resguardo';
     if (/decreta.*diligencia|decreto.*diligencia|resolucion.*diligencia/.test(n)) return 'resolucion_decreta_diligencia';
@@ -121,7 +126,6 @@
     if (/cuestionario/.test(n)) return 'cuestionario';
     if (/constancia/.test(n)) return 'constancia';
     if (/consentimiento/.test(n)) return 'consentimiento';
-    if (/certificacion|certificado/.test(n)) return 'certificacion';
     if (/acuerdo.*alejamiento/.test(n)) return 'acuerdo_alejamiento';
     if (/formulacion.*cargos|pliego/.test(n)) return 'formulacion_cargos';
     if (/provee.*descargo/.test(n)) return 'provee_descargos';
