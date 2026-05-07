@@ -107,17 +107,21 @@
     { key: 'sin_clasificar',              label: 'Sin clasificar',              short: '?'  },
   ];
 
-  /* Categoriza un modelo en uno de los tabs:
-       - Si su procedure_type es uno de los 3 reales → ese tab
-       - Si procedure_type === 'ambos' → cuenta para los 3 reales
-       - Si su resolution_category === 'otro' o no hay procedure_type → sin_clasificar */
+  /* Categoriza un modelo en EXACTAMENTE uno de los tabs (mutuamente excluyentes):
+       - Sin procedure_type real, o resolution_category='otro', o sin categoría
+         → 'sin_clasificar' (necesita atención del usuario)
+       - procedure_type === 'ambos' → cuenta para los 3 reales (IS/SA/PD)
+       - procedure_type === uno de los 3 reales → ese tab
+     Un modelo 'otro' + 'investigacion_sumaria' va SOLO a Sin clasificar (no a IS),
+     para que el tab Sin clasificar sea una lista de cosas a corregir. */
   function modelMatchesTab(m, tabKey) {
     const proc = m.procedure_type;
     const cat  = m.resolution_category;
-    if (tabKey === 'sin_clasificar') {
-      const realProc = (proc === 'investigacion_sumaria' || proc === 'sumario_administrativo' || proc === 'procedimiento_disciplinario' || proc === 'ambos');
-      return !realProc || cat === 'otro' || !cat;
-    }
+    const realProc = (proc === 'investigacion_sumaria' || proc === 'sumario_administrativo' || proc === 'procedimiento_disciplinario' || proc === 'ambos');
+    const needsAttention = !realProc || cat === 'otro' || !cat;
+    if (tabKey === 'sin_clasificar') return needsAttention;
+    /* Tabs reales: solo si el modelo NO necesita atención */
+    if (needsAttention) return false;
     if (proc === tabKey) return true;
     if (proc === 'ambos') return true;
     return false;
