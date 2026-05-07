@@ -126,7 +126,7 @@ NOTIFÍQUESE personalmente al citado/a.
   // 4. Res. cita a declarar al inculpado
   {
     code: 'MT-IND-04',
-    name: 'Cita a declarar al inculpado/a',
+    name: 'Cita a declarar a la persona denunciada',
     desc: 'Citación formal al inculpado para prestar declaración indagatoria',
     applicableTo: ['IS','SA','PD'],
     structure: `RESOLUCIÓN EXENTA N° {numero_resolucion}
@@ -137,11 +137,11 @@ VISTOS:
 La Resolución Exenta N° {resolucion_instruye} de {fecha_resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
-1° Que, se requiere recibir la declaración de {nombre_inculpado}, en calidad de investigado/a, a fin de ejercer su derecho a ser oído/a en la etapa indagatoria.
+1° Que, se requiere recibir la declaración de {nombre_denunciado}, en calidad de investigado/a, a fin de ejercer su derecho a ser oído/a en la etapa indagatoria.
 2° Que, es necesario fijar día y hora para la comparecencia.
 
 RESUELVO:
-CÍTESE a {nombre_inculpado}, RUT {rut_inculpado}, {cargo_inculpado} de la {dependencia_inculpado}, a prestar declaración en calidad de investigado/a el día {fecha_citacion} a las {hora_citacion} horas, en {lugar_citacion}.
+CÍTESE a {nombre_denunciado}, RUT {rut_denunciado}, {cargo_inculpado} de la {dependencia_inculpado}, a prestar declaración en calidad de investigado/a el día {fecha_citacion} a las {hora_citacion} horas, en {lugar_citacion}.
 Se le hace presente que tiene derecho a asistir acompañado/a de un/a abogado/a.
 
 NOTIFÍQUESE personalmente al citado/a.
@@ -547,7 +547,7 @@ VISTOS:
 3.- Lo dispuesto en los artículos {articulos_aplicables} del {normativa_aplicable}.
 
 CONSIDERANDO:
-1° Que, de la investigación practicada se han reunido antecedentes suficientes para formular cargos contra {nombre_inculpado}, {cargo_inculpado} de {dependencia_inculpado}.
+1° Que, de la investigación practicada se han reunido antecedentes suficientes para formular cargos contra {nombre_denunciado}, {cargo_inculpado} de {dependencia_inculpado}.
 
 2° Que, los hechos acreditados son los siguientes:
 {hechos_acreditados}
@@ -556,7 +556,7 @@ CONSIDERANDO:
 {normas_infringidas}
 
 RESUELVO:
-FORMÚLANSE los siguientes cargos a {nombre_inculpado}, RUT {rut_inculpado}:
+FORMÚLANSE los siguientes cargos a {nombre_denunciado}, RUT {rut_denunciado}:
 
 CARGO PRIMERO: {cargo_primero}
 
@@ -891,11 +891,11 @@ VISTOS:
 La Resolución Exenta N° {resolucion_cargos} de {fecha_cargos} que formuló cargos; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
-1° Que, mediante la resolución citada se han formulado cargos contra {nombre_inculpado}.
+1° Que, mediante la resolución citada se han formulado cargos contra {nombre_denunciado}.
 2° Que, conforme al artículo {articulo_notificacion} del {normativa_aplicable}, corresponde notificar personalmente al inculpado/a.
 
 RESUELVO:
-NOTIFÍQUESE personalmente a {nombre_inculpado} la Resolución Exenta N° {resolucion_cargos} de {fecha_cargos} que formuló cargos en su contra.
+NOTIFÍQUESE personalmente a {nombre_denunciado} la Resolución Exenta N° {resolucion_cargos} de {fecha_cargos} que formuló cargos en su contra.
 Hágasele saber que dispone de un plazo de {plazo_descargos} días hábiles, contados desde la notificación, para presentar sus descargos y solicitar las diligencias probatorias que estime pertinentes.
 
 REGÍSTRESE.
@@ -914,14 +914,14 @@ REGÍSTRESE.
 {ciudad}, {fecha}
 
 VISTOS:
-La presentación de {nombre_inculpado} de fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_cargos} que formuló cargos; y las facultades que me confiere {normativa_aplicable}.
+La presentación de {nombre_denunciado} de fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_cargos} que formuló cargos; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
-1° Que, con fecha {fecha_descargos}, {nombre_inculpado} ha presentado sus descargos dentro del plazo legal.
+1° Que, con fecha {fecha_descargos}, {nombre_denunciado} ha presentado sus descargos dentro del plazo legal.
 2° Que, en su escrito de descargos solicita las siguientes diligencias probatorias: {diligencias_solicitadas}.
 
 RESUELVO:
-1° TÉNGANSE por presentados los descargos de {nombre_inculpado}, los que se agregan al expediente a fojas {fojas}.
+1° TÉNGANSE por presentados los descargos de {nombre_denunciado}, los que se agregan al expediente a fojas {fojas}.
 2° En cuanto a las diligencias probatorias solicitadas: {decision_diligencias}.
 
 NOTIFÍQUESE al inculpado/a. REGÍSTRESE.
@@ -943,12 +943,12 @@ VISTOS:
 La Resolución Exenta N° {resolucion_cargos} de {fecha_cargos} que formuló cargos; la notificación practicada el {fecha_notificacion}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
-1° Que, los cargos fueron notificados a {nombre_inculpado} con fecha {fecha_notificacion}.
+1° Que, los cargos fueron notificados a {nombre_denunciado} con fecha {fecha_notificacion}.
 2° Que, el plazo de {plazo_descargos} días hábiles para presentar descargos venció el {fecha_vencimiento_descargos}.
 3° Que, a la fecha de la presente resolución, el/la inculpado/a no ha presentado descargos.
 
 RESUELVO:
-DECLÁRASE la REBELDÍA de {nombre_inculpado} por no haber presentado descargos dentro del plazo legal.
+DECLÁRASE la REBELDÍA de {nombre_denunciado} por no haber presentado descargos dentro del plazo legal.
 PROCÉDASE con el procedimiento conforme a derecho.
 
 NOTIFÍQUESE. REGÍSTRESE.
@@ -967,7 +967,7 @@ NOTIFÍQUESE. REGÍSTRESE.
 {ciudad}, {fecha}
 
 VISTOS:
-Los descargos presentados por {nombre_inculpado}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
+Los descargos presentados por {nombre_denunciado}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
 1° Que, el/la inculpado/a ha solicitado la práctica de diligencias probatorias en su escrito de descargos.
@@ -994,7 +994,7 @@ NOTIFÍQUESE al inculpado/a. REGÍSTRESE.
 {ciudad}, {fecha}
 
 VISTOS:
-Los descargos de {nombre_inculpado} de fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
+Los descargos de {nombre_denunciado} de fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
 1° Que, en su escrito de descargos, el/la inculpado/a solicita las siguientes diligencias probatorias:
@@ -1100,7 +1100,7 @@ NOTIFÍQUESE. REGÍSTRESE.
 {ciudad}, {fecha}
 
 VISTOS:
-Los descargos de {nombre_inculpado}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
+Los descargos de {nombre_denunciado}; la Resolución Exenta N° {resolucion_instruye} que instruyó {tipo_procedimiento}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
 1° Que, en sus descargos el/la inculpado/a ha solicitado {diligencia_solicitada}.
@@ -1151,7 +1151,7 @@ REGÍSTRESE.
 
 En {ciudad}, a {fecha}, el/la suscrito/a CERTIFICA:
 
-1° Que, la Resolución Exenta N° {resolucion_cargos} que formuló cargos fue notificada a {nombre_inculpado} con fecha {fecha_notificacion_cargos}.
+1° Que, la Resolución Exenta N° {resolucion_cargos} que formuló cargos fue notificada a {nombre_denunciado} con fecha {fecha_notificacion_cargos}.
 2° Que, el plazo de {plazo_descargos} días hábiles para presentar descargos venció el {fecha_vencimiento}.
 3° Que, a la fecha de la presente certificación, el/la inculpado/a {presento_o_no} descargos{fecha_descargos_si_presento}.
 
@@ -1472,7 +1472,7 @@ REGÍSTRESE.
     applicableTo: ['IS','SA','PD'],
     structure: `ACTA DE DECLARACIÓN DE PERSONA DENUNCIADA
 
-En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_declaracion}, comparece {nombre_inculpado}, RUT {rut_inculpado}, {estamento_inculpado}, {dependencia_inculpado}, en calidad de PERSONA DENUNCIADA dentro del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, ante el/la suscrito/a {nombre_fiscal_investigador}, {calidad_fiscal}{actuario_presente}.
+En {ciudad}, a {fecha}, siendo las {hora} horas, en {lugar_declaracion}, comparece {nombre_denunciado}, RUT {rut_denunciado}, {estamento_inculpado}, {dependencia_inculpado}, en calidad de PERSONA DENUNCIADA dentro del {tipo_procedimiento} instruido por Resolución Exenta N° {resolucion_instruye}, ante el/la suscrito/a {nombre_fiscal_investigador}, {calidad_fiscal}{actuario_presente}.
 
 ADVERTENCIAS LEGALES:
 Se le informa al/la compareciente:
@@ -1488,8 +1488,8 @@ INTERROGATORIO:
 CIERRE:
 Leída que le fue su declaración, se ratifica y firma para constancia.
 
-{nombre_inculpado}
-RUT {rut_inculpado}
+{nombre_denunciado}
+RUT {rut_denunciado}
 
 {firma}{actuario_firma}`
   },
@@ -1770,7 +1770,7 @@ RUT {rut_receptor}                                 {calidad_entregador}`
 {ciudad}, {fecha}
 
 VISTOS:
-La solicitud de ampliación de plazo presentada por {nombre_inculpado} con fecha {fecha_solicitud}; la Resolución Exenta N° {resolucion_cargos} que formuló cargos; y las facultades que me confiere {normativa_aplicable}.
+La solicitud de ampliación de plazo presentada por {nombre_denunciado} con fecha {fecha_solicitud}; la Resolución Exenta N° {resolucion_cargos} que formuló cargos; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
 1° Que, el plazo originalmente otorgado para la presentación de descargos vence con fecha {fecha_vencimiento_original}.
@@ -1797,7 +1797,7 @@ NOTIFÍQUESE Y REGÍSTRESE.
 {ciudad}, {fecha}
 
 VISTOS:
-Los descargos presentados por {nombre_inculpado} con fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_cargos}; y las facultades que me confiere {normativa_aplicable}.
+Los descargos presentados por {nombre_denunciado} con fecha {fecha_descargos}; la Resolución Exenta N° {resolucion_cargos}; y las facultades que me confiere {normativa_aplicable}.
 
 CONSIDERANDO:
 1° Que, examinados los descargos, se advierte la necesidad de un trámite previo a proveerlos.
