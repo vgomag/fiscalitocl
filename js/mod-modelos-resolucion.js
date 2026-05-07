@@ -567,6 +567,7 @@
                     style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:3px 6px;border-radius:var(--radius-sm);font-size:10.5px;font-family:var(--font-body);outline:none;max-width:170px">
               ${procSelectOptions}
             </select>
+            <button class="btn-sm" onclick="window.ModelosResolucion._generateFromModel('${m.id}')" title="Generar este documento llenado con los datos del expediente actual" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:3px 8px;border-radius:var(--radius-sm);font-size:10.5px;font-weight:600;cursor:pointer">🪄 Generar</button>
             <button class="btn-del" onclick="window.ModelosResolucion._deleteModel('${m.id}')" title="Eliminar">🗑</button>
           </div>
         </div>
@@ -790,6 +791,172 @@
     if (typeof window.loadModelCounts === 'function') window.loadModelCounts();
   }
 
+  /* ── Generar resolución llenada con datos del caso ──
+     Toma el extracted_text del modelo como plantilla, lo combina con los
+     datos del caso actual, y llama a Claude para producir la versión final
+     con todos los campos rellenados. Resultado en modal con copy/download. */
+  async function generateFromModel(modelId) {
+    const all = [...state.models, ...state.globalModels];
+    const m = all.find(x => x.id === modelId);
+    if (!m) { toast('⚠ Modelo no encontrado'); return; }
+    if (!m.extracted_text || m.extracted_text.length < 50) {
+      toast('⚠ Este modelo no tiene texto suficiente para usar como plantilla'); return;
+    }
+
+    /* Datos del caso actual */
+    const caso = (typeof window.currentCase === 'object' && window.currentCase) || null;
+    if (!caso) { toast('⚠ Abre un caso antes de generar'); return; }
+
+    const sb_ = (typeof sb !== 'undefined') ? sb : window.sb;
+    const session_ = (typeof session !== 'undefined') ? session : window.session;
+    const fetcher_ = (typeof authFetch === 'function') ? authFetch : (window.authFetch || fetch);
+    const endpoint = (typeof CHAT_ENDPOINT !== 'undefined') ? CHAT_ENDPOINT : '/.netlify/functions/chat';
+
+    /* Abrir modal con preview + botón "Generar" */
+    const ovId = '__genModelOverlay';
+    document.getElementById(ovId)?.remove();
+    const ov = document.createElement('div');
+    ov.id = ovId;
+    ov.innerHTML = `
+      <style>
+        #${ovId}{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+        #${ovId} .gm-card{background:#fff;border-radius:12px;width:min(820px,94vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+        #${ovId} .gm-head{padding:14px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:12px}
+        #${ovId} .gm-title{font-size:14px;font-weight:700;color:#111}
+        #${ovId} .gm-x{cursor:pointer;font-size:18px;color:#888;background:none;border:0;padding:0 4px}
+        #${ovId} .gm-body{padding:14px 20px;overflow:auto;flex:1;font-size:12.5px;color:#333;line-height:1.55}
+        #${ovId} .gm-info{background:#f5f5f7;padding:10px 12px;border-radius:8px;margin-bottom:10px;font-size:12px;color:#555}
+        #${ovId} .gm-output{font-family:ui-monospace,monospace;font-size:11.5px;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;white-space:pre-wrap;word-wrap:break-word;line-height:1.6;max-height:50vh;overflow:auto;color:#222}
+        #${ovId} .gm-foot{padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end}
+        #${ovId} .gm-btn{padding:8px 14px;border-radius:6px;border:0;cursor:pointer;font-weight:600;font-size:12px;font-family:inherit}
+        #${ovId} .gm-btn-pri{background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff}
+        #${ovId} .gm-btn-pri:disabled{background:#9ca3af;cursor:not-allowed}
+        #${ovId} .gm-btn-sec{background:#f5f5f7;color:#111}
+        #${ovId} .gm-spinner{display:inline-block;width:14px;height:14px;border:2px solid #ddd;border-top-color:#7c3aed;border-radius:50%;animation:gm-spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+        @keyframes gm-spin{to{transform:rotate(360deg)}}
+      </style>
+      <div class="gm-card">
+        <div class="gm-head">
+          <div>
+            <div class="gm-title">🪄 Generar: ${safeEsc(m.name)}</div>
+            <div style="font-size:11px;color:#888;margin-top:2px">${safeEsc(CATEGORIES[m.resolution_category]||m.resolution_category)} · ${safeEsc(PROCEDURE_TYPES[m.procedure_type]||m.procedure_type)}</div>
+          </div>
+          <button class="gm-x" id="gmClose">✕</button>
+        </div>
+        <div class="gm-body">
+          <div class="gm-info">
+            <strong>Caso vinculado:</strong> ${safeEsc(caso.name||'(sin nombre)')} ${caso.tipo_procedimiento?` · ${safeEsc(caso.tipo_procedimiento)}`:''}
+            <br><span style="font-size:11px;color:#666">Claude tomará esta plantilla y la llenará con los datos del expediente. La plantilla original queda intacta en tu biblioteca.</span>
+          </div>
+          <div id="gmOutput" class="gm-output">Pulsa "Generar" para que Claude llene la plantilla con los datos del caso…</div>
+        </div>
+        <div class="gm-foot">
+          <button class="gm-btn gm-btn-sec" id="gmCopy" disabled>📋 Copiar</button>
+          <button class="gm-btn gm-btn-sec" id="gmCancel">Cerrar</button>
+          <button class="gm-btn gm-btn-pri" id="gmGo">Generar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+
+    const $ = id => document.getElementById(id);
+    $('gmClose').onclick = () => ov.remove();
+    $('gmCancel').onclick = () => ov.remove();
+
+    let generatedText = '';
+
+    $('gmCopy').onclick = async () => {
+      if (!generatedText) return;
+      try { await navigator.clipboard.writeText(generatedText); toast('✓ Copiado al portapapeles'); }
+      catch (e) { toast('⚠ No se pudo copiar: ' + e.message); }
+    };
+
+    $('gmGo').onclick = async () => {
+      $('gmGo').disabled = true;
+      $('gmGo').innerHTML = '<span class="gm-spinner"></span>Generando…';
+      $('gmOutput').textContent = 'Esperando respuesta de Claude…';
+
+      try {
+        /* Construir el contexto del caso de forma compacta */
+        const ctx = [];
+        const f = (k, v) => { if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)) ctx.push(`- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`); };
+        f('Expediente', caso.name);
+        f('ROL', caso.rol);
+        f('Carátula', caso.caratula);
+        f('Resolución que instruye', caso.nueva_resolucion);
+        f('Tipo de procedimiento', caso.tipo_procedimiento);
+        f('Materia', caso.materia);
+        f('Protocolo', caso.protocolo);
+        f('Fecha denuncia', caso.fecha_denuncia);
+        f('Fecha recepción fiscalía', caso.fecha_recepcion_fiscalia);
+        f('Denunciante(s)', caso.denunciantes);
+        f('Estamento denunciante', caso.estamentos_denunciante);
+        f('Carrera/Dep. denunciante', caso.carrera_denunciante);
+        f('Denunciado(s)', caso.denunciados);
+        f('Estamento denunciado', caso.estamentos_denunciado);
+        f('Carrera/Dep. denunciado', caso.carrera_denunciado);
+        f('Medida cautelar', caso.medida_cautelar);
+        f('Estado', caso.status);
+        f('Resultado', caso.resultado);
+
+        const system = `Eres un asistente jurídico experto en derecho administrativo disciplinario chileno, específicamente en procedimientos disciplinarios universitarios de la Universidad de Magallanes (UMAG).
+
+Tu tarea: tomar la plantilla institucional que te entrego y producir el documento final completo, llenando todos los placeholders y campos genéricos con los datos REALES del expediente que también te paso.
+
+REGLAS:
+1. Replica EXACTAMENTE el formato, encabezados, fórmulas legales, estructura de párrafos y estilo institucional de la plantilla.
+2. Reemplaza placeholders como {nombre_X}, [NOMBRE], [FECHA], _____, datos genéricos de ejemplo, etc., con los datos reales del expediente.
+3. Si un dato necesario NO está en el expediente, déjalo como [VERIFICAR: <descripción>] entre corchetes para que la fiscala lo complete a mano. NO inventes datos.
+4. Conserva todas las referencias normativas y citas a decretos/leyes que aparezcan en la plantilla.
+5. Devuelve SOLO el texto del documento final (sin markdown, sin comentarios, sin "Aquí está el documento", sin backticks). Texto plano listo para copiar.
+6. Mantén el lenguaje formal e institucional. No uses lenguaje valorativo ni opiniones.
+7. Las fechas en formato chileno: "DD de MMMM de AAAA" o "DD-MM-AAAA" según aparezca en la plantilla.`;
+
+        const user = `══════════════════════════════════════════
+PLANTILLA INSTITUCIONAL (de la biblioteca de modelos):
+══════════════════════════════════════════
+${m.extracted_text}
+
+══════════════════════════════════════════
+DATOS DEL EXPEDIENTE A USAR:
+══════════════════════════════════════════
+${ctx.join('\n')}
+
+══════════════════════════════════════════
+GENERA: el documento final, listo para imprimir, basado en la plantilla y rellenado con los datos del expediente. Texto plano, sin markdown.`;
+
+        const res = await fetcher_(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: (typeof CLAUDE_SONNET !== 'undefined') ? CLAUDE_SONNET : 'claude-sonnet-4-20250514',
+            max_tokens: 8000,
+            system,
+            messages: [{ role: 'user', content: user }],
+          }),
+        });
+        if (!res.ok) {
+          const t = await res.text().catch(()=>'');
+          throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+        }
+        const data = await res.json();
+        generatedText = data?.content?.[0]?.text || '';
+        if (!generatedText) throw new Error('Respuesta vacía de Claude');
+
+        $('gmOutput').textContent = generatedText;
+        $('gmGo').textContent = '🔄 Regenerar';
+        $('gmGo').disabled = false;
+        $('gmCopy').disabled = false;
+        toast('✓ Documento generado');
+      } catch (err) {
+        $('gmOutput').textContent = '⚠ Error: ' + (err.message || err);
+        $('gmGo').textContent = 'Reintentar';
+        $('gmGo').disabled = false;
+        toast('⚠ ' + (err.message || 'Error generando'));
+      }
+    };
+  }
+
   async function classifyAI() {
     const otros = state.models.filter(m => m.resolution_category === 'otro');
     if (!otros.length) {
@@ -930,6 +1097,7 @@
     _deleteModel:     deleteModel,
     _handleFiles:     handleFiles,
     _classifyAI:      classifyAI,
+    _generateFromModel: generateFromModel,
     _onDragEnter:     onDragEnter,
     _onDragOver:      onDragOver,
     _onDragLeave:     onDragLeave,
