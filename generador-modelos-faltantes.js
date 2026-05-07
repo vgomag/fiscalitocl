@@ -40,12 +40,27 @@
 (async function generadorModelosFaltantes() {
   'use strict';
 
-  /* ── 0. PRE-CHECKS ─────────────────────────────────────────── */
-  if (!window.sb || !window.session) {
-    alert('⚠ Tienes que estar logueado/a en la app antes de correr este script.');
+  /* ── 0. PRE-CHECKS ───────────────────────────────────────────
+     Las variables sb/session/currentCase/allCases viven en el
+     scope del script principal (let/const), no en window. Desde
+     la consola de DevTools sí están en scope. Usamos typeof para
+     evitar ReferenceError si el script se corre fuera de la app. */
+  let _sb, _session, _currentCase, _allCases, _authFetch;
+  try {
+    _sb          = (typeof sb !== 'undefined') ? sb : (window.sb || null);
+    _session     = (typeof session !== 'undefined') ? session : (window.session || null);
+    _currentCase = (typeof currentCase !== 'undefined') ? currentCase : (window.currentCase || null);
+    _allCases    = (typeof allCases !== 'undefined') ? allCases : (window.allCases || []);
+    _authFetch   = (typeof authFetch === 'function') ? authFetch : (window.authFetch || fetch);
+  } catch (e) {
+    alert('⚠ Pega este script en la consola de la app Fiscalito (DevTools → Console). No funciona en otra página.');
     return;
   }
-  if (!window.currentCase || !window.currentCase.id) {
+  if (!_sb || !_session) {
+    alert('⚠ Tienes que estar logueado/a en la app Fiscalito antes de correr este script.');
+    return;
+  }
+  if (!_currentCase || !_currentCase.id) {
     if (!confirm('⚠ No hay un caso abierto. Los modelos generados se asociarán al primer caso activo de tu lista. ¿Continuar?')) return;
   }
 
@@ -92,12 +107,12 @@
   const MAX_REF_MODELS = 6;      // ejemplos de estilo por prompt
   const MAX_REF_CHARS = 2500;    // chars por ejemplo
 
-  const sb = window.sb;
-  const session = window.session;
+  const sb = _sb;
+  const session = _session;
   const uid = session.user.id;
-  const fetcher = (typeof window.authFetch === 'function') ? window.authFetch : fetch;
-  const targetCaseId = (window.currentCase && window.currentCase.id)
-    || (Array.isArray(window.allCases) && window.allCases[0]?.id);
+  const fetcher = _authFetch;
+  const targetCaseId = (_currentCase && _currentCase.id)
+    || (Array.isArray(_allCases) && _allCases[0]?.id);
   if (!targetCaseId) {
     alert('⚠ No se encontró ningún caso para asociar los modelos. Crea o abre un caso primero.');
     return;
