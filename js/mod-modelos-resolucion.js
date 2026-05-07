@@ -82,7 +82,46 @@
     searchText: '',        // texto de búsqueda (nombre + contenido)
     expandedId: null,      // id de modelo expandido (preview)
     dragOver: false,       // estado visual del dropzone
+    activeTab: null,       // tab procedure_type activo: investigacion_sumaria | sumario_administrativo | procedimiento_disciplinario | sin_clasificar
+    expandedCats: {},      // { catKey: bool } — categorías expandidas en acordeón
   };
+
+  /* ── Mapeo: cases.tipo_procedimiento (string) → procedure_type (key) ──
+     Cases guarda el string completo ("Investigación Sumaria"); los modelos
+     usan keys snake_case. Esta función normaliza ambos para comparar. */
+  function caseProcedureToKey(s) {
+    if (!s) return null;
+    const n = String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (/procedimiento\s+disciplinario|disciplinario\s+estudiantil/.test(n)) return 'procedimiento_disciplinario';
+    if (/sumario\s+administrativo|^sumario$/.test(n)) return 'sumario_administrativo';
+    if (/investigacion\s+sumaria|^is$/.test(n)) return 'investigacion_sumaria';
+    return null;
+  }
+
+  /* Tabs visibles en orden fijo. 'sin_clasificar' = catch-all para modelos
+     sin procedure_type válido o con resolution_category='otro'. */
+  const TABS = [
+    { key: 'investigacion_sumaria',       label: 'Investigación Sumaria',       short: 'IS' },
+    { key: 'sumario_administrativo',      label: 'Sumario Administrativo',      short: 'SA' },
+    { key: 'procedimiento_disciplinario', label: 'Procedimiento Disciplinario', short: 'PD' },
+    { key: 'sin_clasificar',              label: 'Sin clasificar',              short: '?'  },
+  ];
+
+  /* Categoriza un modelo en uno de los tabs:
+       - Si su procedure_type es uno de los 3 reales → ese tab
+       - Si procedure_type === 'ambos' → cuenta para los 3 reales
+       - Si su resolution_category === 'otro' o no hay procedure_type → sin_clasificar */
+  function modelMatchesTab(m, tabKey) {
+    const proc = m.procedure_type;
+    const cat  = m.resolution_category;
+    if (tabKey === 'sin_clasificar') {
+      const realProc = (proc === 'investigacion_sumaria' || proc === 'sumario_administrativo' || proc === 'procedimiento_disciplinario' || proc === 'ambos');
+      return !realProc || cat === 'otro' || !cat;
+    }
+    if (proc === tabKey) return true;
+    if (proc === 'ambos') return true;
+    return false;
+  }
 
   /* ────────────────────────────────────────────────────────
      HELPERS HTML / DOM
@@ -236,6 +275,15 @@
       state.models = models;
       state.globalModels = globalModels;
       state.loading = false;
+
+      /* Auto-seleccionar tab según el tipo del caso actual.
+         Si ya hay un activeTab definido por el usuario en esta sesión, respetarlo. */
+      if (!state.activeTab) {
+        const caso = (typeof window.currentCase === 'object' && window.currentCase) ||
+                     (Array.isArray(window.allCases) ? window.allCases.find(c => c.id === caseId) : null);
+        const autoKey = caseProcedureToKey(caso?.tipo_procedimiento);
+        state.activeTab = autoKey || 'investigacion_sumaria';
+      }
       renderUI();
     } catch (err) {
       console.error('[modelos-resolucion] render error:', err);
@@ -267,25 +315,160 @@
     });
   }
 
+  /* ── Cuenta modelos que matchean cada tab (sobre el array dado) ── */
+  function countByTab(arr) {
+    const counts = {};
+    for (const t of TABS) counts[t.key] = 0;
+    for (const m of (arr || [])) {
+      for (const t of TABS) {
+        if (modelMatchesTab(m, t.key)) counts[t.key]++;
+      }
+    }
+    return counts;
+  }
+
+  /* ── Filtra modelos por tab activo + búsqueda + categoría secundaria ── */
+  function filterForActiveTab(arr) {
+    const q = normForSearch(state.searchText);
+    const tabKey = state.activeTab;
+    return (arr || []).filter(m => {
+      if (!modelMatchesTab(m, tabKey)) return false;
+      if (state.filterCategory !== 'all' && (m.resolution_category || 'otro') !== state.filterCategory) return false;
+      if (q) {
+        const hay = normForSearch((m.name || '') + ' ' + (m.file_name || '') + ' ' + (m.extracted_text || ''));
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  /* ── Agrupa modelos por categoría manteniendo el orden de CATEGORIES ── */
+  function groupByCategory(arr) {
+    const groups = {};
+    for (const m of (arr || [])) {
+      const k = m.resolution_category || 'otro';
+      (groups[k] = groups[k] || []).push(m);
+    }
+    /* Ordenar las categorías según el orden definido en CATEGORIES */
+    const ordered = [];
+    for (const k of Object.keys(CATEGORIES)) {
+      if (groups[k] && groups[k].length) ordered.push([k, groups[k]]);
+    }
+    /* Categorías no estándar al final */
+    for (const k of Object.keys(groups)) {
+      if (!CATEGORIES[k]) ordered.push([k, groups[k]]);
+    }
+    return ordered;
+  }
+
   function renderUI() {
     const all = state.models;
     const otros = countOtros(all);
-    const cats = uniqueCategories(all);
 
-    const filtered = applyFilters(all);
-    const filteredGlobals = applyFilters(state.globalModels);
+    /* Conteos por tab para los badges */
+    const localCounts  = countByTab(all);
+    const globalCounts = countByTab(state.globalModels);
 
-    const filterHTML = cats.length > 1 ? `
+    /* Modelos del tab activo (caso actual + opcionalmente, modelos globales del mismo tab) */
+    const filteredLocal  = filterForActiveTab(all);
+    const filteredGlobal = filterForActiveTab(state.globalModels);
+
+    /* Categorías presentes en el tab activo (para el filtro secundario) */
+    const catsInTab = new Set();
+    for (const m of [...filteredLocal, ...filteredGlobal]) {
+      catsInTab.add(m.resolution_category || 'otro');
+    }
+    const catsArr = [...catsInTab];
+
+    /* Drag-over visual */
+    const dropOver = state.dragOver;
+
+    /* ── Tabs HTML ── */
+    const tabsHTML = `
+      <div class="case-models-tabs" role="tablist" style="display:flex;gap:4px;margin-bottom:10px;border-bottom:1px solid var(--border);padding:0 4px;flex-wrap:wrap">
+        ${TABS.map(t => {
+          const local = localCounts[t.key] || 0;
+          const global = globalCounts[t.key] || 0;
+          const active = state.activeTab === t.key;
+          const total = local + global;
+          const dim = (total === 0);
+          return `
+            <button role="tab"
+                    aria-selected="${active}"
+                    onclick="window.ModelosResolucion._setTab('${t.key}')"
+                    title="${safeEsc(t.label)} — ${local} en este caso${global ? ` · ${global} en otros casos` : ''}"
+                    style="background:none;border:none;border-bottom:2px solid ${active ? 'var(--gold)' : 'transparent'};padding:8px 12px;font-size:12px;font-weight:${active ? '700' : '500'};color:${active ? 'var(--gold)' : (dim ? 'var(--text-muted)' : 'var(--text-dim)')};cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:6px">
+              <span>${safeEsc(t.label)}</span>
+              <span style="font-size:10px;background:${active ? 'var(--gold-glow2)' : 'var(--surface3)'};color:${active ? 'var(--gold)' : 'var(--text-muted)'};padding:1px 6px;border-radius:99px;min-width:18px;text-align:center">${local}${global ? `+${global}` : ''}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    /* ── Filtro de categoría (solo si hay > 1 categorías en el tab activo) ── */
+    const filterHTML = catsArr.length > 1 ? `
       <select class="case-models-filter"
               onchange="window.ModelosResolucion._setFilter(this.value)"
               style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:var(--radius);font-size:11px;font-family:var(--font-body);outline:none;">
-        <option value="all" ${state.filterCategory === 'all' ? 'selected' : ''}>Todas las categorías (${all.length})</option>
-        ${cats.map(c => `<option value="${safeEsc(c)}" ${state.filterCategory === c ? 'selected' : ''}>${safeEsc(CATEGORIES[c] || c)}</option>`).join('')}
+        <option value="all" ${state.filterCategory === 'all' ? 'selected' : ''}>Todas las categorías (${filteredLocal.length + filteredGlobal.length})</option>
+        ${catsArr.map(c => `<option value="${safeEsc(c)}" ${state.filterCategory === c ? 'selected' : ''}>${safeEsc(CATEGORIES[c] || c)}</option>`).join('')}
       </select>
     ` : '';
 
-    /* Drag-over visual: borde resaltado + cambio de mensaje en el dropzone */
-    const dropOver = state.dragOver;
+    /* ── Contenido del tab activo: agrupado por categoría con acordeón ── */
+    const groupsLocal  = groupByCategory(filteredLocal);
+    const groupsGlobal = groupByCategory(filteredGlobal);
+    const allGroups = new Map();
+    for (const [k, arr] of groupsLocal)  allGroups.set(k, { local: arr, global: [] });
+    for (const [k, arr] of groupsGlobal) {
+      if (allGroups.has(k)) allGroups.get(k).global = arr;
+      else allGroups.set(k, { local: [], global: arr });
+    }
+
+    const tabLabel = (TABS.find(t => t.key === state.activeTab) || {}).label || '';
+    const contentHTML = (filteredLocal.length + filteredGlobal.length) === 0 ? `
+      <div class="empty-state" style="padding:30px 14px;text-align:center;color:var(--text-muted);font-size:12.5px;background:var(--surface);border:1px dashed var(--border2);border-radius:var(--radius)">
+        🗂️ ${state.searchText
+          ? `Ningún modelo en "${safeEsc(tabLabel)}" coincide con tu búsqueda.`
+          : `Sin modelos en "${safeEsc(tabLabel)}" todavía.`}<br>
+        <span style="font-size:11px">${state.searchText ? '' : 'Sube modelos arriba o cambia de pestaña.'}</span>
+      </div>
+    ` : `
+      <div class="case-models-groups" style="display:flex;flex-direction:column;gap:6px">
+        ${[...allGroups.entries()].map(([catKey, grp]) => {
+          const catLabel = CATEGORIES[catKey] || catKey;
+          const localCount  = grp.local.length;
+          const globalCount = grp.global.length;
+          const total = localCount + globalCount;
+          /* Por defecto abierto si hay ≤2 categorías o ≤4 modelos en el grupo */
+          const userExpanded = state.expandedCats[catKey];
+          const defaultOpen = (allGroups.size <= 2) || (total <= 4);
+          const isOpen = (userExpanded === undefined) ? defaultOpen : userExpanded;
+          return `
+            <div class="case-model-group" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+              <div onclick="window.ModelosResolucion._toggleCat('${catKey}')"
+                   style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;background:var(--surface2);border-bottom:${isOpen?'1px solid var(--border)':'none'};user-select:none">
+                <span style="font-size:11px;color:var(--text-muted);transition:transform .15s;display:inline-block;${isOpen ? 'transform:rotate(90deg)' : ''}">▶</span>
+                <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${safeEsc(catLabel)}</span>
+                <span style="font-size:10px;color:var(--text-muted);background:var(--surface3);padding:1px 6px;border-radius:99px">
+                  ${localCount}${globalCount ? ` · 🔗${globalCount}` : ''}
+                </span>
+              </div>
+              ${isOpen ? `
+                <div style="padding:6px;display:flex;flex-direction:column;gap:4px">
+                  ${grp.local.map(m => renderModelCard(m, false)).join('')}
+                  ${grp.global.length ? `
+                    <div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 4px 2px;font-weight:600">🔗 De otros casos</div>
+                    ${grp.global.map(m => renderModelCard(m, true)).join('')}
+                  ` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
 
     state.container.innerHTML = `
       <div class="case-models-wrap" id="caseModelsWrap"
@@ -299,11 +482,10 @@
           <div style="display:flex;flex-direction:column;gap:2px">
             <div style="font-size:13px;font-weight:600;color:var(--text)">🧩 Modelos de Resolución del caso</div>
             <div style="font-size:11px;color:var(--text-muted)">
-              <strong>${all.length}</strong> modelo${all.length === 1 ? '' : 's'} ·
-              ${all.filter(m => m.is_global).length} compartido${all.filter(m => m.is_global).length === 1 ? '' : 's'} entre casos ·
+              <strong>${all.length}</strong> en este caso ·
+              ${all.filter(m => m.is_global).length} compartido${all.filter(m => m.is_global).length === 1 ? '' : 's'} ·
               ${totalChars(all).toLocaleString('es-CL')} chars
-              ${state.globalModels.length ? ` · ${state.globalModels.length} de otros casos disponibles` : ''}
-              ${state.searchText ? ` · ${filtered.length + filteredGlobals.length} coinciden con "${safeEsc(state.searchText)}"` : ''}
+              ${state.globalModels.length ? ` · <strong>${state.globalModels.length}</strong> de otros casos` : ''}
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -320,37 +502,18 @@
           </div>
         </div>
 
+        ${tabsHTML}
+
         <!-- Dropzone (siempre visible para sugerir drag&drop) -->
         <div class="case-models-dropzone"
-             style="padding:14px;text-align:center;border:2px dashed ${dropOver ? 'var(--gold)' : 'var(--border2)'};background:${dropOver ? 'var(--gold-glow)' : 'transparent'};border-radius:var(--radius);margin-bottom:10px;font-size:11.5px;color:${dropOver ? 'var(--gold)' : 'var(--text-muted)'};transition:all .15s;pointer-events:none">
+             style="padding:10px 14px;text-align:center;border:2px dashed ${dropOver ? 'var(--gold)' : 'var(--border2)'};background:${dropOver ? 'var(--gold-glow)' : 'transparent'};border-radius:var(--radius);margin-bottom:10px;font-size:11px;color:${dropOver ? 'var(--gold)' : 'var(--text-muted)'};transition:all .15s;pointer-events:none">
           ${dropOver ? '⬇️ Suelta los archivos aquí' : '📥 También puedes arrastrar archivos .docx / .txt aquí'}
         </div>
 
         <!-- Progreso de carga -->
         <div id="caseModelsProgress" style="display:none;padding:8px 14px;background:var(--gold-glow);border:1px solid var(--gold-dim);border-radius:var(--radius);margin-bottom:10px;font-size:12px;color:var(--gold-dim)"></div>
 
-        <!-- Lista del caso -->
-        ${filtered.length === 0 ? `
-          <div class="empty-state" style="padding:30px 14px;text-align:center;color:var(--text-muted);font-size:12.5px;background:var(--surface);border:1px dashed var(--border2);border-radius:var(--radius)">
-            🗂️ ${state.searchText ? 'Ningún modelo del caso coincide con tu búsqueda.' : `Sin modelos en este caso${state.filterCategory !== 'all' ? ' para esa categoría' : ''}.`}<br>
-            <span style="font-size:11px">${state.searchText ? '' : 'Sube resoluciones, actas, oficios u otras actuaciones de casos anteriores. El agente las usará como referencia de estilo en cualquier caso similar.'}</span>
-          </div>
-        ` : `
-          <div class="case-models-list" style="display:flex;flex-direction:column;gap:6px">
-            ${filtered.map(m => renderModelCard(m, false)).join('')}
-          </div>
-        `}
-
-        ${state.globalModels.length ? `
-          <details style="margin-top:14px" ${(filteredGlobals.length <= 5) ? 'open' : ''}>
-            <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);padding:8px 4px;letter-spacing:.05em;text-transform:uppercase;font-weight:600">
-              🔗 Tus modelos globales (de otros casos · ${filteredGlobals.length}${filteredGlobals.length !== state.globalModels.length ? ' de ' + state.globalModels.length : ''})
-            </summary>
-            <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
-              ${filteredGlobals.length === 0 ? '<div style="font-size:11px;color:var(--text-muted);padding:8px">Ningún modelo global coincide con tu búsqueda.</div>' : filteredGlobals.map(m => renderModelCard(m, true)).join('')}
-            </div>
-          </details>
-        ` : ''}
+        ${contentHTML}
       </div>
     `;
   }
@@ -416,6 +579,22 @@
   /* ────────────────────────────────────────────────────────
      ACCIONES (handlers globales bajo window.ModelosResolucion)
      ──────────────────────────────────────────────────────── */
+  function setTab(tabKey) {
+    if (!TABS.find(t => t.key === tabKey)) return;
+    state.activeTab = tabKey;
+    /* Reset el filtro de categoría al cambiar de tab — porque las
+       categorías presentes pueden no coincidir entre tabs. */
+    state.filterCategory = 'all';
+    renderUI();
+  }
+
+  function toggleCat(catKey) {
+    const cur = state.expandedCats[catKey];
+    if (cur === undefined) state.expandedCats[catKey] = false;
+    else state.expandedCats[catKey] = !cur;
+    renderUI();
+  }
+
   function setFilter(value) {
     state.filterCategory = value || 'all';
     renderUI();
@@ -737,6 +916,8 @@
     CATEGORIES,
     PROCEDURE_TYPES,
     // Handlers internos (usados por onclick/onchange)
+    _setTab:          setTab,
+    _toggleCat:       toggleCat,
     _setFilter:       setFilter,
     _setSearch:       setSearch,
     _toggleExpand:    toggleExpand,
